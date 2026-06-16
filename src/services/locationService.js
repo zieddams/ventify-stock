@@ -1,5 +1,17 @@
 import * as Location from 'expo-location'
 
+const TUNISIA_BOUNDS = {
+  minLatitude: 30,
+  maxLatitude: 37.6,
+  minLongitude: 7,
+  maxLongitude: 11.8,
+}
+
+const ANDROID_EMULATOR_DEFAULT = {
+  latitude: 37.4219983,
+  longitude: -122.084,
+}
+
 export async function getForegroundPermission() {
   return Location.getForegroundPermissionsAsync()
 }
@@ -32,9 +44,48 @@ export async function watchLocation(onUpdate) {
   )
 }
 
+function getCoords(location) {
+  return location?.coords ?? location ?? null
+}
+
+export function isTunisiaCoordinate(latitude, longitude) {
+  const lat = Number(latitude)
+  const lng = Number(longitude)
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return false
+  }
+
+  return lat >= TUNISIA_BOUNDS.minLatitude
+    && lat <= TUNISIA_BOUNDS.maxLatitude
+    && lng >= TUNISIA_BOUNDS.minLongitude
+    && lng <= TUNISIA_BOUNDS.maxLongitude
+}
+
+export function getLocationValidationMessage(location) {
+  const coords = getCoords(location)
+  if (!Number.isFinite(coords?.latitude) || !Number.isFinite(coords?.longitude)) {
+    return 'Position GPS invalide ou non capturee.'
+  }
+
+  if (isTunisiaCoordinate(coords.latitude, coords.longitude)) {
+    return null
+  }
+
+  const emulatorDefaultMatch = Math.abs(coords.latitude - ANDROID_EMULATOR_DEFAULT.latitude) < 0.01
+    && Math.abs(coords.longitude - ANDROID_EMULATOR_DEFAULT.longitude) < 0.01
+
+  if (emulatorDefaultMatch) {
+    return 'L emulateur utilise encore la position Android par defaut. Definissez une position en Tunisie.'
+  }
+
+  return 'Position recue hors Tunisie. Verifiez les coordonnees GPS ou la position de l emulateur.'
+}
+
 export function mapLocationToPayload(location) {
-  const coords = location?.coords ?? location
+  const coords = getCoords(location)
   if (!Number.isFinite(coords?.latitude) || !Number.isFinite(coords?.longitude)) return null
+  if (!isTunisiaCoordinate(coords.latitude, coords.longitude)) return null
 
   return {
     latitude: coords.latitude,

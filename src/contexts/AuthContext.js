@@ -2,6 +2,7 @@ import { AppState } from 'react-native'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import api, { clearToken, getToken, saveToken } from '../services/api'
 import {
+  getLocationValidationMessage,
   getCurrentLocation,
   getForegroundPermission,
   mapLocationToPayload,
@@ -35,7 +36,7 @@ export function AuthProvider({ children }) {
 
   const capturePresenceLocation = useCallback(async (shouldRequest = false) => {
     if (!['admin', 'developer', 'rep'].includes(user?.role)) {
-      return null
+      return { payload: null, issue: null }
     }
 
     try {
@@ -44,25 +45,28 @@ export function AuthProvider({ children }) {
         : await getForegroundPermission()
 
       if (permission.status !== 'granted') {
-        return null
+        return { payload: null, issue: null }
       }
 
       const location = await getCurrentLocation()
-      return mapLocationToPayload(location)
+      return {
+        payload: mapLocationToPayload(location),
+        issue: getLocationValidationMessage(location),
+      }
     } catch {
-      return null
+      return { payload: null, issue: null }
     }
   }, [user?.role])
 
   const sendSessionReport = useCallback(async (reason = 'active') => {
     try {
-      const location = await capturePresenceLocation(reason === 'login' || reason === 'resume')
-      await reportSession(location)
+      const { payload, issue } = await capturePresenceLocation(reason === 'login' || reason === 'resume')
+      await reportSession(payload)
       setSessionStatus((prev) => ({
         ...prev,
         state: reason,
         lastReportAt: new Date().toISOString(),
-        error: null,
+        error: issue,
       }))
     } catch (error) {
       setSessionStatus((prev) => ({
@@ -74,13 +78,13 @@ export function AuthProvider({ children }) {
 
   const sendSessionPing = useCallback(async () => {
     try {
-      const location = await capturePresenceLocation(false)
-      await pingSession(location)
+      const { payload, issue } = await capturePresenceLocation(false)
+      await pingSession(payload)
       setSessionStatus((prev) => ({
         ...prev,
         state: 'ping',
         lastPingAt: new Date().toISOString(),
-        error: null,
+        error: issue,
       }))
     } catch (error) {
       setSessionStatus((prev) => ({

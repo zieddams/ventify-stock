@@ -77,6 +77,13 @@ export default function ProfileScreen() {
           <Text style={s.infoLabel}>Dernier offline</Text>
           <Text style={s.infoValue}>{formatDateTime(sessionStatus.lastOfflineAt)}</Text>
         </View>
+
+        {!!sessionStatus.error && (
+          <View style={s.noticeWarning}>
+            <MaterialCommunityIcons name="crosshairs-question" size={18} color={T.warning} />
+            <Text style={s.noticeWarningText}>{sessionStatus.error}</Text>
+          </View>
+        )}
       </View>
 
       <View style={[s.sectionCard, cardShadow]}>

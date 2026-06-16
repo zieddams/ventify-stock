@@ -20,6 +20,7 @@ import {
 } from '../services/routeSessionService'
 import {
   distanceBetweenMeters,
+  getLocationValidationMessage,
   getCurrentLocation,
   getForegroundPermission,
   mapLocationToPayload,
@@ -101,7 +102,13 @@ export function TrackingProvider({ children }) {
     if (!activeSession?.id) return null
 
     const payload = mapLocationToPayload(location)
-    if (!payload) return null
+    if (!payload) {
+      setTrackingState((prev) => ({
+        ...prev,
+        error: getLocationValidationMessage(location) || 'Position GPS invalide.',
+      }))
+      return null
+    }
 
     const now = Date.now()
     const tooSoon = now - lastSentRef.current.at < 45000
@@ -159,6 +166,14 @@ export function TrackingProvider({ children }) {
     try {
       const location = await getCurrentLocation()
       setCurrentLocation(location)
+      const locationIssue = getLocationValidationMessage(location)
+      if (locationIssue) {
+        setTrackingState((prev) => ({
+          ...prev,
+          error: locationIssue,
+        }))
+        return location
+      }
       if ((targetSession || session)?.id) {
         await uploadLocation(location, reason, targetSession)
       }
