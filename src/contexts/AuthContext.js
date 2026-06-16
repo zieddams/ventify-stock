@@ -111,16 +111,23 @@ export function AuthProvider({ children }) {
     let mounted = true
 
     ;(async () => {
-      const token = await getToken()
-      if (!token) {
-        if (mounted) setLoading(false)
-        return
-      }
-
       try {
-        await refreshUser()
+        const token = await getToken()
+        if (!token) {
+          if (mounted) setUser(null)
+          return
+        }
+
+        try {
+          await refreshUser()
+        } catch {
+          await clearToken()
+          if (mounted) setUser(null)
+        }
       } catch {
-        await clearToken()
+        try {
+          await clearToken()
+        } catch {}
         if (mounted) setUser(null)
       } finally {
         if (mounted) setLoading(false)

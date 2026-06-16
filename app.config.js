@@ -12,6 +12,7 @@ module.exports = {
   },
   android: {
     package: 'com.ventify.stock',
+    versionCode: 2,
     adaptiveIcon: {
       backgroundColor: '#0d9488',
       foregroundImage: './assets/android-icon-foreground.png',
