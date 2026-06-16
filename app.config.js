@@ -1,7 +1,7 @@
 module.exports = {
   name: 'El Irtiwaa',
   slug: 'ventify-stock',
-  version: '1.1.0',
+  version: '1.2.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
@@ -31,6 +31,7 @@ module.exports = {
   plugins: [
     'expo-secure-store',
     'expo-font',
+    'expo-sharing',
   ],
   extra: {
     apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL || 'https://irtiwaa.ziedtech.com/api/v1',

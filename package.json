@@ -1,6 +1,6 @@
 {
   "name": "ventify-stock",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "main": "expo/AppEntry",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -12,7 +12,9 @@
     "expo-constants": "~56.0.18",
     "expo-font": "~56.0.7",
     "expo-location": "~56.0.18",
+    "expo-print": "~56.0.4",
     "expo-secure-store": "~56.0.4",
+    "expo-sharing": "~56.0.18",
     "expo-status-bar": "~56.0.4",
     "react": "19.2.3",
     "react-native": "0.85.3",

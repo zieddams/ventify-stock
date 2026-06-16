@@ -1,6 +1,12 @@
 import { AppState } from 'react-native'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import api, { clearToken, getToken, saveToken } from '../services/api'
+import {
+  getCurrentLocation,
+  getForegroundPermission,
+  mapLocationToPayload,
+  requestForegroundPermission,
+} from '../services/locationService'
 import { markSessionOffline, pingSession, reportSession } from '../services/sessionService'
 
 const AuthContext = createContext(null)
@@ -27,9 +33,31 @@ export function AuthProvider({ children }) {
     return response.data
   }, [])
 
+  const capturePresenceLocation = useCallback(async (shouldRequest = false) => {
+    if (!['admin', 'developer', 'rep'].includes(user?.role)) {
+      return null
+    }
+
+    try {
+      const permission = shouldRequest
+        ? await requestForegroundPermission()
+        : await getForegroundPermission()
+
+      if (permission.status !== 'granted') {
+        return null
+      }
+
+      const location = await getCurrentLocation()
+      return mapLocationToPayload(location)
+    } catch {
+      return null
+    }
+  }, [user?.role])
+
   const sendSessionReport = useCallback(async (reason = 'active') => {
     try {
-      await reportSession()
+      const location = await capturePresenceLocation(reason === 'login' || reason === 'resume')
+      await reportSession(location)
       setSessionStatus((prev) => ({
         ...prev,
         state: reason,
@@ -42,11 +70,12 @@ export function AuthProvider({ children }) {
         error: error.response?.data?.message || error.message || 'Presence indisponible.',
       }))
     }
-  }, [])
+  }, [capturePresenceLocation])
 
   const sendSessionPing = useCallback(async () => {
     try {
-      await pingSession()
+      const location = await capturePresenceLocation(false)
+      await pingSession(location)
       setSessionStatus((prev) => ({
         ...prev,
         state: 'ping',
@@ -59,7 +88,7 @@ export function AuthProvider({ children }) {
         error: error.response?.data?.message || error.message || 'Heartbeat indisponible.',
       }))
     }
-  }, [])
+  }, [capturePresenceLocation])
 
   const sendSessionOffline = useCallback(async (reason = 'offline') => {
     try {

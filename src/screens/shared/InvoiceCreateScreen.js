@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -36,12 +36,14 @@ function sanitizeNumber(value) {
   return value.replace(/[^0-9.]/g, '')
 }
 
-export default function InvoiceCreateScreen({ navigation }) {
+export default function InvoiceCreateScreen({ navigation, route }) {
+  const { initialCustomer = null } = route?.params ?? {}
   const {
     session,
     captureCurrentLocation,
     refreshSessionDetails,
   } = useTracking()
+  const initialCustomerAppliedRef = useRef(false)
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -99,6 +101,24 @@ export default function InvoiceCreateScreen({ navigation }) {
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  useEffect(() => {
+    if (initialCustomerAppliedRef.current || !initialCustomer) {
+      return
+    }
+
+    const matched = customers.find((item) => String(item.id) === String(initialCustomer.id))
+    if (matched) {
+      setSelectedCustomer(matched)
+      initialCustomerAppliedRef.current = true
+      return
+    }
+
+    if (!loading) {
+      setSelectedCustomer(initialCustomer)
+      initialCustomerAppliedRef.current = true
+    }
+  }, [customers, initialCustomer, loading])
 
   const filteredCustomers = useMemo(() => {
     const q = customerQuery.trim().toLowerCase()
@@ -304,6 +324,9 @@ export default function InvoiceCreateScreen({ navigation }) {
                 <Text style={s.customerName}>{selectedCustomer.name}</Text>
                 <Text style={s.customerMeta}>{selectedCustomer.phone || 'Sans numero'}</Text>
                 <Text style={s.customerMeta}>{selectedCustomer.address || 'Adresse non renseignee'}</Text>
+                {selectedCustomer.owner?.name && (
+                  <Text style={s.customerMeta}>Affecte: {selectedCustomer.owner.name}</Text>
+                )}
               </View>
             )}
           </View>
@@ -472,6 +495,7 @@ export default function InvoiceCreateScreen({ navigation }) {
                 <Text style={s.modalTitle}>{item.name}</Text>
                 <Text style={s.modalMeta}>{item.phone || 'Sans numero'}</Text>
                 <Text style={s.modalMeta}>{item.address || 'Adresse non renseignee'}</Text>
+                {item.owner?.name && <Text style={s.modalMeta}>Affecte: {item.owner.name}</Text>}
               </TouchableOpacity>
             ))}
           </ScrollView>

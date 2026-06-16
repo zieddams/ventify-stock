@@ -29,22 +29,24 @@ function getDevicePayload() {
       ? `Android ${Platform.Version}`
       : `${Platform.OS} ${Platform.Version}`,
     api_level: Platform.OS === 'android' ? Number(Platform.Version) : null,
-    app_version: Constants.expoConfig?.version || '1.1.0',
+    app_version: Constants.expoConfig?.version || '1.2.0',
     locale,
     timezone,
     screen_res: `${Math.round(width)}x${Math.round(height)}`,
   }
 }
 
-export async function reportSession() {
-  return api.post('/sessions/report', getDevicePayload())
+export async function reportSession(location = null) {
+  return api.post('/sessions/report', {
+    ...getDevicePayload(),
+    ...(location ?? {}),
+  })
 }
 
-export async function pingSession() {
-  return api.post('/sessions/ping')
+export async function pingSession(location = null) {
+  return api.post('/sessions/ping', location ?? {})
 }
 
 export async function markSessionOffline() {
   return api.post('/sessions/offline')
 }
-

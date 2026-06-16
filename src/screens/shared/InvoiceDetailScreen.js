@@ -1,10 +1,12 @@
 import { useCallback, useState } from 'react'
 import {
   ActivityIndicator,
+  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native'
 import { useFocusEffect } from '@react-navigation/native'
@@ -12,6 +14,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import StatusChip from '../../components/StatusChip'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
+import { printInvoiceDocument, shareInvoiceDocument } from '../../utils/invoicePrint'
 import {
   formatCurrency,
   formatDateTime,
@@ -25,6 +28,8 @@ export default function InvoiceDetailScreen({ route }) {
   const [invoice, setInvoice] = useState(initialInvoice ?? null)
   const [loading, setLoading] = useState(!initialInvoice)
   const [refreshing, setRefreshing] = useState(false)
+  const [printing, setPrinting] = useState(false)
+  const [sharing, setSharing] = useState(false)
 
   const load = useCallback(async (isRefresh = false) => {
     if (!id) return
@@ -56,6 +61,32 @@ export default function InvoiceDetailScreen({ route }) {
   const invoiceStatus = unwrapStatus(invoice?.status)
   const paymentStatus = unwrapStatus(invoice?.payment_status)
 
+  const handlePrint = async () => {
+    if (!invoice) return
+
+    setPrinting(true)
+    try {
+      await printInvoiceDocument(invoice)
+    } catch (error) {
+      Alert.alert('Impression impossible', error.message || 'Veuillez reessayer.')
+    } finally {
+      setPrinting(false)
+    }
+  }
+
+  const handleShare = async () => {
+    if (!invoice) return
+
+    setSharing(true)
+    try {
+      await shareInvoiceDocument(invoice)
+    } catch (error) {
+      Alert.alert('Partage impossible', error.message || 'Veuillez reessayer.')
+    } finally {
+      setSharing(false)
+    }
+  }
+
   return (
     <ScrollView
       style={s.root}
@@ -74,6 +105,28 @@ export default function InvoiceDetailScreen({ route }) {
             label={paymentStatusLabel(paymentStatus)}
             tone={paymentStatus === 'paid' ? 'success' : paymentStatus === 'partial' ? 'warning' : 'danger'}
           />
+        </View>
+        <View style={s.heroActions}>
+          <TouchableOpacity style={s.heroActionButton} onPress={handlePrint} disabled={printing}>
+            {printing ? (
+              <ActivityIndicator size="small" color={T.primary} />
+            ) : (
+              <>
+                <MaterialCommunityIcons name="printer-outline" size={16} color={T.primary} />
+                <Text style={s.heroActionLabel}>Imprimer</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity style={s.heroActionButton} onPress={handleShare} disabled={sharing}>
+            {sharing ? (
+              <ActivityIndicator size="small" color={T.primary} />
+            ) : (
+              <>
+                <MaterialCommunityIcons name="share-variant-outline" size={16} color={T.primary} />
+                <Text style={s.heroActionLabel}>PDF</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -197,6 +250,28 @@ const s = StyleSheet.create({
     gap: 8,
     flexWrap: 'wrap',
     marginTop: 14,
+  },
+  heroActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
+  },
+  heroActionButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: T.surfaceAlt,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  heroActionLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: T.primary,
   },
   sectionCard: {
     borderRadius: 22,

@@ -6,6 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useAuth } from '../contexts/AuthContext'
 import LoginScreen from '../screens/auth/LoginScreen'
 import DashboardScreen from '../screens/main/DashboardScreen'
+import CustomersScreen from '../screens/main/CustomersScreen'
 import InvoicesScreen from '../screens/main/InvoicesScreen'
 import CamionScreen from '../screens/main/CamionScreen'
 import RouteSessionScreen from '../screens/main/RouteSessionScreen'
@@ -49,6 +50,7 @@ function RepTabs() {
         tabBarIcon: ({ color, focused }) => {
           const icons = {
             Accueil: focused ? 'view-dashboard' : 'view-dashboard-outline',
+            Clients: focused ? 'account-group' : 'account-group-outline',
             Factures: focused ? 'file-document-multiple' : 'file-document-multiple-outline',
             Camion: focused ? 'truck-fast' : 'truck-fast-outline',
             Session: focused ? 'map-marker-path' : 'map-marker-path',
@@ -58,6 +60,7 @@ function RepTabs() {
         },
       })}>
       <Tab.Screen name="Accueil" component={DashboardScreen} options={{ title: 'Accueil' }} />
+      <Tab.Screen name="Clients" component={CustomersScreen} options={{ title: 'Clients' }} />
       <Tab.Screen name="Factures" component={InvoicesScreen} options={{ title: 'Factures' }} />
       <Tab.Screen name="Camion" component={CamionScreen} options={{ title: 'Mon camion' }} />
       <Tab.Screen name="Session" component={RouteSessionScreen} options={{ title: 'Session & GPS' }} />
@@ -89,6 +92,7 @@ function StaffTabs() {
         tabBarIcon: ({ color, focused }) => {
           const icons = {
             Accueil: focused ? 'chart-box' : 'chart-box-outline',
+            Clients: focused ? 'account-group' : 'account-group-outline',
             Factures: focused ? 'file-document-multiple' : 'file-document-multiple-outline',
             Compte: focused ? 'account-cog' : 'account-cog-outline',
           }
@@ -97,6 +101,7 @@ function StaffTabs() {
         },
       })}>
       <Tab.Screen name="Accueil" component={DashboardScreen} options={{ title: 'Pilotage' }} />
+      <Tab.Screen name="Clients" component={CustomersScreen} options={{ title: 'Clients' }} />
       <Tab.Screen name="Factures" component={InvoicesScreen} options={{ title: 'Factures' }} />
       <Tab.Screen name="Compte" component={ProfileScreen} options={{ title: 'Compte' }} />
     </Tab.Navigator>
