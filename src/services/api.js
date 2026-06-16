@@ -1,7 +1,9 @@
 import axios from 'axios'
+import Constants from 'expo-constants'
 import * as SecureStore from 'expo-secure-store'
 
-const BASE_URL = 'https://irtiwaa.ziedtech.com/api/v1'
+const extra = Constants.expoConfig?.extra ?? {}
+const BASE_URL = extra.apiBaseUrl || process.env.EXPO_PUBLIC_API_BASE_URL || 'https://irtiwaa.ziedtech.com/api/v1'
 const TOKEN_KEY = 'irtiwaa_token'
 
 export const api = axios.create({

@@ -1,3 +1,4 @@
+import 'react-native-gesture-handler'
 import { StatusBar } from 'expo-status-bar'
 import { AuthProvider } from './src/contexts/AuthContext'
 import AppNavigator from './src/navigation/AppNavigator'

@@ -30,12 +30,16 @@ export default function CamionScreen() {
   useEffect(() => { load() }, [load])
 
   const renderItem = ({ item }) => {
-    const isLow = item.qty < 5
+    const minStock = Number(item.product?.min_stock ?? 0)
+    const isLow = minStock > 0 ? Number(item.qty) <= minStock : Number(item.qty) < 5
     return (
       <View style={[s.row, isLow && s.rowLow]}>
         <View style={s.rowLeft}>
           <Text style={s.rowName}>{item.product?.name ?? '—'}</Text>
-          <Text style={s.rowUnit}>{item.product?.unit ?? ''}</Text>
+          <Text style={s.rowUnit}>
+            {item.product?.unit ?? ''}
+            {minStock > 0 ? ` · min ${fmt(minStock)}` : ''}
+          </Text>
         </View>
         <View style={[s.badge, isLow ? s.badgeLow : s.badgeOk]}>
           <Text style={[s.badgeText, isLow ? { color: T.amber } : { color: T.teal }]}>
@@ -61,7 +65,12 @@ export default function CamionScreen() {
         </View>
         <View style={s.summaryItem}>
           <Text style={s.summaryLabel}>Stock bas</Text>
-          <Text style={[s.summaryValue, { color: T.amber }]}>{stock.filter(i => i.qty < 5).length}</Text>
+        <Text style={[s.summaryValue, { color: T.amber }]}>
+          {stock.filter(i => {
+            const minStock = Number(i.product?.min_stock ?? 0)
+            return minStock > 0 ? Number(i.qty) <= minStock : Number(i.qty) < 5
+          }).length}
+        </Text>
         </View>
         <View style={s.summaryItem}>
           <Text style={s.summaryLabel}>Valeur estimée</Text>
