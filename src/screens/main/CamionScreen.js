@@ -1,116 +1,256 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
-  View, Text, FlatList, StyleSheet, RefreshControl, ActivityIndicator,
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native'
+import { useFocusEffect, useNavigation } from '@react-navigation/native'
+import { MaterialCommunityIcons } from '@expo/vector-icons'
+import PageHeader from '../../components/PageHeader'
+import MetricCard from '../../components/MetricCard'
+import StatusChip from '../../components/StatusChip'
+import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
-
-const T = {
-  teal: '#0d9488', bg: '#f1f5f9', card: '#ffffff',
-  base: '#0f172a', secondary: '#475569', muted: '#94a3b8', border: '#e2e8f0',
-  amber: '#d97706', red: '#dc2626',
-}
-
-function fmt(n) { return Number(n ?? 0).toFixed(3) }
+import { T, cardShadow } from '../../theme'
+import { formatCount, formatCurrency, formatNumber, toNumber } from '../../utils/format'
 
 export default function CamionScreen() {
-  const [stock,      setStock]     = useState([])
-  const [loading,    setLoading]   = useState(true)
-  const [refreshing, setRefreshing]= useState(false)
+  const navigation = useNavigation()
+  const { session } = useTracking()
+  const [stock, setStock] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
+
     try {
-      const r = await api.get('/camion')
-      const items = Array.isArray(r.data) ? r.data : (r.data.stock ?? [])
-      setStock(items)
-    } catch {}
-    setLoading(false); setRefreshing(false)
+      const response = await api.get('/camion')
+      setStock(Array.isArray(response.data?.stock) ? response.data.stock : [])
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useFocusEffect(useCallback(() => {
+    load()
+    const interval = setInterval(() => load(), 45000)
+    return () => clearInterval(interval)
+  }, [load]))
 
-  const renderItem = ({ item }) => {
-    const minStock = Number(item.product?.min_stock ?? 0)
-    const isLow = minStock > 0 ? Number(item.qty) <= minStock : Number(item.qty) < 5
-    return (
-      <View style={[s.row, isLow && s.rowLow]}>
-        <View style={s.rowLeft}>
-          <Text style={s.rowName}>{item.product?.name ?? '—'}</Text>
-          <Text style={s.rowUnit}>
-            {item.product?.unit ?? ''}
-            {minStock > 0 ? ` · min ${fmt(minStock)}` : ''}
-          </Text>
-        </View>
-        <View style={[s.badge, isLow ? s.badgeLow : s.badgeOk]}>
-          <Text style={[s.badgeText, isLow ? { color: T.amber } : { color: T.teal }]}>
-            {fmt(item.qty)}
-          </Text>
-        </View>
-      </View>
-    )
-  }
+  const lowStockCount = useMemo(() => stock.filter((item) => {
+    const minStock = Math.max(toNumber(item.product?.min_stock, 1), 1)
+    return toNumber(item.qty) <= minStock
+  }).length, [stock])
 
-  const totalValue = stock.reduce((s, item) => {
-    const price = item.product?.depot_price ?? item.product?.price ?? 0
-    return s + (parseFloat(item.qty) * parseFloat(price))
-  }, 0)
+  const totalValue = useMemo(() => stock.reduce((sum, item) => {
+    const unitPrice = toNumber(item.product?.sale_price ?? item.product?.depot_price ?? item.product?.price)
+    return sum + toNumber(item.qty) * unitPrice
+  }, 0), [stock])
 
   return (
     <View style={s.root}>
-      {/* Summary card */}
-      <View style={s.summary}>
-        <View style={s.summaryItem}>
-          <Text style={s.summaryLabel}>Produits</Text>
-          <Text style={s.summaryValue}>{stock.length}</Text>
-        </View>
-        <View style={s.summaryItem}>
-          <Text style={s.summaryLabel}>Stock bas</Text>
-        <Text style={[s.summaryValue, { color: T.amber }]}>
-          {stock.filter(i => {
-            const minStock = Number(i.product?.min_stock ?? 0)
-            return minStock > 0 ? Number(i.qty) <= minStock : Number(i.qty) < 5
-          }).length}
-        </Text>
-        </View>
-        <View style={s.summaryItem}>
-          <Text style={s.summaryLabel}>Valeur estimée</Text>
-          <Text style={[s.summaryValue, { color: T.teal, fontSize: 13 }]}>{fmt(totalValue)} TND</Text>
-        </View>
-      </View>
+      <FlatList
+        data={stock}
+        keyExtractor={(item) => String(item.product_id)}
+        renderItem={({ item }) => {
+          const minStock = Math.max(toNumber(item.product?.min_stock, 1), 1)
+          const isLow = toNumber(item.qty) <= minStock
+          return (
+            <View style={[s.row, cardShadow, isLow && s.rowLow]}>
+              <View style={s.rowIcon}>
+                <MaterialCommunityIcons
+                  name={isLow ? 'alert-outline' : 'cube-outline'}
+                  size={18}
+                  color={isLow ? T.warning : T.primary}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.rowName}>{item.product?.name || 'Produit'}</Text>
+                <Text style={s.rowMeta}>
+                  {item.product?.reference || item.product?.unit || 'Camion'}
+                  {`  ·  min ${formatNumber(minStock)}`}
+                </Text>
+              </View>
+              <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                <Text style={[s.rowQty, { color: isLow ? T.warning : T.primaryDark }]}>
+                  {formatNumber(item.qty)}
+                </Text>
+                <StatusChip label={isLow ? 'Stock bas' : 'OK'} tone={isLow ? 'warning' : 'success'} />
+              </View>
+            </View>
+          )
+        }}
+        ListHeaderComponent={(
+          <View style={s.headerWrap}>
+            <PageHeader
+              title="Mon camion"
+              subtitle={session?.status === 'open' ? 'Session ouverte : chargements audites' : 'Stock embarque du jour'}
+              actionIcon="map-marker-path"
+              actionLabel={session?.status === 'open' ? 'Session' : 'Ouvrir'}
+              onActionPress={() => navigation.navigate('Session')}
+            />
 
-      {loading ? (
-        <ActivityIndicator color={T.teal} size="large" style={{ marginTop: 60 }} />
-      ) : (
-        <FlatList
-          data={stock}
-          keyExtractor={(item, i) => String(item.product?.id ?? i)}
-          renderItem={renderItem}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.teal} />}
-          ListEmptyComponent={
-            <View style={s.empty}><Text style={s.emptyText}>Stock camion vide</Text></View>
-          }
-          contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: 40 }}
-        />
-      )}
+            <View style={s.summaryGrid}>
+              <MetricCard
+                label="Produits"
+                value={formatCount(stock.length)}
+                hint="References presentes"
+                icon="package-variant-closed"
+                color={T.primary}
+              />
+              <MetricCard
+                label="Stock bas"
+                value={formatCount(lowStockCount)}
+                hint="Sur seuil minimum"
+                icon="alert-circle-outline"
+                color={lowStockCount > 0 ? T.warning : T.success}
+              />
+            </View>
+
+            <View style={s.summaryGrid}>
+              <MetricCard
+                label="Valeur estimee"
+                value={formatCurrency(totalValue)}
+                hint="Base prix mobile"
+                icon="cash-register"
+                color={T.info}
+              />
+              <View style={[s.banner, cardShadow]}>
+                <StatusChip
+                  label={session?.status === 'open' ? 'Audit actif' : 'Session fermee'}
+                  tone={session?.status === 'open' ? 'success' : 'warning'}
+                />
+                <Text style={s.bannerTitle}>Chargement et retours</Text>
+                <Text style={s.bannerText}>
+                  Utilisez le module Session pour declarer depot vers camion et retours sans perdre l historique.
+                </Text>
+                <TouchableOpacity style={s.bannerButton} onPress={() => navigation.navigate('Session')}>
+                  <Text style={s.bannerButtonText}>Ouvrir Session</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
+        ListEmptyComponent={(
+          <View style={s.emptyWrap}>
+            {loading ? (
+              <ActivityIndicator color={T.primary} size="large" />
+            ) : (
+              <>
+                <MaterialCommunityIcons name="truck-outline" size={36} color={T.textMuted} />
+                <Text style={s.emptyText}>Aucun stock camion disponible.</Text>
+              </>
+            )}
+          </View>
+        )}
+        contentContainerStyle={s.listContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.primary} />}
+      />
     </View>
   )
 }
 
 const s = StyleSheet.create({
-  root:         { flex: 1, backgroundColor: T.bg },
-  summary:      { flexDirection: 'row', backgroundColor: T.card, margin: 16, borderRadius: 16, padding: 16, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
-  summaryItem:  { flex: 1, alignItems: 'center' },
-  summaryLabel: { fontSize: 11, color: T.muted, marginBottom: 4 },
-  summaryValue: { fontSize: 18, fontWeight: '700', color: T.base },
-  row:          { backgroundColor: T.card, borderRadius: 12, padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 },
-  rowLow:       { borderLeftWidth: 3, borderLeftColor: T.amber },
-  rowLeft:      { flex: 1 },
-  rowName:      { fontSize: 14, fontWeight: '600', color: T.base },
-  rowUnit:      { fontSize: 11, color: T.muted, marginTop: 2 },
-  badge:        { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 4 },
-  badgeOk:      { backgroundColor: 'rgba(13,148,136,0.1)' },
-  badgeLow:     { backgroundColor: 'rgba(245,158,11,0.12)' },
-  badgeText:    { fontSize: 15, fontWeight: '700', fontFamily: 'monospace' },
-  empty:        { alignItems: 'center', marginTop: 60 },
-  emptyText:    { color: T.muted, fontSize: 14 },
+  root: {
+    flex: 1,
+    backgroundColor: T.background,
+  },
+  listContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  headerWrap: {
+    marginBottom: 4,
+  },
+  summaryGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  banner: {
+    flex: 1,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: T.surface,
+    padding: 16,
+  },
+  bannerTitle: {
+    marginTop: 10,
+    fontSize: 16,
+    fontWeight: '800',
+    color: T.text,
+  },
+  bannerText: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 18,
+    color: T.textSecondary,
+  },
+  bannerButton: {
+    marginTop: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    paddingVertical: 12,
+    backgroundColor: T.primary,
+  },
+  bannerButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: T.surface,
+    marginBottom: 10,
+  },
+  rowLow: {
+    borderColor: '#fdba74',
+    backgroundColor: '#fff7ed',
+  },
+  rowIcon: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    backgroundColor: T.surfaceAlt,
+  },
+  rowName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: T.text,
+  },
+  rowMeta: {
+    marginTop: 4,
+    fontSize: 12,
+    color: T.textMuted,
+  },
+  rowQty: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  emptyWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+    gap: 10,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: T.textMuted,
+  },
 })

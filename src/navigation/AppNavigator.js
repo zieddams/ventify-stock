@@ -1,45 +1,104 @@
 import { NavigationContainer } from '@react-navigation/native'
-import { createNativeStackNavigator }  from '@react-navigation/native-stack'
-import { createBottomTabNavigator }    from '@react-navigation/bottom-tabs'
-import { Text, View, ActivityIndicator } from 'react-native'
+import { createNativeStackNavigator } from '@react-navigation/native-stack'
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useAuth } from '../contexts/AuthContext'
-
-// Screens
-import LoginScreen    from '../screens/auth/LoginScreen'
+import LoginScreen from '../screens/auth/LoginScreen'
 import DashboardScreen from '../screens/main/DashboardScreen'
-import InvoicesScreen  from '../screens/main/InvoicesScreen'
-import CamionScreen    from '../screens/main/CamionScreen'
+import InvoicesScreen from '../screens/main/InvoicesScreen'
+import CamionScreen from '../screens/main/CamionScreen'
+import RouteSessionScreen from '../screens/main/RouteSessionScreen'
+import InvoiceCreateScreen from '../screens/shared/InvoiceCreateScreen'
+import InvoiceDetailScreen from '../screens/shared/InvoiceDetailScreen'
+import ProfileScreen from '../screens/shared/ProfileScreen'
+import { T } from '../theme'
 
 const Stack = createNativeStackNavigator()
-const Tab   = createBottomTabNavigator()
+const Tab = createBottomTabNavigator()
 
-const T = { teal: '#0d9488', bg: '#ffffff', border: '#e2e8f0', muted: '#94a3b8' }
-
-function TabIcon({ name, focused }) {
-  const icons = {
-    Dashboard: focused ? '📊' : '📈',
-    Factures:  focused ? '🧾' : '📄',
-    Camion:    focused ? '🚚' : '🚛',
-  }
-  return <Text style={{ fontSize: 20 }}>{icons[name] ?? '●'}</Text>
+function HeaderRight({ navigation }) {
+  return (
+    <TouchableOpacity style={s.headerRight} onPress={() => navigation.navigate('Profile')}>
+      <MaterialCommunityIcons name="account-circle-outline" size={22} color={T.primary} />
+    </TouchableOpacity>
+  )
 }
 
-function MainTabs() {
+function RepTabs() {
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused }) => <TabIcon name={route.name} focused={focused} />,
-        tabBarActiveTintColor: T.teal,
-        tabBarInactiveTintColor: T.muted,
-        tabBarStyle: { backgroundColor: T.bg, borderTopColor: T.border, paddingBottom: 6, height: 60 },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
-        headerStyle: { backgroundColor: T.bg },
-        headerTitleStyle: { color: '#0f172a', fontWeight: '700' },
+      screenOptions={({ route, navigation }) => ({
+        headerStyle: { backgroundColor: T.surface },
+        headerTitleStyle: { color: T.text, fontWeight: '800' },
         headerShadowVisible: false,
+        headerRight: () => <HeaderRight navigation={navigation} />,
+        tabBarActiveTintColor: T.primary,
+        tabBarInactiveTintColor: T.textMuted,
+        tabBarStyle: {
+          backgroundColor: T.surface,
+          borderTopColor: T.border,
+          height: 68,
+          paddingBottom: 8,
+          paddingTop: 6,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '700',
+        },
+        tabBarIcon: ({ color, focused }) => {
+          const icons = {
+            Accueil: focused ? 'view-dashboard' : 'view-dashboard-outline',
+            Factures: focused ? 'file-document-multiple' : 'file-document-multiple-outline',
+            Camion: focused ? 'truck-fast' : 'truck-fast-outline',
+            Session: focused ? 'map-marker-path' : 'map-marker-path',
+          }
+
+          return <MaterialCommunityIcons name={icons[route.name]} size={21} color={color} />
+        },
       })}>
-      <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ title: 'Tableau de bord' }} />
-      <Tab.Screen name="Factures"  component={InvoicesScreen}  options={{ title: 'Factures'         }} />
-      <Tab.Screen name="Camion"    component={CamionScreen}    options={{ title: 'Mon camion'       }} />
+      <Tab.Screen name="Accueil" component={DashboardScreen} options={{ title: 'Accueil' }} />
+      <Tab.Screen name="Factures" component={InvoicesScreen} options={{ title: 'Factures' }} />
+      <Tab.Screen name="Camion" component={CamionScreen} options={{ title: 'Mon camion' }} />
+      <Tab.Screen name="Session" component={RouteSessionScreen} options={{ title: 'Session & GPS' }} />
+    </Tab.Navigator>
+  )
+}
+
+function StaffTabs() {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route, navigation }) => ({
+        headerStyle: { backgroundColor: T.surface },
+        headerTitleStyle: { color: T.text, fontWeight: '800' },
+        headerShadowVisible: false,
+        headerRight: () => <HeaderRight navigation={navigation} />,
+        tabBarActiveTintColor: T.primary,
+        tabBarInactiveTintColor: T.textMuted,
+        tabBarStyle: {
+          backgroundColor: T.surface,
+          borderTopColor: T.border,
+          height: 68,
+          paddingBottom: 8,
+          paddingTop: 6,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '700',
+        },
+        tabBarIcon: ({ color, focused }) => {
+          const icons = {
+            Accueil: focused ? 'chart-box' : 'chart-box-outline',
+            Factures: focused ? 'file-document-multiple' : 'file-document-multiple-outline',
+            Compte: focused ? 'account-cog' : 'account-cog-outline',
+          }
+
+          return <MaterialCommunityIcons name={icons[route.name]} size={21} color={color} />
+        },
+      })}>
+      <Tab.Screen name="Accueil" component={DashboardScreen} options={{ title: 'Pilotage' }} />
+      <Tab.Screen name="Factures" component={InvoicesScreen} options={{ title: 'Factures' }} />
+      <Tab.Screen name="Compte" component={ProfileScreen} options={{ title: 'Compte' }} />
     </Tab.Navigator>
   )
 }
@@ -53,13 +112,24 @@ function AuthStack() {
 }
 
 function AppStack() {
+  const { isRep } = useAuth()
+
   return (
-    <Stack.Navigator>
-      <Stack.Screen name="Main"          component={MainTabs}   options={{ headerShown: false }} />
-      <Stack.Screen name="InvoiceCreate" component={require('../screens/main/InvoicesScreen').default}
-        options={{ title: 'Nouvelle facture', headerTintColor: T.teal }} />
-      <Stack.Screen name="InvoiceDetail" component={require('../screens/main/InvoicesScreen').default}
-        options={{ title: 'Facture', headerTintColor: T.teal }} />
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: T.surface },
+        headerTitleStyle: { color: T.text, fontWeight: '800' },
+        headerShadowVisible: false,
+        contentStyle: { backgroundColor: T.background },
+      }}>
+      <Stack.Screen
+        name="Tabs"
+        component={isRep() ? RepTabs : StaffTabs}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen name="InvoiceCreate" component={InvoiceCreateScreen} options={{ title: 'Nouvelle facture' }} />
+      <Stack.Screen name="InvoiceDetail" component={InvoiceDetailScreen} options={{ title: 'Detail facture' }} />
+      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Compte mobile' }} />
     </Stack.Navigator>
   )
 }
@@ -69,8 +139,9 @@ export default function AppNavigator() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f1f5f9' }}>
-        <ActivityIndicator size="large" color={T.teal} />
+      <View style={s.loadingWrap}>
+        <ActivityIndicator size="large" color={T.primary} />
+        <Text style={s.loadingText}>Initialisation du poste mobile...</Text>
       </View>
     )
   }
@@ -81,3 +152,27 @@ export default function AppNavigator() {
     </NavigationContainer>
   )
 }
+
+const s = StyleSheet.create({
+  loadingWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: T.background,
+  },
+  loadingText: {
+    marginTop: 14,
+    fontSize: 13,
+    color: T.textMuted,
+  },
+  headerRight: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    backgroundColor: T.surfaceAlt,
+    borderWidth: 1,
+    borderColor: T.border,
+  },
+})

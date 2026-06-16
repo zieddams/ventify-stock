@@ -1,127 +1,223 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
-  View, Text, FlatList, StyleSheet, TouchableOpacity,
-  TextInput, RefreshControl, ActivityIndicator,
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native'
-import { useNavigation } from '@react-navigation/native'
+import { useFocusEffect, useNavigation } from '@react-navigation/native'
+import { MaterialCommunityIcons } from '@expo/vector-icons'
+import PageHeader from '../../components/PageHeader'
+import StatusChip from '../../components/StatusChip'
+import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
-
-const T = {
-  teal: '#0d9488', bg: '#f1f5f9', card: '#ffffff',
-  base: '#0f172a', secondary: '#475569', muted: '#94a3b8', border: '#e2e8f0',
-  green: '#059669', red: '#dc2626', amber: '#d97706',
-}
-
-function fmt(n) {
-  return new Intl.NumberFormat('fr-TN', { minimumFractionDigits: 3 }).format(n ?? 0)
-}
-
-function StatusPill({ status }) {
-  const MAP = {
-    draft:     { label: 'Brouillon', bg: '#f1f5f9', color: T.muted },
-    sent:      { label: 'Envoyée',   bg: '#eff6ff', color: '#2563eb' },
-    paid:      { label: 'Payée',     bg: '#ecfdf5', color: T.green },
-    cancelled: { label: 'Annulée',   bg: '#fef2f2', color: T.red },
-  }
-  const st = MAP[status] ?? MAP.draft
-  return (
-    <View style={[s.pill, { backgroundColor: st.bg }]}>
-      <Text style={[s.pillText, { color: st.color }]}>{st.label}</Text>
-    </View>
-  )
-}
+import { T, cardShadow } from '../../theme'
+import {
+  formatCurrency,
+  formatDateTime,
+  invoiceStatusLabel,
+  paymentStatusLabel,
+  unwrapStatus,
+} from '../../utils/format'
 
 export default function InvoicesScreen() {
-  const [invoices,   setInvoices]  = useState([])
-  const [loading,    setLoading]   = useState(true)
-  const [refreshing, setRefreshing]= useState(false)
-  const [search,     setSearch]    = useState('')
   const navigation = useNavigation()
+  const { session } = useTracking()
+  const [invoices, setInvoices] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [search, setSearch] = useState('')
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
+
     try {
-      const r = await api.get('/invoices', { params: { period: 'month' } })
-      setInvoices(r.data)
-    } catch {}
-    setLoading(false); setRefreshing(false)
+      const response = await api.get('/invoices', {
+        params: { period: 'month' },
+      })
+      setInvoices(Array.isArray(response.data) ? response.data : response.data?.data ?? [])
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  useFocusEffect(useCallback(() => {
+    load()
+    const interval = setInterval(() => load(), 45000)
+    return () => clearInterval(interval)
+  }, [load]))
 
-  const filtered = invoices.filter(i =>
-    !search || i.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
-    i.number?.includes(search)
-  )
-
-  const renderItem = ({ item }) => (
-    <TouchableOpacity style={s.row} activeOpacity={0.7}
-      onPress={() => navigation.navigate('InvoiceDetail', { id: item.id })}>
-      <View style={s.rowLeft}>
-        <Text style={s.rowNum}>{item.number}</Text>
-        <Text style={s.rowCustomer}>{item.customer_name}</Text>
-        <Text style={s.rowDate}>{new Date(item.created_at).toLocaleDateString('fr-FR')}</Text>
-      </View>
-      <View style={s.rowRight}>
-        <Text style={s.rowTotal}>{fmt(item.total)} TND</Text>
-        <StatusPill status={item.status?.value ?? item.status} />
-      </View>
-    </TouchableOpacity>
-  )
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return invoices
+    return invoices.filter((item) => (
+      item.number?.toLowerCase().includes(q)
+      || item.customer_name?.toLowerCase().includes(q)
+      || item.rep_name?.toLowerCase().includes(q)
+    ))
+  }, [invoices, search])
 
   return (
     <View style={s.root}>
-      {/* Search */}
-      <View style={s.searchWrap}>
-        <TextInput
-          style={s.searchInput}
-          placeholder="Rechercher…"
-          placeholderTextColor={T.muted}
-          value={search}
-          onChangeText={setSearch}
-        />
-        <TouchableOpacity
-          style={s.newBtn}
-          onPress={() => navigation.navigate('InvoiceCreate')}>
-          <Text style={s.newBtnText}>+ Nouvelle</Text>
-        </TouchableOpacity>
-      </View>
+      <FlatList
+        data={filtered}
+        keyExtractor={(item) => String(item.id)}
+        renderItem={({ item }) => {
+          const paymentStatus = unwrapStatus(item.payment_status)
+          const invoiceStatus = unwrapStatus(item.status)
+          return (
+            <TouchableOpacity
+              style={[s.row, cardShadow]}
+              activeOpacity={0.82}
+              onPress={() => navigation.navigate('InvoiceDetail', { id: item.id, initialInvoice: item })}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.rowNumber}>{item.number}</Text>
+                <Text style={s.rowCustomer}>{item.customer_name}</Text>
+                <Text style={s.rowDate}>{formatDateTime(item.created_at)}</Text>
+                <View style={s.pills}>
+                  <StatusChip
+                    label={invoiceStatusLabel(invoiceStatus)}
+                    tone={invoiceStatus === 'paid' ? 'success' : invoiceStatus === 'cancelled' ? 'danger' : 'info'}
+                  />
+                  <StatusChip
+                    label={paymentStatusLabel(paymentStatus)}
+                    tone={paymentStatus === 'paid' ? 'success' : paymentStatus === 'partial' ? 'warning' : 'danger'}
+                  />
+                </View>
+              </View>
+              <View style={s.rowRight}>
+                <Text style={s.rowTotal}>{formatCurrency(item.total)}</Text>
+                <MaterialCommunityIcons name="chevron-right" size={18} color={T.textMuted} />
+              </View>
+            </TouchableOpacity>
+          )
+        }}
+        ListHeaderComponent={(
+          <View style={s.headerWrap}>
+            <PageHeader
+              title="Factures"
+              subtitle={session?.status === 'open' ? 'Session du jour active' : 'Suivi mensuel mobile'}
+              actionIcon="file-document-plus-outline"
+              actionLabel="Nouvelle"
+              onActionPress={() => navigation.navigate('InvoiceCreate')}
+            />
 
-      {loading ? (
-        <ActivityIndicator color={T.teal} size="large" style={{ marginTop: 60 }} />
-      ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={i => String(i.id)}
-          renderItem={renderItem}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.teal} />}
-          ItemSeparatorComponent={() => <View style={s.sep} />}
-          ListEmptyComponent={
-            <View style={s.empty}><Text style={s.emptyText}>Aucune facture</Text></View>
-          }
-          contentContainerStyle={{ paddingBottom: 24 }}
-        />
-      )}
+            <View style={s.searchCard}>
+              <MaterialCommunityIcons name="magnify" size={18} color={T.textMuted} />
+              <TextInput
+                style={s.searchInput}
+                placeholder="Rechercher une facture ou un client"
+                placeholderTextColor={T.textMuted}
+                value={search}
+                onChangeText={setSearch}
+              />
+            </View>
+          </View>
+        )}
+        ListEmptyComponent={(
+          <View style={s.emptyWrap}>
+            {loading ? (
+              <ActivityIndicator color={T.primary} size="large" />
+            ) : (
+              <>
+                <MaterialCommunityIcons name="file-document-outline" size={34} color={T.textMuted} />
+                <Text style={s.emptyText}>Aucune facture sur ce filtre.</Text>
+              </>
+            )}
+          </View>
+        )}
+        contentContainerStyle={s.listContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.primary} />}
+      />
     </View>
   )
 }
 
 const s = StyleSheet.create({
-  root:        { flex: 1, backgroundColor: T.bg },
-  searchWrap:  { flexDirection: 'row', gap: 10, padding: 16, paddingBottom: 8 },
-  searchInput: { flex: 1, backgroundColor: T.card, borderColor: T.border, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: T.base },
-  newBtn:      { backgroundColor: T.teal, borderRadius: 12, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
-  newBtnText:  { color: '#fff', fontWeight: '700', fontSize: 13 },
-  row:         { backgroundColor: T.card, marginHorizontal: 16, marginVertical: 4, borderRadius: 14, padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, elevation: 1 },
-  rowLeft:     { flex: 1 },
-  rowNum:      { fontSize: 12, fontFamily: 'monospace', color: T.teal, fontWeight: '700' },
-  rowCustomer: { fontSize: 15, fontWeight: '600', color: T.base, marginTop: 2 },
-  rowDate:     { fontSize: 11, color: T.muted, marginTop: 2 },
-  rowRight:    { alignItems: 'flex-end', gap: 6 },
-  rowTotal:    { fontSize: 15, fontWeight: '700', color: T.base },
-  pill:        { borderRadius: 99, paddingHorizontal: 8, paddingVertical: 2 },
-  pillText:    { fontSize: 11, fontWeight: '600' },
-  sep:         { height: 0 },
-  empty:       { alignItems: 'center', marginTop: 60 },
-  emptyText:   { color: T.muted, fontSize: 14 },
+  root: {
+    flex: 1,
+    backgroundColor: T.background,
+  },
+  listContent: {
+    padding: 20,
+    paddingBottom: 40,
+    gap: 10,
+  },
+  headerWrap: {
+    marginBottom: 6,
+  },
+  searchCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: T.surface,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: T.text,
+  },
+  row: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: T.surface,
+    marginBottom: 10,
+  },
+  rowNumber: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: T.primaryDark,
+  },
+  rowCustomer: {
+    marginTop: 4,
+    fontSize: 15,
+    fontWeight: '700',
+    color: T.text,
+  },
+  rowDate: {
+    marginTop: 4,
+    fontSize: 12,
+    color: T.textMuted,
+  },
+  pills: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
+  rowRight: {
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  rowTotal: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: T.text,
+  },
+  emptyWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+    gap: 10,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: T.textMuted,
+  },
 })
+

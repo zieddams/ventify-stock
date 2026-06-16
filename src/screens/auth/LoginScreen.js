@@ -1,60 +1,84 @@
+import Constants from 'expo-constants'
 import { useState } from 'react'
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView, Alert,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native'
+import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useAuth } from '../../contexts/AuthContext'
+import { T, cardShadow } from '../../theme'
 
-const T = {
-  teal:  '#0d9488',
-  tealD: '#0f766e',
-  bg:    '#f1f5f9',
-  card:  '#ffffff',
-  base:  '#0f172a',
-  muted: '#94a3b8',
-  border:'#e2e8f0',
-  red:   '#dc2626',
+function CapabilityChip({ icon, label }) {
+  return (
+    <View style={s.capabilityChip}>
+      <MaterialCommunityIcons name={icon} size={16} color={T.primary} />
+      <Text style={s.capabilityText}>{label}</Text>
+    </View>
+  )
 }
 
 export default function LoginScreen() {
-  const { login }        = useAuth()
-  const [email, setEmail]= useState('')
-  const [pass,  setPass] = useState('')
-  const [busy,  setBusy] = useState(false)
-  const [err,   setErr]  = useState('')
+  const { login } = useAuth()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const version = Constants.expoConfig?.version || '1.1.0'
 
   const handleLogin = async () => {
-    if (!email.trim() || !pass) return
-    setBusy(true); setErr('')
+    if (!email.trim() || !password) return
+    setBusy(true)
+    setError('')
+
     try {
-      await login(email.trim(), pass)
-    } catch (e) {
-      const msg = e.response?.data?.message ?? e.response?.data?.error ?? 'Email ou mot de passe incorrect'
-      setErr(msg)
-    } finally { setBusy(false) }
+      await login(email.trim(), password)
+    } catch (err) {
+      setError(err.response?.data?.message || err.response?.data?.error || 'Email ou mot de passe incorrect.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
     <KeyboardAvoidingView
       style={s.root}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
-        {/* Logo */}
-        <View style={s.logoWrap}>
-          <View style={s.logoCircle}>
-            <Text style={s.logoIcon}>💧</Text>
+      <View style={s.backgroundBubbleOne} />
+      <View style={s.backgroundBubbleTwo} />
+      <View style={s.backgroundBubbleThree} />
+
+      <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
+        <View style={s.hero}>
+          <View style={s.logo}>
+            <MaterialCommunityIcons name="water-outline" size={36} color="#fff" />
           </View>
-          <Text style={s.logoTitle}>El Irtiwaa</Text>
-          <Text style={s.logoSub}>Gestion commerciale</Text>
+          <Text style={s.title}>El Irtiwaa Mobile</Text>
+          <Text style={s.subtitle}>
+            Session terrain, GPS et facturation relies a la plateforme de production.
+          </Text>
         </View>
 
-        {/* Card */}
-        <View style={s.card}>
-          <Text style={s.cardTitle}>Connexion</Text>
+        <View style={s.capabilities}>
+          <CapabilityChip icon="map-marker-radius-outline" label="GPS session" />
+          <CapabilityChip icon="pulse" label="Presence mobile" />
+          <CapabilityChip icon="sync" label="Mises a jour live" />
+        </View>
 
-          {!!err && (
-            <View style={s.errBox}>
-              <Text style={s.errText}>{err}</Text>
+        <View style={[s.card, cardShadow]}>
+          <Text style={s.cardTitle}>Connexion</Text>
+          <Text style={s.cardSubtitle}>Utilisez votre compte terrain ou staff.</Text>
+
+          {!!error && (
+            <View style={s.errorBox}>
+              <MaterialCommunityIcons name="alert-circle-outline" size={18} color={T.danger} />
+              <Text style={s.errorText}>{error}</Text>
             </View>
           )}
 
@@ -64,7 +88,7 @@ export default function LoginScreen() {
             value={email}
             onChangeText={setEmail}
             placeholder="votre@email.com"
-            placeholderTextColor={T.muted}
+            placeholderTextColor={T.textMuted}
             autoCapitalize="none"
             keyboardType="email-address"
             autoComplete="email"
@@ -73,48 +97,198 @@ export default function LoginScreen() {
           <Text style={s.label}>Mot de passe</Text>
           <TextInput
             style={s.input}
-            value={pass}
-            onChangeText={setPass}
-            placeholder="••••••••"
-            placeholderTextColor={T.muted}
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Votre mot de passe"
+            placeholderTextColor={T.textMuted}
             secureTextEntry
             autoComplete="password"
           />
 
-          <TouchableOpacity
-            style={[s.btn, busy && s.btnDisabled]}
-            onPress={handleLogin}
-            disabled={busy}
-            activeOpacity={0.8}>
-            {busy
-              ? <ActivityIndicator color="#fff" />
-              : <Text style={s.btnText}>Se connecter</Text>
-            }
+          <TouchableOpacity style={[s.primaryButton, busy && s.buttonDisabled]} onPress={handleLogin} disabled={busy}>
+            {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>Se connecter</Text>}
           </TouchableOpacity>
         </View>
 
-        <Text style={s.version}>v1.0.0 · El Irtiwaa</Text>
+        <View style={s.footerCard}>
+          <Text style={s.footerTitle}>Build mobile {version}</Text>
+          <Text style={s.footerText}>
+            Cible production, presence app, et suivi GPS disponibles selon vos autorisations.
+          </Text>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   )
 }
 
 const s = StyleSheet.create({
-  root:       { flex: 1, backgroundColor: T.bg },
-  scroll:     { flexGrow: 1, justifyContent: 'center', padding: 24 },
-  logoWrap:   { alignItems: 'center', marginBottom: 32 },
-  logoCircle: { width: 72, height: 72, borderRadius: 20, backgroundColor: T.teal, alignItems: 'center', justifyContent: 'center', marginBottom: 12, shadowColor: T.teal, shadowOpacity: 0.4, shadowRadius: 16, elevation: 8 },
-  logoIcon:   { fontSize: 32 },
-  logoTitle:  { fontSize: 24, fontWeight: '700', color: T.base, letterSpacing: -0.5 },
-  logoSub:    { fontSize: 13, color: T.muted, marginTop: 2 },
-  card:       { backgroundColor: T.card, borderRadius: 20, padding: 24, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 16, elevation: 3 },
-  cardTitle:  { fontSize: 18, fontWeight: '700', color: T.base, marginBottom: 20 },
-  errBox:     { backgroundColor: '#fef2f2', borderColor: '#fecaca', borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 16 },
-  errText:    { color: T.red, fontSize: 13 },
-  label:      { fontSize: 12, fontWeight: '600', color: T.muted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
-  input:      { backgroundColor: T.bg, borderColor: T.border, borderWidth: 1, borderRadius: 12, padding: 14, fontSize: 15, color: T.base, marginBottom: 16 },
-  btn:        { backgroundColor: T.teal, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 4, shadowColor: T.teal, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
-  btnDisabled:{ opacity: 0.6 },
-  btnText:    { color: '#fff', fontWeight: '700', fontSize: 16 },
-  version:    { textAlign: 'center', color: T.muted, fontSize: 11, marginTop: 24 },
+  root: {
+    flex: 1,
+    backgroundColor: '#e7f7f3',
+  },
+  content: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 24,
+    paddingVertical: 40,
+  },
+  backgroundBubbleOne: {
+    position: 'absolute',
+    top: 40,
+    right: -20,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(13, 148, 136, 0.18)',
+  },
+  backgroundBubbleTwo: {
+    position: 'absolute',
+    top: 170,
+    left: -45,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(37, 99, 235, 0.10)',
+  },
+  backgroundBubbleThree: {
+    position: 'absolute',
+    bottom: 70,
+    right: 28,
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    backgroundColor: 'rgba(5, 150, 105, 0.14)',
+  },
+  hero: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  logo: {
+    width: 84,
+    height: 84,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: T.primary,
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: T.text,
+  },
+  subtitle: {
+    marginTop: 8,
+    textAlign: 'center',
+    fontSize: 14,
+    lineHeight: 20,
+    color: T.textSecondary,
+  },
+  capabilities: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 18,
+  },
+  capabilityChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.78)',
+    borderWidth: 1,
+    borderColor: 'rgba(13, 148, 136, 0.18)',
+  },
+  capabilityText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: T.textSecondary,
+  },
+  card: {
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.65)',
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    padding: 22,
+  },
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: T.text,
+  },
+  cardSubtitle: {
+    marginTop: 4,
+    marginBottom: 18,
+    fontSize: 13,
+    color: T.textMuted,
+  },
+  label: {
+    marginBottom: 8,
+    fontSize: 12,
+    fontWeight: '700',
+    color: T.textMuted,
+    textTransform: 'uppercase',
+  },
+  input: {
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 14,
+    fontSize: 15,
+    color: T.text,
+    marginBottom: 16,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    marginBottom: 16,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    color: T.danger,
+  },
+  primaryButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    paddingVertical: 16,
+    backgroundColor: T.primary,
+    marginTop: 4,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  buttonDisabled: {
+    opacity: 0.75,
+  },
+  footerCard: {
+    marginTop: 18,
+    alignItems: 'center',
+  },
+  footerTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: T.textSecondary,
+  },
+  footerText: {
+    marginTop: 4,
+    textAlign: 'center',
+    fontSize: 12,
+    lineHeight: 18,
+    color: T.textMuted,
+  },
 })
