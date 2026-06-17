@@ -1,20 +1,29 @@
 module.exports = {
   name: 'El Irtiwaa',
   slug: 'ventify-stock',
-  version: '1.2.4',
+  version: '1.3.0',
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
   scheme: 'irtiwaa',
+  androidStatusBar: {
+    barStyle: 'dark-content',
+    backgroundColor: '#edf6f5',
+    translucent: false,
+  },
+  androidNavigationBar: {
+    barStyle: 'dark-content',
+    backgroundColor: '#ffffff',
+  },
   ios: {
     supportsTablet: false,
     bundleIdentifier: 'com.ventify.stock',
   },
   android: {
     package: 'com.ventify.stock',
-    versionCode: 6,
+    versionCode: 7,
     adaptiveIcon: {
-      backgroundColor: '#0d9488',
+      backgroundColor: '#0f172a',
       foregroundImage: './assets/android-icon-foreground.png',
     },
     permissions: [
@@ -40,5 +49,9 @@ module.exports = {
     reverbPort: Number(process.env.EXPO_PUBLIC_REVERB_PORT || 443),
     reverbScheme: process.env.EXPO_PUBLIC_REVERB_SCHEME || 'https',
     reverbAppKey: process.env.EXPO_PUBLIC_REVERB_APP_KEY || '78dp9ud63xntwmvmjybc',
+    releaseRepoOwner: process.env.EXPO_PUBLIC_RELEASE_REPO_OWNER || 'zieddams',
+    releaseRepoName: process.env.EXPO_PUBLIC_RELEASE_REPO_NAME || 'ventify-stock',
+    releaseApiUrl: process.env.EXPO_PUBLIC_RELEASE_API_URL || 'https://api.github.com/repos/zieddams/ventify-stock/releases',
+    releasePageUrl: process.env.EXPO_PUBLIC_RELEASE_PAGE_URL || 'https://github.com/zieddams/ventify-stock/releases',
   },
 }

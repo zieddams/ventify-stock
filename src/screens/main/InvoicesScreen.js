@@ -47,7 +47,7 @@ function periodLabel(period) {
 export default function InvoicesScreen() {
   const navigation = useNavigation()
   const { user, canManageAllCustomers } = useAuth()
-  const { session } = useTracking()
+  const { session, syncInteraction } = useTracking()
   const [invoices, setInvoices] = useState([])
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -147,6 +147,7 @@ export default function InvoicesScreen() {
         title: 'Liste factures mobile',
         subtitle: filterSummary,
       })
+      await syncInteraction('invoice-list-thermal', { includeLocation: false, refreshSession: false })
     } catch (error) {
       Alert.alert('Transfert thermique impossible', error.message || 'Veuillez reessayer.')
     } finally {
@@ -167,6 +168,7 @@ export default function InvoicesScreen() {
         title: 'Liste factures mobile',
         subtitle: filterSummary,
       })
+      await syncInteraction('invoice-list-pdf', { includeLocation: false, refreshSession: false })
     } catch (error) {
       Alert.alert('Partage impossible', error.message || 'Veuillez reessayer.')
     } finally {

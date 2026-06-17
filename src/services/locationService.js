@@ -1,5 +1,8 @@
 import * as Location from 'expo-location'
 
+export const LIVE_TRACKING_INTERVAL_MS = 20000
+export const LIVE_TRACKING_DISTANCE_METERS = 25
+
 const TUNISIA_BOUNDS = {
   minLatitude: 30,
   maxLatitude: 37.6,
@@ -10,6 +13,23 @@ const TUNISIA_BOUNDS = {
 const ANDROID_EMULATOR_DEFAULT = {
   latitude: 37.4219983,
   longitude: -122.084,
+}
+
+let lastKnownLocation = null
+
+export function rememberLocation(location) {
+  const coords = location?.coords ?? location ?? null
+
+  if (!Number.isFinite(coords?.latitude) || !Number.isFinite(coords?.longitude)) {
+    return lastKnownLocation
+  }
+
+  lastKnownLocation = location
+  return lastKnownLocation
+}
+
+export function getRememberedLocation() {
+  return lastKnownLocation
 }
 
 export async function getForegroundPermission() {
@@ -26,21 +46,28 @@ export async function getCurrentLocation() {
     throw new Error('Les services de localisation sont desactives sur cet appareil.')
   }
 
-  return Location.getCurrentPositionAsync({
+  const location = await Location.getCurrentPositionAsync({
     accuracy: Location.Accuracy.High,
+    maximumAge: LIVE_TRACKING_INTERVAL_MS,
     mayShowUserSettingsDialog: true,
   })
+
+  rememberLocation(location)
+  return location
 }
 
 export async function watchLocation(onUpdate) {
   return Location.watchPositionAsync(
     {
       accuracy: Location.Accuracy.Balanced,
-      distanceInterval: 40,
-      timeInterval: 60000,
+      distanceInterval: LIVE_TRACKING_DISTANCE_METERS,
+      timeInterval: LIVE_TRACKING_INTERVAL_MS,
       mayShowUserSettingsDialog: true,
     },
-    onUpdate,
+    (location) => {
+      rememberLocation(location)
+      onUpdate(location)
+    },
   )
 }
 
@@ -96,6 +123,10 @@ export function mapLocationToPayload(location) {
       ? new Date(location.timestamp).toISOString()
       : new Date().toISOString(),
   }
+}
+
+export function getRememberedLocationPayload() {
+  return mapLocationToPayload(lastKnownLocation)
 }
 
 export function distanceBetweenMeters(a, b) {

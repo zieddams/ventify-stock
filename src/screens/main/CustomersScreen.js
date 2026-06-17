@@ -15,6 +15,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import PageHeader from '../../components/PageHeader'
 import { useAuth } from '../../contexts/AuthContext'
+import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
 import { formatCurrency } from '../../utils/format'
@@ -26,6 +27,7 @@ function sortByName(items) {
 export default function CustomersScreen() {
   const navigation = useNavigation()
   const { canManageAllCustomers } = useAuth()
+  const { syncInteraction } = useTracking()
   const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -98,6 +100,7 @@ export default function CustomersScreen() {
       })
 
       setCustomers((current) => sortByName([...current, response.data]))
+      await syncInteraction('customer-create', { includeLocation: false, refreshSession: false })
       resetCreateForm()
       Alert.alert('Client cree', 'Le client est maintenant disponible sur le mobile et sur le web.')
     } catch (error) {

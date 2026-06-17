@@ -43,7 +43,7 @@ export default function InvoiceCreateScreen({ navigation, route }) {
   const {
     session,
     captureCurrentLocation,
-    refreshSessionDetails,
+    syncInteraction,
   } = useTracking()
   const initialCustomerAppliedRef = useRef(false)
   const hasGlobalCustomerAccess = canManageAllCustomers()
@@ -217,6 +217,7 @@ export default function InvoiceCreateScreen({ navigation, route }) {
 
       setCustomers(nextCustomers)
       setSelectedCustomer(created)
+      await syncInteraction('customer-create', { includeLocation: false, refreshSession: false })
       setCreateCustomerVisible(false)
       setCustomerPickerVisible(false)
       setNewCustomerName('')
@@ -279,7 +280,7 @@ export default function InvoiceCreateScreen({ navigation, route }) {
         })),
       })
 
-      await refreshSessionDetails()
+      await syncInteraction('invoice-created', { includeLocation: false, refreshSession: true })
       navigation.replace('InvoiceDetail', {
         id: response.data.id,
         initialInvoice: response.data,

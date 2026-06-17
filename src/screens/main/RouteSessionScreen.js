@@ -191,7 +191,7 @@ export default function RouteSessionScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.primary} />}>
         <PageHeader
           title="Session & GPS"
-          subtitle="Suivi de tournee, chargements et cloture de journee."
+          subtitle="Suivi 20 s, camion reel et audit de reappro."
           actionIcon="crosshairs-gps"
           actionLabel="Sync"
           onActionPress={() => captureCurrentLocation('manual')}
@@ -217,7 +217,7 @@ export default function RouteSessionScreen() {
               <View style={s.summaryTop}>
                 <View style={{ flex: 1 }}>
                   <Text style={s.summaryTitle}>Session du {session.session_date}</Text>
-                  <Text style={s.summarySub}>Etat et suivi en temps reel si le backend le permet.</Text>
+                  <Text style={s.summarySub}>Etat, tracking 20 s et reappro en temps reel si le backend le permet.</Text>
                 </View>
                 <StatusChip
                   label={routeStatusLabel(session.status)}
@@ -298,7 +298,7 @@ export default function RouteSessionScreen() {
                 {isOpen && (
                   <>
                     <TouchableOpacity style={s.primaryButton} onPress={() => setLoadVisible(true)}>
-                      <Text style={s.primaryButtonText}>Ajouter un chargement</Text>
+                      <Text style={s.primaryButtonText}>Reappro camion</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={s.secondaryButton} onPress={() => setReturnsVisible(true)}>
                       <Text style={s.secondaryButtonText}>Declarer les retours</Text>
@@ -358,8 +358,8 @@ export default function RouteSessionScreen() {
       <Modal visible={loadVisible} animationType="slide" onRequestClose={() => setLoadVisible(false)}>
         <View style={s.modalRoot}>
           <PageHeader
-            title="Ajouter un chargement"
-            subtitle="Depot vers camion"
+            title="Reappro camion"
+            subtitle="Depot vers camion et notification terrain"
             actionIcon="close"
             onActionPress={() => {
               setLoadVisible(false)
@@ -405,7 +405,7 @@ export default function RouteSessionScreen() {
           <View style={s.dialogLarge}>
             <Text style={s.dialogTitle}>{session ? 'Affecter un camion' : 'Demarrer la session'}</Text>
             <Text style={s.dialogText}>
-              Choisissez le camion physique de cette tournee. Si aucun camion n est configure, vous pouvez continuer sans affectation.
+              Choisissez le camion physique de cette tournee et verifiez son statut actuel. Si aucun camion n est configure, vous pouvez continuer sans affectation.
             </Text>
 
             <ScrollView style={s.camionList} contentContainerStyle={{ gap: 10 }}>
@@ -448,6 +448,15 @@ export default function RouteSessionScreen() {
                               ? `Session ${camion.current_route_session.rep.name}`
                               : 'Disponible'}
                         </Text>
+                        <View style={s.camionOptionBadges}>
+                          <StatusChip
+                            label={disabled ? 'Occupe' : camion.active === false ? 'Inactif' : selected ? 'Selectionne' : 'Disponible'}
+                            tone={disabled ? 'warning' : camion.active === false ? 'danger' : selected ? 'info' : 'success'}
+                          />
+                          {camion.current_route_session?.zone?.name && (
+                            <StatusChip label={camion.current_route_session.zone.name} tone="neutral" />
+                          )}
+                        </View>
                       </View>
                       {selected && <MaterialCommunityIcons name="check-circle" size={20} color="#fff" />}
                     </TouchableOpacity>
@@ -925,6 +934,12 @@ const s = StyleSheet.create({
     marginTop: 3,
     fontSize: 12,
     color: T.textMuted,
+  },
+  camionOptionBadges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
   },
   camionEmptyCard: {
     alignItems: 'center',

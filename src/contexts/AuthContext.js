@@ -5,12 +5,15 @@ import {
   getLocationValidationMessage,
   getCurrentLocation,
   getForegroundPermission,
+  getRememberedLocationPayload,
   mapLocationToPayload,
   requestForegroundPermission,
 } from '../services/locationService'
 import { markSessionOffline, pingSession, reportSession } from '../services/sessionService'
 
 const AuthContext = createContext(null)
+const PRESENCE_HEARTBEAT_MS = 20 * 1000
+const INTERACTION_PING_GAP_MS = 8 * 1000
 
 function initialSessionStatus() {
   return {
@@ -27,6 +30,11 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [sessionStatus, setSessionStatus] = useState(initialSessionStatus)
   const appStateRef = useRef(AppState.currentState)
+  const presenceRef = useRef({
+    pingInFlight: false,
+    reportInFlight: false,
+    lastPingAtMs: 0,
+  })
 
   const refreshUser = useCallback(async () => {
     const response = await api.get('/auth/me')
@@ -34,9 +42,14 @@ export function AuthProvider({ children }) {
     return response.data
   }, [])
 
-  const capturePresenceLocation = useCallback(async (shouldRequest = false) => {
+  const capturePresenceLocation = useCallback(async ({ shouldRequest = false, forceFresh = false } = {}) => {
     if (!['admin', 'developer', 'rep'].includes(user?.role)) {
       return { payload: null, issue: null }
+    }
+
+    const cachedPayload = getRememberedLocationPayload()
+    if (!forceFresh && cachedPayload) {
+      return { payload: cachedPayload, issue: null }
     }
 
     try {
@@ -45,22 +58,32 @@ export function AuthProvider({ children }) {
         : await getForegroundPermission()
 
       if (permission.status !== 'granted') {
-        return { payload: null, issue: null }
+        return { payload: cachedPayload, issue: null }
       }
 
       const location = await getCurrentLocation()
       return {
-        payload: mapLocationToPayload(location),
+        payload: mapLocationToPayload(location) || cachedPayload,
         issue: getLocationValidationMessage(location),
       }
     } catch {
-      return { payload: null, issue: null }
+      return { payload: cachedPayload, issue: null }
     }
   }, [user?.role])
 
   const sendSessionReport = useCallback(async (reason = 'active') => {
+    if (!user?.id || presenceRef.current.reportInFlight) {
+      return false
+    }
+
+    presenceRef.current.reportInFlight = true
+
     try {
-      const { payload, issue } = await capturePresenceLocation(reason === 'login' || reason === 'resume')
+      const { payload, issue } = await capturePresenceLocation({
+        shouldRequest: reason === 'login' || reason === 'resume',
+        forceFresh: reason === 'login' || reason === 'resume',
+      })
+
       await reportSession(payload)
       setSessionStatus((prev) => ({
         ...prev,
@@ -68,31 +91,59 @@ export function AuthProvider({ children }) {
         lastReportAt: new Date().toISOString(),
         error: issue,
       }))
+      return true
     } catch (error) {
       setSessionStatus((prev) => ({
         ...prev,
         error: error.response?.data?.message || error.message || 'Presence indisponible.',
       }))
+      return false
+    } finally {
+      presenceRef.current.reportInFlight = false
     }
-  }, [capturePresenceLocation])
+  }, [capturePresenceLocation, user?.id])
 
-  const sendSessionPing = useCallback(async () => {
+  const sendSessionPing = useCallback(async ({
+    reason = 'heartbeat',
+    force = false,
+    includeLocation = false,
+  } = {}) => {
+    if (!user?.id || presenceRef.current.pingInFlight) {
+      return false
+    }
+
+    const now = Date.now()
+    if (!force && now - presenceRef.current.lastPingAtMs < INTERACTION_PING_GAP_MS) {
+      return false
+    }
+
+    presenceRef.current.pingInFlight = true
+
     try {
-      const { payload, issue } = await capturePresenceLocation(false)
+      const payload = includeLocation
+        ? (await capturePresenceLocation({ shouldRequest: false, forceFresh: false })).payload
+        : getRememberedLocationPayload()
+
       await pingSession(payload)
+      presenceRef.current.lastPingAtMs = now
+
       setSessionStatus((prev) => ({
         ...prev,
-        state: 'ping',
+        state: reason,
         lastPingAt: new Date().toISOString(),
-        error: issue,
+        error: null,
       }))
+      return true
     } catch (error) {
       setSessionStatus((prev) => ({
         ...prev,
         error: error.response?.data?.message || error.message || 'Heartbeat indisponible.',
       }))
+      return false
+    } finally {
+      presenceRef.current.pingInFlight = false
     }
-  }, [capturePresenceLocation])
+  }, [capturePresenceLocation, user?.id])
 
   const sendSessionOffline = useCallback(async (reason = 'offline') => {
     try {
@@ -110,6 +161,14 @@ export function AuthProvider({ children }) {
       }))
     }
   }, [])
+
+  const touchSession = useCallback((reason = 'interaction', options = {}) => (
+    sendSessionPing({
+      reason,
+      force: options.force ?? false,
+      includeLocation: options.includeLocation ?? false,
+    })
+  ), [sendSessionPing])
 
   useEffect(() => {
     let mounted = true
@@ -146,6 +205,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (!user?.id) {
       setSessionStatus(initialSessionStatus())
+      presenceRef.current.lastPingAtMs = 0
       return undefined
     }
 
@@ -153,9 +213,9 @@ export function AuthProvider({ children }) {
 
     const interval = setInterval(() => {
       if (AppState.currentState === 'active') {
-        sendSessionPing()
+        sendSessionPing({ reason: 'heartbeat' })
       }
-    }, 2 * 60 * 1000)
+    }, PRESENCE_HEARTBEAT_MS)
 
     const sub = AppState.addEventListener('change', (nextState) => {
       const previous = appStateRef.current
@@ -203,11 +263,12 @@ export function AuthProvider({ children }) {
     login,
     logout,
     refreshUser,
+    touchSession,
     isAdmin: () => ['admin', 'developer'].includes(user?.role),
     isRep: () => user?.role === 'rep',
     isStaff: () => ['admin', 'developer', 'comptable'].includes(user?.role),
     canManageAllCustomers: () => ['admin', 'developer', 'comptable'].includes(user?.role),
-  }), [user, loading, sessionStatus, refreshUser])
+  }), [user, loading, sessionStatus, refreshUser, touchSession])
 
   return (
     <AuthContext.Provider value={value}>

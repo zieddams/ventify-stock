@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuth } from '../contexts/AuthContext'
 import LoginScreen from '../screens/auth/LoginScreen'
 import DashboardScreen from '../screens/main/DashboardScreen'
@@ -18,6 +19,16 @@ import { T } from '../theme'
 const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
 
+function useTabLayout() {
+  const insets = useSafeAreaInsets()
+  const bottomInset = Math.max(insets.bottom, 10)
+
+  return {
+    bottomInset,
+    tabBarHeight: 60 + bottomInset,
+  }
+}
+
 function HeaderRight({ navigation }) {
   return (
     <TouchableOpacity style={s.headerRight} onPress={() => navigation.navigate('Profile')}>
@@ -27,6 +38,8 @@ function HeaderRight({ navigation }) {
 }
 
 function RepTabs() {
+  const { bottomInset, tabBarHeight } = useTabLayout()
+
   return (
     <Tab.Navigator
       screenOptions={({ route, navigation }) => ({
@@ -34,18 +47,24 @@ function RepTabs() {
         headerTitleStyle: { color: T.text, fontWeight: '800' },
         headerShadowVisible: false,
         headerRight: () => <HeaderRight navigation={navigation} />,
+        sceneStyle: { backgroundColor: T.background },
+        tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: T.primary,
         tabBarInactiveTintColor: T.textMuted,
         tabBarStyle: {
           backgroundColor: T.surface,
           borderTopColor: T.border,
-          height: 68,
-          paddingBottom: 8,
-          paddingTop: 6,
+          height: tabBarHeight,
+          paddingBottom: bottomInset,
+          paddingTop: 8,
         },
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '700',
+          marginBottom: 2,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 2,
         },
         tabBarIcon: ({ color, focused }) => {
           const icons = {
@@ -69,6 +88,8 @@ function RepTabs() {
 }
 
 function StaffTabs() {
+  const { bottomInset, tabBarHeight } = useTabLayout()
+
   return (
     <Tab.Navigator
       screenOptions={({ route, navigation }) => ({
@@ -76,18 +97,24 @@ function StaffTabs() {
         headerTitleStyle: { color: T.text, fontWeight: '800' },
         headerShadowVisible: false,
         headerRight: () => <HeaderRight navigation={navigation} />,
+        sceneStyle: { backgroundColor: T.background },
+        tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: T.primary,
         tabBarInactiveTintColor: T.textMuted,
         tabBarStyle: {
           backgroundColor: T.surface,
           borderTopColor: T.border,
-          height: 68,
-          paddingBottom: 8,
-          paddingTop: 6,
+          height: tabBarHeight,
+          paddingBottom: bottomInset,
+          paddingTop: 8,
         },
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '700',
+          marginBottom: 2,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 2,
         },
         tabBarIcon: ({ color, focused }) => {
           const icons = {
@@ -103,7 +130,7 @@ function StaffTabs() {
       <Tab.Screen name="Accueil" component={DashboardScreen} options={{ title: 'Pilotage' }} />
       <Tab.Screen name="Clients" component={CustomersScreen} options={{ title: 'Clients' }} />
       <Tab.Screen name="Factures" component={InvoicesScreen} options={{ title: 'Factures' }} />
-      <Tab.Screen name="Compte" component={ProfileScreen} options={{ title: 'Compte' }} />
+      <Tab.Screen name="Compte" component={ProfileScreen} options={{ title: 'Reglages' }} />
     </Tab.Navigator>
   )
 }
@@ -134,7 +161,7 @@ function AppStack() {
       />
       <Stack.Screen name="InvoiceCreate" component={InvoiceCreateScreen} options={{ title: 'Nouvelle facture' }} />
       <Stack.Screen name="InvoiceDetail" component={InvoiceDetailScreen} options={{ title: 'Detail facture' }} />
-      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Compte mobile' }} />
+      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Reglages mobiles' }} />
     </Stack.Navigator>
   )
 }

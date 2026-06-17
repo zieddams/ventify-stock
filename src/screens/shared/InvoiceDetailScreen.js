@@ -12,6 +12,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import StatusChip from '../../components/StatusChip'
+import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
 import { printInvoiceDocument, shareInvoiceDocument } from '../../utils/invoicePrint'
@@ -25,6 +26,7 @@ import {
 
 export default function InvoiceDetailScreen({ route }) {
   const { id, initialInvoice } = route.params ?? {}
+  const { syncInteraction } = useTracking()
   const [invoice, setInvoice] = useState(initialInvoice ?? null)
   const [loading, setLoading] = useState(!initialInvoice)
   const [refreshing, setRefreshing] = useState(false)
@@ -67,6 +69,7 @@ export default function InvoiceDetailScreen({ route }) {
     setPrinting(true)
     try {
       await printInvoiceDocument(invoice)
+      await syncInteraction('invoice-thermal', { includeLocation: false, refreshSession: false })
     } catch (error) {
       Alert.alert('Transfert thermique impossible', error.message || 'Veuillez reessayer.')
     } finally {
@@ -80,6 +83,7 @@ export default function InvoiceDetailScreen({ route }) {
     setSharing(true)
     try {
       await shareInvoiceDocument(invoice)
+      await syncInteraction('invoice-pdf', { includeLocation: false, refreshSession: false })
     } catch (error) {
       Alert.alert('Partage impossible', error.message || 'Veuillez reessayer.')
     } finally {
