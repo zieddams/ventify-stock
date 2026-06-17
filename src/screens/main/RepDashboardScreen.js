@@ -45,13 +45,11 @@ export default function RepDashboardScreen() {
   const { user } = useAuth()
   const {
     session,
-    busy,
     currentLocation,
     locationPermission,
     trackingState,
     refreshSession,
     captureCurrentLocation,
-    startSession,
   } = useTracking()
 
   const [invoices, setInvoices] = useState([])
@@ -123,7 +121,8 @@ export default function RepDashboardScreen() {
     <ScrollView
       style={s.root}
       contentContainerStyle={s.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.primary} />}>
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.primary} />}
+    >
       <PageHeader
         title={`Bonjour ${firstName(user?.name)}`}
         subtitle={new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
@@ -144,7 +143,7 @@ export default function RepDashboardScreen() {
           <View style={{ flex: 1 }}>
             <Text style={s.heroTitle}>Session du jour</Text>
             <Text style={s.heroSubtitle}>
-              Presence mobile + GPS relies a la tournee active.
+              Presence mobile, GPS et camion reel relies a la tournee active.
             </Text>
           </View>
           <StatusChip
@@ -156,22 +155,12 @@ export default function RepDashboardScreen() {
         {!session ? (
           <>
             <Text style={s.heroText}>
-              Aucune session ouverte pour aujourd hui. Demarrez la tournee avant le chargement et les livraisons.
+              Aucune session ouverte pour aujourd hui. Ouvrez le module session pour choisir le camion physique avant le chargement et les livraisons.
             </Text>
             <View style={s.heroActions}>
-              <TouchableOpacity
-                style={[s.primaryButton, busy && s.buttonDisabled]}
-                onPress={() => startSession()}
-                disabled={busy}
-                activeOpacity={0.85}>
-                {busy ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <MaterialCommunityIcons name="play-circle-outline" size={18} color="#fff" />
-                    <Text style={s.primaryButtonText}>Demarrer la session</Text>
-                  </>
-                )}
+              <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Session')} activeOpacity={0.85}>
+                <MaterialCommunityIcons name="truck-fast-outline" size={18} color="#fff" />
+                <Text style={s.primaryButtonText}>Choisir le camion</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Session')}>
                 <Text style={s.secondaryButtonText}>Voir le module session</Text>
@@ -212,7 +201,17 @@ export default function RepDashboardScreen() {
               <Text style={s.locationMeta}>
                 {session.latestLocation?.recorded_at
                   ? `Derniere remontee ${formatDateTime(session.latestLocation.recorded_at)}`
-                  : 'La prochaine position sera envoyee au prochain relevé.'}
+                  : 'La prochaine position sera envoyee au prochain releve.'}
+              </Text>
+            </View>
+
+            <View style={s.camionCard}>
+              <Text style={s.locationLabel}>Camion assigne</Text>
+              <Text style={s.camionValue}>{session.camion?.name || 'Aucun camion assigne'}</Text>
+              <Text style={s.locationMeta}>
+                {session.camion?.plate
+                  ? `Immatriculation ${session.camion.plate}`
+                  : 'Ouvrez le module Session & GPS pour affecter le camion reel.'}
               </Text>
             </View>
 
@@ -304,7 +303,8 @@ export default function RepDashboardScreen() {
             <TouchableOpacity
               key={item.id}
               style={s.invoiceRow}
-              onPress={() => navigation.navigate('InvoiceDetail', { id: item.id, initialInvoice: item })}>
+              onPress={() => navigation.navigate('InvoiceDetail', { id: item.id, initialInvoice: item })}
+            >
               <View style={{ flex: 1 }}>
                 <Text style={s.invoiceNumber}>{item.number}</Text>
                 <Text style={s.invoiceCustomer}>{item.customer_name}</Text>
@@ -397,9 +397,6 @@ const s = StyleSheet.create({
     fontWeight: '700',
     color: T.textSecondary,
   },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
   factGrid: {
     flexDirection: 'row',
     gap: 10,
@@ -435,6 +432,14 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#99f6e4',
   },
+  camionCard: {
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
   locationLabel: {
     fontSize: 12,
     color: T.textMuted,
@@ -444,6 +449,12 @@ const s = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: T.primaryDark,
+  },
+  camionValue: {
+    marginTop: 6,
+    fontSize: 16,
+    fontWeight: '800',
+    color: T.text,
   },
   locationMeta: {
     marginTop: 4,

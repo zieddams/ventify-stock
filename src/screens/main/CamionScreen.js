@@ -16,7 +16,12 @@ import StatusChip from '../../components/StatusChip'
 import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
-import { formatCount, formatCurrency, formatNumber, toNumber } from '../../utils/format'
+import { formatCount, formatCurrency, formatDateTime, formatNumber, toNumber } from '../../utils/format'
+
+function sessionLabel(routeSession) {
+  if (!routeSession) return 'Sans session'
+  return routeSession.status === 'open' ? 'Session ouverte' : 'Session cloturee'
+}
 
 export default function CamionScreen() {
   const navigation = useNavigation()
@@ -24,6 +29,8 @@ export default function CamionScreen() {
   const [stock, setStock] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [configuredCamion, setConfiguredCamion] = useState(null)
+  const [routeSession, setRouteSession] = useState(null)
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
@@ -31,6 +38,8 @@ export default function CamionScreen() {
     try {
       const response = await api.get('/camion')
       setStock(Array.isArray(response.data?.stock) ? response.data.stock : [])
+      setConfiguredCamion(response.data?.configured_camion ?? null)
+      setRouteSession(response.data?.route_session ?? null)
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -96,6 +105,42 @@ export default function CamionScreen() {
               onActionPress={() => navigation.navigate('Session')}
             />
 
+            <View style={[s.assignmentCard, cardShadow]}>
+              <View style={s.assignmentTop}>
+                <View style={s.assignmentIcon}>
+                  <MaterialCommunityIcons name="truck-fast-outline" size={22} color={T.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.assignmentLabel}>Camion physique</Text>
+                  <Text style={s.assignmentTitle}>{configuredCamion?.name || 'Aucun camion assigne'}</Text>
+                  <Text style={s.assignmentMeta}>
+                    {configuredCamion?.plate
+                      ? `Immatriculation ${configuredCamion.plate}`
+                      : 'Affectez le camion depuis Session & GPS pour lier le vehicule reel.'}
+                  </Text>
+                </View>
+                <StatusChip
+                  label={sessionLabel(routeSession)}
+                  tone={routeSession?.status === 'open' ? 'success' : 'warning'}
+                />
+              </View>
+
+              <View style={s.assignmentFacts}>
+                <View style={s.assignmentFact}>
+                  <Text style={s.assignmentFactLabel}>Session</Text>
+                  <Text style={s.assignmentFactValue}>{routeSession?.id ? `#${routeSession.id}` : 'Aucune'}</Text>
+                </View>
+                <View style={s.assignmentFact}>
+                  <Text style={s.assignmentFactLabel}>Zone</Text>
+                  <Text style={s.assignmentFactValue}>{routeSession?.zone?.name || 'Non definie'}</Text>
+                </View>
+                <View style={s.assignmentFact}>
+                  <Text style={s.assignmentFactLabel}>Ouverture</Text>
+                  <Text style={s.assignmentFactValue}>{routeSession?.opened_at ? formatDateTime(routeSession.opened_at) : 'Non demarree'}</Text>
+                </View>
+              </View>
+            </View>
+
             <View style={s.summaryGrid}>
               <MetricCard
                 label="Produits"
@@ -128,7 +173,7 @@ export default function CamionScreen() {
                 />
                 <Text style={s.bannerTitle}>Chargement et retours</Text>
                 <Text style={s.bannerText}>
-                  Utilisez le module Session pour declarer depot vers camion et retours sans perdre l historique.
+                  Utilisez le module Session pour declarer depot vers camion, retours et affectation du camion physique sans perdre l historique.
                 </Text>
                 <TouchableOpacity style={s.bannerButton} onPress={() => navigation.navigate('Session')}>
                   <Text style={s.bannerButtonText}>Ouvrir Session</Text>
@@ -172,6 +217,63 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     marginBottom: 12,
+  },
+  assignmentCard: {
+    marginBottom: 12,
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: T.surface,
+  },
+  assignmentTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  assignmentIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ecfeff',
+  },
+  assignmentLabel: {
+    fontSize: 12,
+    color: T.textMuted,
+  },
+  assignmentTitle: {
+    marginTop: 4,
+    fontSize: 17,
+    fontWeight: '800',
+    color: T.text,
+  },
+  assignmentMeta: {
+    marginTop: 4,
+    fontSize: 12,
+    color: T.textSecondary,
+  },
+  assignmentFacts: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+  assignmentFact: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: T.surfaceAlt,
+  },
+  assignmentFactLabel: {
+    fontSize: 11,
+    color: T.textMuted,
+  },
+  assignmentFactValue: {
+    marginTop: 6,
+    fontSize: 13,
+    fontWeight: '800',
+    color: T.text,
   },
   banner: {
     flex: 1,

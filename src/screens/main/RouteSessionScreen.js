@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -51,22 +51,27 @@ export default function RouteSessionScreen() {
   const [loadVisible, setLoadVisible] = useState(false)
   const [returnsVisible, setReturnsVisible] = useState(false)
   const [closeVisible, setCloseVisible] = useState(false)
+  const [startVisible, setStartVisible] = useState(false)
   const [search, setSearch] = useState('')
   const [loadDraft, setLoadDraft] = useState({})
   const [returnsDraft, setReturnsDraft] = useState({})
   const [cashCollected, setCashCollected] = useState('')
   const [creditCollected, setCreditCollected] = useState('')
+  const [camions, setCamions] = useState([])
+  const [selectedCamionId, setSelectedCamionId] = useState('')
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
 
     try {
-      const [productsResponse] = await Promise.all([
+      const [productsResponse, camionsResponse] = await Promise.all([
         api.get('/products'),
+        api.get('/camions'),
         refreshSessionDetails(),
       ])
 
       setProducts(Array.isArray(productsResponse.data) ? productsResponse.data : [])
+      setCamions(Array.isArray(camionsResponse.data) ? camionsResponse.data : [])
     } finally {
       setRefreshing(false)
     }
@@ -77,6 +82,21 @@ export default function RouteSessionScreen() {
     const interval = setInterval(() => refreshSessionDetails(), 45000)
     return () => clearInterval(interval)
   }, [load, refreshSessionDetails]))
+
+  useEffect(() => {
+    if (camions.length === 0) {
+      setSelectedCamionId('')
+      return
+    }
+
+    const preferredCamion = camions.find((camion) => camion.is_available !== false) ?? camions[0]
+
+    setSelectedCamionId((current) => (
+      camions.some((camion) => String(camion.id) === String(current))
+        ? current
+        : String(preferredCamion.id)
+    ))
+  }, [camions])
 
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -90,6 +110,10 @@ export default function RouteSessionScreen() {
   const lines = session?.lines ?? []
   const latestLocation = currentLocation?.coords ? currentLocation : session?.latestLocation
   const isOpen = session?.status === 'open'
+  const configuredCamion = session?.camion ?? null
+  const activeCamions = camions.filter((camion) => camion.active !== false)
+  const selectedCamion = activeCamions.find((camion) => String(camion.id) === String(selectedCamionId)) ?? null
+  const selectedCamionBlocked = selectedCamion?.is_available === false && selectedCamion?.id !== configuredCamion?.id
 
   const submitLoad = async () => {
     const payload = Object.entries(loadDraft)
@@ -150,6 +174,15 @@ export default function RouteSessionScreen() {
     }
   }
 
+  const submitStartSession = async () => {
+    try {
+      await startSession(selectedCamionId ? { camion_id: Number(selectedCamionId) } : {})
+      setStartVisible(false)
+    } catch (error) {
+      Alert.alert('Session impossible', error.response?.data?.message || error.message || 'Veuillez reessayer.')
+    }
+  }
+
   return (
     <>
       <ScrollView
@@ -169,13 +202,13 @@ export default function RouteSessionScreen() {
             <MaterialCommunityIcons name="truck-fast-outline" size={34} color={T.primary} />
             <Text style={s.emptyTitle}>Aucune session ouverte</Text>
             <Text style={s.emptyText}>
-              Demarrez la session du jour pour activer le suivi GPS et auditer les chargements.
+              Choisissez le camion physique du jour pour activer le suivi GPS et auditer les chargements.
             </Text>
             <TouchableOpacity
               style={[s.primaryButton, busy && s.buttonDisabled]}
-              onPress={() => startSession()}
+              onPress={() => setStartVisible(true)}
               disabled={busy}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>Demarrer la session</Text>}
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>Choisir le camion</Text>}
             </TouchableOpacity>
           </View>
         ) : (
@@ -207,6 +240,18 @@ export default function RouteSessionScreen() {
                 </View>
               </View>
 
+              <View style={s.camionCard}>
+                <Text style={s.locationLabel}>Camion physique assigne</Text>
+                <Text style={s.locationValue}>{configuredCamion?.name || 'Aucun camion assigne'}</Text>
+                <Text style={s.locationMeta}>
+                  {configuredCamion?.plate
+                    ? `Immatriculation ${configuredCamion.plate}`
+                    : activeCamions.length > 0
+                      ? 'Affectez un camion pour lier la session au vehicule reel.'
+                      : 'Aucun camion actif configure pour le moment.'}
+                </Text>
+              </View>
+
               <View style={s.bannerRow}>
                 <StatusChip
                   label={trackingState.active ? 'Tracking actif' : 'Tracking en attente'}
@@ -232,6 +277,20 @@ export default function RouteSessionScreen() {
                 <View style={s.noticeWarning}>
                   <MaterialCommunityIcons name="map-marker-alert-outline" size={18} color={T.warning} />
                   <Text style={s.noticeWarningText}>{trackingState.error}</Text>
+                </View>
+              )}
+
+              {isOpen && !configuredCamion && (
+                <View style={s.noticeWarning}>
+                  <MaterialCommunityIcons name="truck-alert-outline" size={18} color={T.warning} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.noticeWarningText}>
+                      Cette session est ouverte sans camion physique affecte.
+                    </Text>
+                    <TouchableOpacity style={s.noticeAction} onPress={() => setStartVisible(true)}>
+                      <Text style={s.noticeActionText}>Affecter un camion maintenant</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               )}
 
@@ -338,6 +397,86 @@ export default function RouteSessionScreen() {
           <TouchableOpacity style={[s.primaryButton, busy && s.buttonDisabled]} onPress={submitLoad} disabled={busy}>
             {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>Valider le chargement</Text>}
           </TouchableOpacity>
+        </View>
+      </Modal>
+
+      <Modal visible={startVisible} transparent animationType="fade" onRequestClose={() => setStartVisible(false)}>
+        <View style={s.overlay}>
+          <View style={s.dialogLarge}>
+            <Text style={s.dialogTitle}>{session ? 'Affecter un camion' : 'Demarrer la session'}</Text>
+            <Text style={s.dialogText}>
+              Choisissez le camion physique de cette tournee. Si aucun camion n est configure, vous pouvez continuer sans affectation.
+            </Text>
+
+            <ScrollView style={s.camionList} contentContainerStyle={{ gap: 10 }}>
+              {activeCamions.length === 0 ? (
+                <View style={s.camionEmptyCard}>
+                  <MaterialCommunityIcons name="truck-outline" size={22} color={T.textMuted} />
+                  <Text style={s.camionEmptyTitle}>Aucun camion actif</Text>
+                  <Text style={s.camionEmptyText}>
+                    Le back-office doit d abord creer les camions physiques. Vous pouvez quand meme ouvrir la session.
+                  </Text>
+                </View>
+              ) : (
+                activeCamions.map((camion) => {
+                  const selected = String(camion.id) === String(selectedCamionId)
+                  const disabled = camion.is_available === false && camion.id !== configuredCamion?.id
+
+                  return (
+                    <TouchableOpacity
+                      key={camion.id}
+                      style={[
+                        s.camionOption,
+                        selected && s.camionOptionSelected,
+                        disabled && s.camionOptionDisabled,
+                      ]}
+                      disabled={disabled}
+                      onPress={() => setSelectedCamionId(String(camion.id))}
+                    >
+                      <View style={s.camionOptionIcon}>
+                        <MaterialCommunityIcons name="truck-fast-outline" size={20} color={selected ? '#fff' : T.primary} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.camionOptionTitle, selected && { color: '#fff' }]}>{camion.name}</Text>
+                        <Text style={[s.camionOptionMeta, selected && { color: 'rgba(255,255,255,0.82)' }]}>
+                          {camion.plate || 'Immatriculation non renseignee'}
+                        </Text>
+                        <Text style={[s.camionOptionMeta, selected && { color: 'rgba(255,255,255,0.82)' }]}>
+                          {disabled
+                            ? `Occupe par ${camion.current_route_session?.rep?.name || 'une autre session'}`
+                            : camion.current_route_session?.rep?.name
+                              ? `Session ${camion.current_route_session.rep.name}`
+                              : 'Disponible'}
+                        </Text>
+                      </View>
+                      {selected && <MaterialCommunityIcons name="check-circle" size={20} color="#fff" />}
+                    </TouchableOpacity>
+                  )
+                })
+              )}
+            </ScrollView>
+
+            <View style={s.dialogActions}>
+              <TouchableOpacity style={s.dialogSecondary} onPress={() => setStartVisible(false)}>
+                <Text style={s.dialogSecondaryText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.dialogPrimary, busy && s.buttonDisabled]}
+                onPress={submitStartSession}
+                disabled={busy || (activeCamions.length > 0 && (!selectedCamionId || selectedCamionBlocked))}
+              >
+                {busy ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={s.dialogPrimaryText}>
+                    {activeCamions.length > 0
+                      ? (session ? 'Affecter le camion' : 'Demarrer avec ce camion')
+                      : 'Continuer sans camion'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </Modal>
 
@@ -513,6 +652,14 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#bfdbfe',
   },
+  camionCard: {
+    marginTop: 14,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
   locationLabel: {
     fontSize: 12,
     color: T.textMuted,
@@ -671,6 +818,12 @@ const s = StyleSheet.create({
     borderRadius: 22,
     padding: 22,
   },
+  dialogLarge: {
+    backgroundColor: T.surface,
+    borderRadius: 22,
+    padding: 22,
+    maxHeight: '82%',
+  },
   dialogTitle: {
     fontSize: 20,
     fontWeight: '800',
@@ -734,6 +887,67 @@ const s = StyleSheet.create({
     fontWeight: '800',
     color: '#fff',
   },
+  camionList: {
+    marginTop: 18,
+    maxHeight: 340,
+  },
+  camionOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: T.surfaceAlt,
+  },
+  camionOptionSelected: {
+    borderColor: T.primary,
+    backgroundColor: T.primary,
+  },
+  camionOptionDisabled: {
+    opacity: 0.5,
+  },
+  camionOptionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  camionOptionTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: T.text,
+  },
+  camionOptionMeta: {
+    marginTop: 3,
+    fontSize: 12,
+    color: T.textMuted,
+  },
+  camionEmptyCard: {
+    alignItems: 'center',
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: T.surfaceAlt,
+  },
+  camionEmptyTitle: {
+    marginTop: 10,
+    fontSize: 15,
+    fontWeight: '800',
+    color: T.text,
+  },
+  camionEmptyText: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+    color: T.textSecondary,
+  },
   noticeWarning: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -748,6 +962,19 @@ const s = StyleSheet.create({
   noticeWarningText: {
     flex: 1,
     fontSize: 13,
+    color: T.warning,
+  },
+  noticeAction: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(217,119,6,0.14)',
+  },
+  noticeActionText: {
+    fontSize: 12,
+    fontWeight: '800',
     color: T.warning,
   },
 })
