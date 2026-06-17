@@ -46,7 +46,7 @@ function periodLabel(period) {
 
 export default function InvoicesScreen() {
   const navigation = useNavigation()
-  const { user, isAdmin } = useAuth()
+  const { user, canManageAllCustomers } = useAuth()
   const { session } = useTracking()
   const [invoices, setInvoices] = useState([])
   const [users, setUsers] = useState([])
@@ -58,6 +58,7 @@ export default function InvoicesScreen() {
   const [repFilterVisible, setRepFilterVisible] = useState(false)
   const [printing, setPrinting] = useState(false)
   const [sharing, setSharing] = useState(false)
+  const hasGlobalInvoiceAccess = canManageAllCustomers()
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
@@ -72,7 +73,7 @@ export default function InvoicesScreen() {
       }
 
       const requests = [api.get('/invoices', { params })]
-      if (isAdmin() && users.length === 0) {
+      if (hasGlobalInvoiceAccess && users.length === 0) {
         requests.push(api.get('/users'))
       }
 
@@ -86,7 +87,7 @@ export default function InvoicesScreen() {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [isAdmin, period, selectedRepId, users.length])
+  }, [hasGlobalInvoiceAccess, period, selectedRepId, users.length])
 
   useFocusEffect(useCallback(() => {
     load()
@@ -106,7 +107,7 @@ export default function InvoicesScreen() {
   }, [invoices, search])
 
   const assignableUsers = useMemo(() => (
-    users.filter((entry) => entry.active && ['rep', 'admin', 'developer'].includes(entry.role))
+    users.filter((entry) => entry.active && ['rep', 'admin', 'developer', 'comptable'].includes(entry.role))
   ), [users])
 
   const selectedRep = useMemo(() => (
@@ -116,7 +117,7 @@ export default function InvoicesScreen() {
   const filterSummary = useMemo(() => {
     const parts = [`Periode: ${periodLabel(period)}`]
 
-    if (isAdmin()) {
+    if (hasGlobalInvoiceAccess) {
       if (selectedRepId && selectedRep) {
         parts.push(`Compte: ${selectedRep.name}`)
       } else {
@@ -131,7 +132,7 @@ export default function InvoicesScreen() {
     }
 
     return parts.join(' | ')
-  }, [isAdmin, period, search, selectedRep, selectedRepId, user?.name])
+  }, [hasGlobalInvoiceAccess, period, search, selectedRep, selectedRepId, user?.name])
 
   const handlePrintList = async () => {
     if (filtered.length === 0) {
@@ -147,7 +148,7 @@ export default function InvoicesScreen() {
         subtitle: filterSummary,
       })
     } catch (error) {
-      Alert.alert('Impression impossible', error.message || 'Veuillez reessayer.')
+      Alert.alert('Transfert thermique impossible', error.message || 'Veuillez reessayer.')
     } finally {
       setPrinting(false)
     }
@@ -191,7 +192,7 @@ export default function InvoicesScreen() {
                 <Text style={s.rowNumber}>{item.number}</Text>
                 <Text style={s.rowCustomer}>{item.customer_name}</Text>
                 <Text style={s.rowDate}>{formatDateTime(item.created_at)}</Text>
-                {isAdmin() && !!item.rep_name && (
+                {hasGlobalInvoiceAccess && !!item.rep_name && (
                   <Text style={s.rowRep}>Commercial: {item.rep_name}</Text>
                 )}
                 <View style={s.pills}>
@@ -237,7 +238,7 @@ export default function InvoicesScreen() {
             </ScrollView>
 
             <View style={s.toolsRow}>
-              {isAdmin() && (
+              {hasGlobalInvoiceAccess && (
                 <TouchableOpacity style={s.toolButtonWide} onPress={() => setRepFilterVisible(true)}>
                   <MaterialCommunityIcons name="account-filter-outline" size={16} color={T.primary} />
                   <Text style={s.toolButtonLabel} numberOfLines={1}>
@@ -252,7 +253,7 @@ export default function InvoicesScreen() {
                 ) : (
                   <>
                     <MaterialCommunityIcons name="printer-outline" size={16} color={T.primary} />
-                    <Text style={s.toolButtonLabel}>Imprimer</Text>
+                    <Text style={s.toolButtonLabel}>Thermique</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -281,6 +282,7 @@ export default function InvoicesScreen() {
             </View>
 
             <Text style={s.filterHint}>{filterSummary}</Text>
+            <Text style={s.printHint}>Thermique ouvre votre application Bluetooth externe. PDF garde une copie a partager.</Text>
           </View>
         )}
         ListEmptyComponent={(
@@ -303,7 +305,7 @@ export default function InvoicesScreen() {
         <View style={s.modalRoot}>
           <PageHeader
             title="Filtre commercial"
-            subtitle="Admin et developpeur"
+            subtitle="Roles globaux"
             actionIcon="close"
             onActionPress={() => setRepFilterVisible(false)}
           />
@@ -441,6 +443,11 @@ const s = StyleSheet.create({
     color: T.text,
   },
   filterHint: {
+    marginBottom: 4,
+    fontSize: 12,
+    color: T.textMuted,
+  },
+  printHint: {
     marginBottom: 8,
     fontSize: 12,
     color: T.textMuted,

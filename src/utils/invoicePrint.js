@@ -140,6 +140,109 @@ function pdfTemplate(title, subtitle, body) {
   `
 }
 
+function thermalTemplate(title, subtitle, body) {
+  return `
+    <!doctype html>
+    <html lang="fr">
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(title)}</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            color: #020617;
+            width: 72mm;
+            margin: 0 auto;
+            padding: 7mm 5mm 8mm;
+            font-size: 11px;
+            line-height: 1.35;
+          }
+          .center {
+            text-align: center;
+          }
+          .title {
+            font-size: 18px;
+            font-weight: 700;
+            margin: 0;
+          }
+          .subtitle {
+            margin: 4px 0 0;
+            font-size: 11px;
+            color: #475569;
+          }
+          .rule {
+            border-top: 1px dashed #94a3b8;
+            margin: 10px 0;
+          }
+          .meta-row,
+          .total-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 2px 0;
+          }
+          .meta-label,
+          .muted {
+            color: #64748b;
+          }
+          .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+          }
+          .chip {
+            border: 1px solid #cbd5e1;
+            border-radius: 999px;
+            padding: 3px 7px;
+            font-size: 10px;
+            font-weight: 700;
+          }
+          .line {
+            padding: 8px 0;
+            border-bottom: 1px dashed #cbd5e1;
+          }
+          .line-name {
+            font-size: 11px;
+            font-weight: 700;
+          }
+          .line-meta,
+          .line-total {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-top: 2px;
+          }
+          .section-title {
+            margin: 0 0 6px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+          }
+          .total-row.strong {
+            font-size: 13px;
+            font-weight: 700;
+          }
+          .footer {
+            margin-top: 10px;
+            text-align: center;
+            font-size: 10px;
+            color: #64748b;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="center">
+          <h1 class="title">${escapeHtml(title)}</h1>
+          <p class="subtitle">${escapeHtml(subtitle)}</p>
+        </div>
+        ${body}
+      </body>
+    </html>
+  `
+}
+
 function buildInvoiceBody(invoice) {
   const invoiceStatus = invoiceStatusLabel(unwrapStatus(invoice?.status))
   const paymentStatus = paymentStatusLabel(unwrapStatus(invoice?.payment_status))
@@ -248,44 +351,121 @@ function buildInvoiceListBody({ invoices, subtitle }) {
   `
 }
 
-async function shareHtmlAsPdf(html) {
+function buildThermalInvoiceBody(invoice) {
+  const invoiceStatus = invoiceStatusLabel(unwrapStatus(invoice?.status))
+  const paymentStatus = paymentStatusLabel(unwrapStatus(invoice?.payment_status))
+  const lines = Array.isArray(invoice?.lines) ? invoice.lines : []
+
+  return `
+    <div class="chips">
+      <span class="chip">${escapeHtml(invoiceStatus)}</span>
+      <span class="chip">${escapeHtml(paymentStatus)}</span>
+    </div>
+    <div class="rule"></div>
+    <div class="meta-row"><span class="meta-label">Client</span><span>${escapeHtml(invoice?.customer_name || '--')}</span></div>
+    <div class="meta-row"><span class="meta-label">Telephone</span><span>${escapeHtml(invoice?.customer_phone || '--')}</span></div>
+    <div class="meta-row"><span class="meta-label">Date</span><span>${escapeHtml(formatDateTime(invoice?.created_at))}</span></div>
+    <div class="meta-row"><span class="meta-label">Session</span><span>${escapeHtml(invoice?.route_session_id ? `#${invoice.route_session_id}` : 'Aucune')}</span></div>
+    <div class="rule"></div>
+    <div class="section-title">Lignes</div>
+    ${lines.map((line) => `
+      <div class="line">
+        <div class="line-name">${escapeHtml(line.product_name || 'Produit')}</div>
+        <div class="line-meta">
+          <span class="muted">${escapeHtml(line.reference || line.unit || '')}</span>
+          <span>${escapeHtml(line.qty ?? '--')} x ${escapeHtml(formatCurrency(line.price))}</span>
+        </div>
+        <div class="line-total">
+          <span class="muted">Total ligne</span>
+          <span>${escapeHtml(formatCurrency(line.total))}</span>
+        </div>
+      </div>
+    `).join('')}
+    <div class="rule"></div>
+    <div class="total-row"><span>Sous-total</span><span>${escapeHtml(formatCurrency(invoice?.subtotal))}</span></div>
+    <div class="total-row"><span>TVA</span><span>${escapeHtml(formatCurrency(invoice?.tax_amount))}</span></div>
+    <div class="total-row"><span>Paye</span><span>${escapeHtml(formatCurrency(invoice?.paid_amount))}</span></div>
+    <div class="total-row strong"><span>Total</span><span>${escapeHtml(formatCurrency(invoice?.total))}</span></div>
+    <div class="footer">Selectionnez votre application Bluetooth thermique.</div>
+  `
+}
+
+function buildThermalInvoiceListBody({ invoices, subtitle }) {
+  const total = invoices.reduce((sum, item) => sum + Number(item?.total ?? 0), 0)
+
+  return `
+    <div class="rule"></div>
+    <div class="meta-row"><span class="meta-label">Contexte</span><span>${escapeHtml(subtitle)}</span></div>
+    <div class="meta-row"><span class="meta-label">Factures</span><span>${escapeHtml(invoices.length)}</span></div>
+    <div class="meta-row"><span class="meta-label">Total</span><span>${escapeHtml(formatCurrency(total))}</span></div>
+    <div class="rule"></div>
+    <div class="section-title">Liste</div>
+    ${invoices.map((item) => `
+      <div class="line">
+        <div class="line-name">${escapeHtml(item.number || '--')}</div>
+        <div class="line-meta">
+          <span>${escapeHtml(item.customer_name || '--')}</span>
+          <span>${escapeHtml(formatDateTime(item.created_at))}</span>
+        </div>
+        <div class="line-total">
+          <span class="muted">${escapeHtml(item.rep_name || '--')}</span>
+          <span>${escapeHtml(formatCurrency(item.total))}</span>
+        </div>
+      </div>
+    `).join('')}
+    <div class="footer">Export mobile pret pour votre application thermique.</div>
+  `
+}
+
+async function shareHtmlAsPdf(html, dialogTitle = 'Partager le PDF') {
   const file = await Print.printToFileAsync({ html, base64: false })
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(file.uri, {
-      mimeType: 'application/pdf',
-      dialogTitle: 'Partager le PDF',
-    })
+
+  if (!await Sharing.isAvailableAsync()) {
+    throw new Error('Le partage n est pas disponible sur cet appareil.')
   }
+
+  await Sharing.shareAsync(file.uri, {
+    mimeType: 'application/pdf',
+    dialogTitle,
+  })
 
   return file
 }
 
-export async function printInvoiceDocument(invoice) {
-  const title = invoice?.number || 'Facture mobile'
-  const subtitle = invoice?.customer_name
+function invoiceTitle(invoice) {
+  return invoice?.number || 'Facture mobile'
+}
+
+function invoiceSubtitle(invoice) {
+  return invoice?.customer_name
     ? `${invoice.customer_name} - ${formatDateTime(invoice.created_at)}`
     : 'Detail facture'
+}
 
-  return Print.printAsync({
-    html: pdfTemplate(title, subtitle, buildInvoiceBody(invoice)),
-  })
+export async function printInvoiceDocument(invoice) {
+  return shareHtmlAsPdf(
+    thermalTemplate(invoiceTitle(invoice), invoiceSubtitle(invoice), buildThermalInvoiceBody(invoice)),
+    'Choisir l application d impression thermique',
+  )
 }
 
 export async function shareInvoiceDocument(invoice) {
-  const title = invoice?.number || 'Facture mobile'
-  const subtitle = invoice?.customer_name
-    ? `${invoice.customer_name} - ${formatDateTime(invoice.created_at)}`
-    : 'Detail facture'
-
-  return shareHtmlAsPdf(pdfTemplate(title, subtitle, buildInvoiceBody(invoice)))
+  return shareHtmlAsPdf(
+    pdfTemplate(invoiceTitle(invoice), invoiceSubtitle(invoice), buildInvoiceBody(invoice)),
+    'Partager le PDF',
+  )
 }
 
 export async function printInvoiceListDocument({ invoices, title = 'Liste factures', subtitle = 'Rapport mobile' }) {
-  return Print.printAsync({
-    html: pdfTemplate(title, subtitle, buildInvoiceListBody({ invoices, subtitle })),
-  })
+  return shareHtmlAsPdf(
+    thermalTemplate(title, subtitle, buildThermalInvoiceListBody({ invoices, subtitle })),
+    'Choisir l application d impression thermique',
+  )
 }
 
 export async function shareInvoiceListDocument({ invoices, title = 'Liste factures', subtitle = 'Rapport mobile' }) {
-  return shareHtmlAsPdf(pdfTemplate(title, subtitle, buildInvoiceListBody({ invoices, subtitle })))
+  return shareHtmlAsPdf(
+    pdfTemplate(title, subtitle, buildInvoiceListBody({ invoices, subtitle })),
+    'Partager le PDF',
+  )
 }

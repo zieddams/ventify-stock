@@ -14,6 +14,7 @@ import {
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import PageHeader from '../../components/PageHeader'
+import { useAuth } from '../../contexts/AuthContext'
 import StatusChip from '../../components/StatusChip'
 import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
@@ -38,12 +39,14 @@ function sanitizeNumber(value) {
 
 export default function InvoiceCreateScreen({ navigation, route }) {
   const { initialCustomer = null } = route?.params ?? {}
+  const { canManageAllCustomers } = useAuth()
   const {
     session,
     captureCurrentLocation,
     refreshSessionDetails,
   } = useTracking()
   const initialCustomerAppliedRef = useRef(false)
+  const hasGlobalCustomerAccess = canManageAllCustomers()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -127,6 +130,7 @@ export default function InvoiceCreateScreen({ navigation, route }) {
       item.name?.toLowerCase().includes(q)
       || item.phone?.toLowerCase().includes(q)
       || item.address?.toLowerCase().includes(q)
+      || item.owner?.name?.toLowerCase().includes(q)
     ))
   }, [customerQuery, customers])
 
@@ -303,7 +307,9 @@ export default function InvoiceCreateScreen({ navigation, route }) {
         <ScrollView contentContainerStyle={s.content}>
           <PageHeader
             title="Nouvelle facture"
-            subtitle={session?.status === 'open' ? 'Session mobile active' : 'Session non ouverte - facture quand meme possible'}
+            subtitle={session?.status === 'open'
+              ? (hasGlobalCustomerAccess ? 'Session mobile active et base clients globale' : 'Session mobile active')
+              : 'Session non ouverte - facture quand meme possible'}
           />
 
           <View style={[s.sectionCard, cardShadow]}>
@@ -471,12 +477,12 @@ export default function InvoiceCreateScreen({ navigation, route }) {
             onActionPress={() => setCustomerPickerVisible(false)}
           />
 
-          <TextInput
-            style={s.searchInput}
-            placeholder="Nom, telephone, adresse"
-            placeholderTextColor={T.textMuted}
-            value={customerQuery}
-            onChangeText={setCustomerQuery}
+            <TextInput
+              style={s.searchInput}
+              placeholder="Nom, telephone, adresse, proprietaire"
+              placeholderTextColor={T.textMuted}
+              value={customerQuery}
+              onChangeText={setCustomerQuery}
           />
 
           <TouchableOpacity style={s.secondaryButton} onPress={() => setCreateCustomerVisible(true)}>
@@ -601,7 +607,9 @@ export default function InvoiceCreateScreen({ navigation, route }) {
         <View style={s.overlay}>
           <View style={s.dialog}>
             <Text style={s.dialogTitle}>Nouveau client</Text>
-            <Text style={s.dialogText}>Creation rapide depuis le mobile.</Text>
+            <Text style={s.dialogText}>
+              Creation rapide depuis le mobile. Le client sera affecte a votre compte et visible pour les roles globaux.
+            </Text>
 
             <Text style={s.fieldLabel}>Nom</Text>
             <TextInput

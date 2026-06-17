@@ -206,6 +206,7 @@ export function AuthProvider({ children }) {
     isAdmin: () => ['admin', 'developer'].includes(user?.role),
     isRep: () => user?.role === 'rep',
     isStaff: () => ['admin', 'developer', 'comptable'].includes(user?.role),
+    canManageAllCustomers: () => ['admin', 'developer', 'comptable'].includes(user?.role),
   }), [user, loading, sessionStatus, refreshUser])
 
   return (

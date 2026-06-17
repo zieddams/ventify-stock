@@ -1,7 +1,9 @@
 import { useCallback, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
+  Modal,
   RefreshControl,
   StyleSheet,
   Text,
@@ -17,20 +19,34 @@ import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
 import { formatCurrency } from '../../utils/format'
 
+function sortByName(items) {
+  return [...items].sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')))
+}
+
 export default function CustomersScreen() {
   const navigation = useNavigation()
-  const { isAdmin } = useAuth()
+  const { canManageAllCustomers } = useAuth()
   const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [search, setSearch] = useState('')
+  const [createVisible, setCreateVisible] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [newCustomerName, setNewCustomerName] = useState('')
+  const [newCustomerPhone, setNewCustomerPhone] = useState('')
+  const [newCustomerAddress, setNewCustomerAddress] = useState('')
+
+  const hasGlobalCustomerAccess = canManageAllCustomers()
 
   const load = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true)
+    if (isRefresh) {
+      setRefreshing(true)
+    }
 
     try {
       const response = await api.get('/customers')
-      setCustomers(Array.isArray(response.data) ? response.data : response.data?.data ?? [])
+      const items = Array.isArray(response.data) ? response.data : response.data?.data ?? []
+      setCustomers(sortByName(items))
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -45,15 +61,50 @@ export default function CustomersScreen() {
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase()
-    if (!needle) return customers
+    if (!needle) {
+      return customers
+    }
 
     return customers.filter((item) => (
       item.name?.toLowerCase().includes(needle)
       || item.phone?.toLowerCase().includes(needle)
       || item.address?.toLowerCase().includes(needle)
       || item.owner?.name?.toLowerCase().includes(needle)
+      || item.wilaya?.toLowerCase().includes(needle)
     ))
   }, [customers, search])
+
+  const resetCreateForm = () => {
+    setCreateVisible(false)
+    setNewCustomerName('')
+    setNewCustomerPhone('')
+    setNewCustomerAddress('')
+    setCreating(false)
+  }
+
+  const createCustomer = async () => {
+    if (!newCustomerName.trim()) {
+      Alert.alert('Client requis', 'Le nom du client est obligatoire.')
+      return
+    }
+
+    setCreating(true)
+
+    try {
+      const response = await api.post('/customers', {
+        name: newCustomerName.trim(),
+        phone: newCustomerPhone.trim() || null,
+        address: newCustomerAddress.trim() || null,
+      })
+
+      setCustomers((current) => sortByName([...current, response.data]))
+      resetCreateForm()
+      Alert.alert('Client cree', 'Le client est maintenant disponible sur le mobile et sur le web.')
+    } catch (error) {
+      setCreating(false)
+      Alert.alert('Creation impossible', error.response?.data?.message || 'Veuillez reessayer.')
+    }
+  }
 
   return (
     <View style={s.root}>
@@ -68,17 +119,19 @@ export default function CustomersScreen() {
             <TouchableOpacity
               style={[s.row, cardShadow]}
               activeOpacity={0.84}
-              onPress={() => navigation.navigate('InvoiceCreate', { initialCustomer: item })}>
+              onPress={() => navigation.navigate('InvoiceCreate', { initialCustomer: item })}
+            >
               <View style={s.rowIcon}>
                 <MaterialCommunityIcons name="account-outline" size={18} color={T.primary} />
               </View>
+
               <View style={{ flex: 1 }}>
                 <Text style={s.rowName}>{item.name}</Text>
                 <Text style={s.rowMeta}>{item.phone || 'Sans numero'}</Text>
                 <Text style={s.rowMeta}>{item.address || 'Adresse non renseignee'}</Text>
-                {isAdmin() && (
+                {hasGlobalCustomerAccess && (
                   <Text style={s.rowOwner}>
-                    Affecte: {item.owner?.name || 'Back office'}
+                    Affecte: {item.owner?.name || 'Compte non remonte'}
                   </Text>
                 )}
                 <View style={s.badges}>
@@ -102,9 +155,11 @@ export default function CustomersScreen() {
                   )}
                 </View>
               </View>
+
               <TouchableOpacity
                 style={s.actionButton}
-                onPress={() => navigation.navigate('InvoiceCreate', { initialCustomer: item })}>
+                onPress={() => navigation.navigate('InvoiceCreate', { initialCustomer: item })}
+              >
                 <MaterialCommunityIcons name="file-document-plus-outline" size={18} color="#fff" />
               </TouchableOpacity>
             </TouchableOpacity>
@@ -114,22 +169,26 @@ export default function CustomersScreen() {
           <View style={s.headerWrap}>
             <PageHeader
               title="Clients"
-              subtitle={isAdmin() ? 'Vision complete et affectation par commercial' : 'Votre liste client mobile'}
-              actionIcon="file-document-plus-outline"
-              actionLabel="Facture"
-              onActionPress={() => navigation.navigate('InvoiceCreate')}
+              subtitle={hasGlobalCustomerAccess ? 'Base clients globale et portefeuilles commerciaux' : 'Votre liste client mobile'}
+              actionIcon="account-plus-outline"
+              actionLabel="Nouveau"
+              onActionPress={() => setCreateVisible(true)}
             />
 
             <View style={s.searchCard}>
               <MaterialCommunityIcons name="magnify" size={18} color={T.textMuted} />
               <TextInput
                 style={s.searchInput}
-                placeholder="Rechercher un client ou un commercial"
+                placeholder="Rechercher un client ou un proprietaire"
                 placeholderTextColor={T.textMuted}
                 value={search}
                 onChangeText={setSearch}
               />
             </View>
+
+            <Text style={s.scopeHint}>
+              Les commerciaux voient seulement leur liste. Les comptes globaux voient tous les clients et leur proprietaire.
+            </Text>
           </View>
         )}
         ListEmptyComponent={(
@@ -147,6 +206,57 @@ export default function CustomersScreen() {
         contentContainerStyle={s.listContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.primary} />}
       />
+
+      <Modal visible={createVisible} transparent animationType="fade" onRequestClose={resetCreateForm}>
+        <View style={s.overlay}>
+          <View style={s.dialog}>
+            <Text style={s.dialogTitle}>Nouveau client</Text>
+            <Text style={s.dialogText}>
+              Le client sera affecte a votre compte mobile. Les roles globaux le verront automatiquement.
+            </Text>
+
+            <Text style={s.fieldLabel}>Nom</Text>
+            <TextInput
+              style={s.input}
+              placeholder="Nom du client"
+              placeholderTextColor={T.textMuted}
+              value={newCustomerName}
+              onChangeText={setNewCustomerName}
+            />
+
+            <Text style={s.fieldLabel}>Telephone</Text>
+            <TextInput
+              style={s.input}
+              placeholder="+216 ..."
+              placeholderTextColor={T.textMuted}
+              value={newCustomerPhone}
+              onChangeText={setNewCustomerPhone}
+            />
+
+            <Text style={s.fieldLabel}>Adresse</Text>
+            <TextInput
+              style={s.input}
+              placeholder="Adresse de livraison"
+              placeholderTextColor={T.textMuted}
+              value={newCustomerAddress}
+              onChangeText={setNewCustomerAddress}
+            />
+
+            <View style={s.dialogActions}>
+              <TouchableOpacity style={s.dialogSecondary} onPress={resetCreateForm}>
+                <Text style={s.dialogSecondaryText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.dialogPrimary} onPress={createCustomer} disabled={creating}>
+                {creating ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={s.dialogPrimaryText}>Creer</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   )
 }
@@ -173,12 +283,17 @@ const s = StyleSheet.create({
     borderColor: T.border,
     backgroundColor: T.surface,
     paddingHorizontal: 14,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   searchInput: {
     flex: 1,
     fontSize: 14,
     color: T.text,
+  },
+  scopeHint: {
+    marginBottom: 12,
+    fontSize: 12,
+    color: T.textMuted,
   },
   row: {
     flexDirection: 'row',
@@ -268,5 +383,78 @@ const s = StyleSheet.create({
   emptyText: {
     fontSize: 14,
     color: T.textMuted,
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  dialog: {
+    borderRadius: 22,
+    backgroundColor: T.surface,
+    padding: 20,
+  },
+  dialogTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: T.text,
+  },
+  dialogText: {
+    marginTop: 6,
+    fontSize: 14,
+    color: T.textSecondary,
+  },
+  fieldLabel: {
+    marginTop: 12,
+    marginBottom: 8,
+    fontSize: 12,
+    fontWeight: '700',
+    color: T.textMuted,
+    textTransform: 'uppercase',
+  },
+  input: {
+    minHeight: 50,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: T.surfaceAlt,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: T.text,
+  },
+  dialogActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 20,
+  },
+  dialogSecondary: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    paddingVertical: 14,
+    backgroundColor: T.surfaceAlt,
+    borderWidth: 1,
+    borderColor: T.border,
+  },
+  dialogSecondaryText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: T.textSecondary,
+  },
+  dialogPrimary: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    paddingVertical: 14,
+    backgroundColor: T.primary,
+  },
+  dialogPrimaryText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#fff',
   },
 })

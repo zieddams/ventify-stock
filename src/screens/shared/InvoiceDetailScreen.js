@@ -68,7 +68,7 @@ export default function InvoiceDetailScreen({ route }) {
     try {
       await printInvoiceDocument(invoice)
     } catch (error) {
-      Alert.alert('Impression impossible', error.message || 'Veuillez reessayer.')
+      Alert.alert('Transfert thermique impossible', error.message || 'Veuillez reessayer.')
     } finally {
       setPrinting(false)
     }
@@ -113,7 +113,7 @@ export default function InvoiceDetailScreen({ route }) {
             ) : (
               <>
                 <MaterialCommunityIcons name="printer-outline" size={16} color={T.primary} />
-                <Text style={s.heroActionLabel}>Imprimer</Text>
+                <Text style={s.heroActionLabel}>Thermique</Text>
               </>
             )}
           </TouchableOpacity>
@@ -128,6 +128,7 @@ export default function InvoiceDetailScreen({ route }) {
             )}
           </TouchableOpacity>
         </View>
+        <Text style={s.heroHint}>Le bouton Thermique envoie la facture vers votre application Bluetooth externe.</Text>
       </View>
 
       <View style={[s.sectionCard, cardShadow]}>
@@ -255,6 +256,11 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginTop: 16,
+  },
+  heroHint: {
+    marginTop: 10,
+    fontSize: 12,
+    color: T.textMuted,
   },
   heroActionButton: {
     flex: 1,
