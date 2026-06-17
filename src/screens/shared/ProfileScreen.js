@@ -12,6 +12,7 @@ import PageHeader from '../../components/PageHeader'
 import StatusChip from '../../components/StatusChip'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTracking } from '../../contexts/TrackingContext'
+import { getDevicePayload } from '../../services/sessionService'
 import { T, cardShadow } from '../../theme'
 import { formatDateTime } from '../../utils/format'
 
@@ -35,6 +36,7 @@ export default function ProfileScreen() {
 
   const appVersion = Constants.expoConfig?.version || '1.1.0'
   const apiBaseUrl = Constants.expoConfig?.extra?.apiBaseUrl || 'API non definie'
+  const devicePayload = getDevicePayload()
 
   return (
     <ScrollView style={s.root} contentContainerStyle={s.content}>
@@ -89,9 +91,19 @@ export default function ProfileScreen() {
       <View style={[s.sectionCard, cardShadow]}>
         <Text style={s.sectionTitle}>Session terrain</Text>
         <View style={s.infoRow}>
+          <MaterialCommunityIcons name="pound-box-outline" size={18} color={T.info} />
+          <Text style={s.infoLabel}>Session ID</Text>
+          <Text style={s.infoValue}>{session?.id ? `#${session.id}` : 'Aucune'}</Text>
+        </View>
+        <View style={s.infoRow}>
           <MaterialCommunityIcons name="truck-fast-outline" size={18} color={T.info} />
           <Text style={s.infoLabel}>Session du jour</Text>
           <Text style={s.infoValue}>{session?.status || 'Aucune'}</Text>
+        </View>
+        <View style={s.infoRow}>
+          <MaterialCommunityIcons name="map-outline" size={18} color={T.info} />
+          <Text style={s.infoLabel}>Zone terrain</Text>
+          <Text style={s.infoValue}>{session?.zone?.name || user?.zone?.name || 'Non definie'}</Text>
         </View>
         <View style={s.infoRow}>
           <MaterialCommunityIcons name="crosshairs-gps" size={18} color={T.info} />
@@ -107,6 +119,16 @@ export default function ProfileScreen() {
           <MaterialCommunityIcons name="sync" size={18} color={T.info} />
           <Text style={s.infoLabel}>Dernier sync GPS</Text>
           <Text style={s.infoValue}>{formatDateTime(trackingState.lastSyncAt)}</Text>
+        </View>
+        <View style={s.infoRow}>
+          <MaterialCommunityIcons name="progress-clock" size={18} color={T.info} />
+          <Text style={s.infoLabel}>Motif dernier sync</Text>
+          <Text style={s.infoValue}>{trackingState.lastSyncReason || 'Aucun'}</Text>
+        </View>
+        <View style={s.infoRow}>
+          <MaterialCommunityIcons name="map-marker-distance" size={18} color={T.info} />
+          <Text style={s.infoLabel}>Points GPS session</Text>
+          <Text style={s.infoValue}>{session?.locations_count ?? 0}</Text>
         </View>
 
         {!!trackingState.error && (
@@ -132,6 +154,31 @@ export default function ProfileScreen() {
           <MaterialCommunityIcons name="cellphone-cog" size={18} color={T.primaryDark} />
           <Text style={s.infoLabel}>Version app</Text>
           <Text style={s.infoValue}>{appVersion}</Text>
+        </View>
+        <View style={s.infoRow}>
+          <MaterialCommunityIcons name="android" size={18} color={T.primaryDark} />
+          <Text style={s.infoLabel}>Plateforme</Text>
+          <Text style={s.infoValue}>{devicePayload.platform || 'android'}</Text>
+        </View>
+        <View style={s.infoRow}>
+          <MaterialCommunityIcons name="numeric" size={18} color={T.primaryDark} />
+          <Text style={s.infoLabel}>Build natif</Text>
+          <Text style={s.infoValue}>{devicePayload.native_build_version || 'Non defini'}</Text>
+        </View>
+        <View style={s.infoRow}>
+          <MaterialCommunityIcons name="application-outline" size={18} color={T.primaryDark} />
+          <Text style={s.infoLabel}>Execution</Text>
+          <Text style={s.infoValue}>{devicePayload.execution_environment || 'Non definie'}</Text>
+        </View>
+        <View style={s.infoRow}>
+          <MaterialCommunityIcons name="account-cog-outline" size={18} color={T.primaryDark} />
+          <Text style={s.infoLabel}>Propriete app</Text>
+          <Text style={s.infoValue}>{devicePayload.app_ownership || 'standalone'}</Text>
+        </View>
+        <View style={s.infoRow}>
+          <MaterialCommunityIcons name="cellphone-information" size={18} color={T.primaryDark} />
+          <Text style={s.infoLabel}>Appareil</Text>
+          <Text style={s.infoValueSmall}>{devicePayload.device_name || devicePayload.model || 'Appareil inconnu'}</Text>
         </View>
         <View style={s.infoRow}>
           <MaterialCommunityIcons name="api" size={18} color={T.primaryDark} />

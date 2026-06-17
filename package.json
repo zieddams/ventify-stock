@@ -1,6 +1,6 @@
 {
   "name": "ventify-stock",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "main": "expo/AppEntry",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
