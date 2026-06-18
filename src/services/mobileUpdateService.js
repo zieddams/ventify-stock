@@ -36,7 +36,7 @@ export function isInAppUpdateSupported() {
   return Platform.OS === 'android'
 }
 
-export async function downloadAndLaunchApkUpdate({ url, version, onProgress }) {
+export async function downloadAndLaunchApkUpdate({ url, version, expectedBytes, onProgress }) {
   if (!isInAppUpdateSupported()) {
     throw new Error('L installation integree de mise a jour est disponible uniquement sur Android.')
   }
@@ -76,6 +76,22 @@ export async function downloadAndLaunchApkUpdate({ url, version, onProgress }) {
 
   if (!result?.uri) {
     throw new Error('Le telechargement de la mise a jour a ete interrompu.')
+  }
+
+  const fileInfo = await FileSystem.getInfoAsync(result.uri)
+
+  if (!fileInfo?.exists) {
+    throw new Error('Le fichier APK telecharge est introuvable.')
+  }
+
+  if (Number.isFinite(expectedBytes) && expectedBytes > 0) {
+    const downloadedBytes = Number(fileInfo.size || 0)
+    const normalizedExpectedBytes = Number(expectedBytes)
+
+    if (Math.abs(downloadedBytes - normalizedExpectedBytes) > 4096) {
+      await FileSystem.deleteAsync(result.uri, { idempotent: true })
+      throw new Error('Le fichier APK semble incomplet. Relancez le telechargement.')
+    }
   }
 
   const contentUri = await FileSystem.getContentUriAsync(result.uri)

@@ -70,7 +70,7 @@ export default function LoginScreen() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [apiStatus, setApiStatus] = useState({ state: 'checking', message: 'Verification de l API production...' })
-  const version = Constants.expoConfig?.version || '1.2.1'
+  const version = Constants.expoConfig?.version || '1.3.2'
 
   const checkApiStatus = async () => {
     setApiStatus({ state: 'checking', message: 'Verification de l API production...' })

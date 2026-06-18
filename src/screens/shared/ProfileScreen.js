@@ -16,10 +16,20 @@ import StatusChip from '../../components/StatusChip'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTracking } from '../../contexts/TrackingContext'
 import { downloadAndLaunchApkUpdate, isInAppUpdateSupported } from '../../services/mobileUpdateService'
-import { getLatestMobileReleases, compareReleaseVersions } from '../../services/releaseService'
+import { compareReleaseVersions, getLatestMobileReleases } from '../../services/releaseService'
 import { getDevicePayload } from '../../services/sessionService'
 import { T, cardShadow } from '../../theme'
 import { formatDateTime } from '../../utils/format'
+
+const UPDATE_PHASES = {
+  IDLE: 'idle',
+  CHECKING: 'checking',
+  UP_TO_DATE: 'upToDate',
+  AVAILABLE: 'available',
+  DOWNLOADING: 'downloading',
+  INSTALLER: 'installer',
+  ERROR: 'error',
+}
 
 function currentCoords(location) {
   const source = location?.coords ?? location
@@ -29,6 +39,24 @@ function currentCoords(location) {
 
 function normalizeReleaseLine(line) {
   return line.replace(/^[-*]\s*/, '').trim()
+}
+
+function releaseKey(release) {
+  return String(release?.tagName || release?.version || release?.id || 'release')
+}
+
+function releaseSizeLabel(size) {
+  const normalizedSize = Number(size || 0)
+
+  if (normalizedSize <= 0) return 'Taille non communiquee'
+
+  const sizeInMb = normalizedSize / 1024 / 1024
+  return `${sizeInMb >= 10 ? sizeInMb.toFixed(0) : sizeInMb.toFixed(1)} Mo`
+}
+
+function progressPercent(ratio) {
+  const safeRatio = Number.isFinite(ratio) ? Math.max(0, Math.min(ratio, 1)) : 0
+  return Math.round(safeRatio * 100)
 }
 
 export default function ProfileScreen() {
@@ -45,32 +73,79 @@ export default function ProfileScreen() {
 
   const [releases, setReleases] = useState([])
   const [releaseLoading, setReleaseLoading] = useState(true)
-  const [releaseError, setReleaseError] = useState('')
   const [releaseCheckedAt, setReleaseCheckedAt] = useState(null)
   const [updateState, setUpdateState] = useState({
-    phase: 'idle',
+    phase: UPDATE_PHASES.IDLE,
     progress: 0,
     message: '',
+    targetTag: null,
   })
 
-  const appVersion = Constants.expoConfig?.version || '1.3.0'
+  const appVersion = Constants.expoConfig?.version || '1.3.2'
   const apiBaseUrl = Constants.expoConfig?.extra?.apiBaseUrl || 'API non definie'
   const devicePayload = getDevicePayload()
   const updateSupported = isInAppUpdateSupported()
 
-  const loadReleases = useCallback(async () => {
+  const loadReleases = useCallback(async ({ showChecking = false } = {}) => {
+    if (showChecking) {
+      setUpdateState((current) => ({
+        ...current,
+        phase: UPDATE_PHASES.CHECKING,
+        progress: 0,
+        message: 'Verification de la derniere release GitHub...',
+        targetTag: null,
+      }))
+    }
+
     setReleaseLoading(true)
+
     try {
-      const latest = await getLatestMobileReleases(5)
-      setReleases(latest)
-      setReleaseError('')
-      setReleaseCheckedAt(new Date().toISOString())
+      const nextReleases = await getLatestMobileReleases(5)
+      const checkedAt = new Date().toISOString()
+      const nextLatestRelease = nextReleases[0] || null
+      const updateAvailable = nextLatestRelease
+        ? compareReleaseVersions(nextLatestRelease.version, appVersion) > 0
+        : false
+
+      setReleases(nextReleases)
+      setReleaseCheckedAt(checkedAt)
+      setUpdateState((current) => {
+        if (current.phase === UPDATE_PHASES.DOWNLOADING) {
+          return current
+        }
+
+        return {
+          phase: nextLatestRelease
+            ? (updateAvailable ? UPDATE_PHASES.AVAILABLE : UPDATE_PHASES.UP_TO_DATE)
+            : UPDATE_PHASES.IDLE,
+          progress: nextLatestRelease && !updateAvailable ? 1 : 0,
+          message: nextLatestRelease
+            ? updateAvailable
+              ? `Version ${nextLatestRelease.tagName || nextLatestRelease.version} disponible au telechargement.`
+              : `Application deja alignee avec ${nextLatestRelease.tagName || nextLatestRelease.version}.`
+            : 'Aucune release stable n est disponible pour le moment.',
+          targetTag: null,
+        }
+      })
     } catch (error) {
-      setReleaseError(error.message || 'Les releases GitHub ne sont pas accessibles pour le moment.')
+      const message = error.message || 'Les releases GitHub ne sont pas accessibles pour le moment.'
+
+      setUpdateState((current) => {
+        if (current.phase === UPDATE_PHASES.DOWNLOADING) {
+          return current
+        }
+
+        return {
+          phase: UPDATE_PHASES.ERROR,
+          progress: 0,
+          message,
+          targetTag: null,
+        }
+      })
     } finally {
       setReleaseLoading(false)
     }
-  }, [])
+  }, [appVersion])
 
   useFocusEffect(useCallback(() => {
     loadReleases()
@@ -81,55 +156,164 @@ export default function ProfileScreen() {
     ? compareReleaseVersions(latestRelease.version, appVersion) > 0
     : false
 
-  const installLatestUpdate = useCallback(async () => {
-    if (!latestRelease?.apkUrl) {
-      Alert.alert('APK indisponible', 'Aucun fichier APK n est attache a la derniere release stable.')
+  const installRelease = useCallback(async (release) => {
+    if (!release?.apkUrl) {
+      Alert.alert('APK indisponible', 'Aucun fichier APK n est attache a cette release stable.')
       return
     }
 
+    const targetTag = releaseKey(release)
+    const targetLabel = release.tagName || release.version || 'stable'
+
     try {
       setUpdateState({
-        phase: 'downloading',
+        phase: UPDATE_PHASES.DOWNLOADING,
         progress: 0,
-        message: 'Telechargement de la mise a jour en cours...',
+        message: `Telechargement de ${targetLabel} en cours...`,
+        targetTag,
       })
 
       await downloadAndLaunchApkUpdate({
-        url: latestRelease.apkUrl,
-        version: latestRelease.version || latestRelease.tagName,
+        url: release.apkUrl,
+        version: release.version || release.tagName,
+        expectedBytes: release.apkSize,
         onProgress: ({ ratio }) => {
-          const safeRatio = Number.isFinite(ratio) ? Math.max(0, Math.min(ratio, 1)) : 0
+          const safeProgress = Number.isFinite(ratio) ? Math.max(0, Math.min(ratio, 1)) : 0
 
           setUpdateState({
-            phase: 'downloading',
-            progress: safeRatio,
-            message: `Telechargement ${Math.round(safeRatio * 100)}%`,
+            phase: UPDATE_PHASES.DOWNLOADING,
+            progress: safeProgress,
+            message: `Telechargement ${progressPercent(safeProgress)}% - ${targetLabel}`,
+            targetTag,
           })
         },
       })
 
       setUpdateState({
-        phase: 'installer',
+        phase: UPDATE_PHASES.INSTALLER,
         progress: 1,
-        message: 'Installateur Android lance. Confirmez la mise a jour sur le telephone.',
+        message: `Installateur Android lance pour ${targetLabel}. Confirmez la mise a jour sur le telephone.`,
+        targetTag,
       })
     } catch (error) {
       const message = error.message || 'La mise a jour integree a echoue.'
 
       setUpdateState({
-        phase: 'error',
+        phase: UPDATE_PHASES.ERROR,
         progress: 0,
         message,
+        targetTag,
       })
 
       Alert.alert('Mise a jour impossible', message)
     }
-  }, [latestRelease])
+  }, [])
+
+  const installLatestUpdate = useCallback(() => {
+    installRelease(latestRelease)
+  }, [installRelease, latestRelease])
 
   const releaseTone = useMemo(() => {
     if (!latestRelease) return 'neutral'
     return hasUpdate ? 'warning' : 'success'
   }, [hasUpdate, latestRelease])
+
+  const updateProgress = progressPercent(updateState.progress)
+  const activeReleaseTag = updateState.targetTag
+  const downloadingLatest = updateState.phase === UPDATE_PHASES.DOWNLOADING
+    && activeReleaseTag === releaseKey(latestRelease)
+
+  const renderUpdateStatusCard = () => {
+    if (updateState.phase === UPDATE_PHASES.CHECKING) {
+      return (
+        <View style={[s.statusCard, s.statusCardInfo]}>
+          <ActivityIndicator color={T.primary} size="small" />
+          <View style={s.statusCopy}>
+            <Text style={s.statusTitle}>Verification des releases</Text>
+            <Text style={s.statusSubtitle}>Connexion a GitHub pour comparer la build locale a la derniere stable.</Text>
+          </View>
+        </View>
+      )
+    }
+
+    if (updateState.phase === UPDATE_PHASES.UP_TO_DATE) {
+      return (
+        <View style={[s.statusCard, s.statusCardSuccess]}>
+          <MaterialCommunityIcons name="check-decagram-outline" size={20} color="#047857" />
+          <View style={s.statusCopy}>
+            <Text style={s.statusTitle}>Application a jour</Text>
+            <Text style={s.statusSubtitle}>{`Version ${appVersion} deja alignee avec ${latestRelease?.tagName || 'la stable'}.`}</Text>
+          </View>
+        </View>
+      )
+    }
+
+    if (updateState.phase === UPDATE_PHASES.AVAILABLE) {
+      return (
+        <View style={[s.statusCard, s.statusCardWarning]}>
+          <MaterialCommunityIcons name="arrow-up-circle-outline" size={20} color={T.primary} />
+          <View style={s.statusCopy}>
+            <Text style={s.statusTitle}>Mise a jour disponible</Text>
+            <Text style={s.statusSubtitle}>{`Version ${appVersion} -> ${latestRelease?.tagName || latestRelease?.version || 'stable'}`}</Text>
+            {(latestRelease?.notesLines || []).slice(0, 2).map((line, index) => (
+              <Text key={`latest-note-${index}`} style={s.statusNote}>
+                - {normalizeReleaseLine(line)}
+              </Text>
+            ))}
+          </View>
+        </View>
+      )
+    }
+
+    if (updateState.phase === UPDATE_PHASES.DOWNLOADING) {
+      return (
+        <View style={[s.statusCard, s.statusCardWarning]}>
+          <ActivityIndicator color={T.primary} size="small" />
+          <View style={s.statusCopy}>
+            <Text style={s.statusTitle}>{updateState.message || 'Telechargement en cours...'}</Text>
+            <Text style={s.statusSubtitle}>Le fichier APK est telecharge dans l application avant de lancer l installateur Android.</Text>
+            <View style={s.progressTrack}>
+              <View style={[s.progressFill, { width: `${Math.max(8, updateProgress)}%` }]} />
+            </View>
+          </View>
+        </View>
+      )
+    }
+
+    if (updateState.phase === UPDATE_PHASES.INSTALLER) {
+      return (
+        <View style={[s.statusCard, s.statusCardInfo]}>
+          <MaterialCommunityIcons name="open-in-app" size={20} color={T.info} />
+          <View style={s.statusCopy}>
+            <Text style={s.statusTitle}>Installation prete</Text>
+            <Text style={s.statusSubtitle}>{updateState.message}</Text>
+          </View>
+        </View>
+      )
+    }
+
+    if (updateState.phase === UPDATE_PHASES.ERROR) {
+      return (
+        <View style={[s.statusCard, s.statusCardError]}>
+          <MaterialCommunityIcons name="alert-circle-outline" size={20} color={T.danger} />
+          <View style={s.statusCopy}>
+            <Text style={s.statusTitle}>Verification ou installation impossible</Text>
+            <Text style={s.statusSubtitle}>{updateState.message}</Text>
+          </View>
+        </View>
+      )
+    }
+
+    return (
+      <View style={[s.statusCard, s.statusCardInfo]}>
+        <MaterialCommunityIcons name="download-circle-outline" size={20} color={T.info} />
+        <View style={s.statusCopy}>
+          <Text style={s.statusTitle}>Canal mobile stable</Text>
+          <Text style={s.statusSubtitle}>L application peut verifier les 5 dernieres releases GitHub et installer l APK sans quitter l app.</Text>
+        </View>
+      </View>
+    )
+  }
 
   return (
     <ScrollView style={s.root} contentContainerStyle={s.content}>
@@ -138,7 +322,7 @@ export default function ProfileScreen() {
         subtitle="Compte, tracking terrain, impression thermique et releases."
         actionIcon="refresh"
         actionLabel="Verifier"
-        onActionPress={loadReleases}
+        onActionPress={() => loadReleases({ showChecking: true })}
       />
 
       <View style={[s.hero, cardShadow]}>
@@ -158,7 +342,7 @@ export default function ProfileScreen() {
 
       <View style={[s.sectionCard, cardShadow]}>
         <View style={s.sectionHeaderRow}>
-          <Text style={s.sectionTitle}>Pipeline & releases</Text>
+          <Text style={s.sectionTitle}>Pipeline et releases</Text>
           {releaseLoading ? <ActivityIndicator color={T.primary} size="small" /> : null}
         </View>
 
@@ -183,54 +367,37 @@ export default function ProfileScreen() {
           <Text style={s.infoValue}>{formatDateTime(releaseCheckedAt)}</Text>
         </View>
 
-        {!!releaseError && (
-          <View style={s.noticeWarning}>
-            <MaterialCommunityIcons name="alert-outline" size={18} color={T.warning} />
-            <Text style={s.noticeWarningText}>{releaseError}</Text>
-          </View>
-        )}
+        {renderUpdateStatusCard()}
 
         <View style={s.actions}>
           <TouchableOpacity
             style={[
               s.primaryButton,
-              (!updateSupported || !latestRelease?.apkUrl || updateState.phase === 'downloading') && s.buttonDisabled,
+              (!updateSupported || !latestRelease?.apkUrl || updateState.phase === UPDATE_PHASES.DOWNLOADING) && s.buttonDisabled,
             ]}
             onPress={installLatestUpdate}
-            disabled={!updateSupported || !latestRelease?.apkUrl || updateState.phase === 'downloading'}
+            disabled={!updateSupported || !latestRelease?.apkUrl || updateState.phase === UPDATE_PHASES.DOWNLOADING}
           >
             <Text style={s.primaryButtonText}>
-              {updateState.phase === 'downloading'
-                ? `Telechargement ${Math.round(updateState.progress * 100)}%`
+              {downloadingLatest
+                ? `Telechargement ${updateProgress}%`
                 : hasUpdate
-                  ? 'Mettre a jour maintenant'
+                  ? 'Installer la derniere stable'
                   : 'Reinstaller la stable'}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.secondaryButton} onPress={loadReleases}>
-            <Text style={s.secondaryButtonText}>Actualiser les releases</Text>
+
+          <TouchableOpacity
+            style={[s.secondaryButton, updateState.phase === UPDATE_PHASES.DOWNLOADING && s.buttonDisabled]}
+            onPress={() => loadReleases({ showChecking: true })}
+            disabled={updateState.phase === UPDATE_PHASES.DOWNLOADING}
+          >
+            <Text style={s.secondaryButtonText}>Verifier les mises a jour</Text>
           </TouchableOpacity>
         </View>
 
-        {!!updateState.message && (
-          <View style={s.noticeInfo}>
-            <MaterialCommunityIcons
-              name={updateState.phase === 'error' ? 'alert-circle-outline' : 'download-circle-outline'}
-              size={18}
-              color={updateState.phase === 'error' ? T.warning : T.info}
-            />
-            <Text style={s.noticeInfoText}>{updateState.message}</Text>
-          </View>
-        )}
-
-        {updateState.phase === 'downloading' && (
-          <View style={s.progressTrack}>
-            <View style={[s.progressFill, { width: `${Math.max(8, Math.round(updateState.progress * 100))}%` }]} />
-          </View>
-        )}
-
         <Text style={s.releaseHint}>
-          Le mobile lit les 5 dernieres releases et telecharge directement l APK dans l application avant de lancer l installateur Android.
+          Le mobile compare la build locale a la derniere release GitHub, affiche la progression du telechargement et ouvre ensuite l installateur Android dans l application.
         </Text>
 
         {!updateSupported && (
@@ -239,34 +406,69 @@ export default function ProfileScreen() {
           </Text>
         )}
 
-        {releases.map((release) => (
-          <View key={release.id || release.tagName} style={s.releaseCard}>
-            <View style={s.releaseTop}>
-              <View style={{ flex: 1 }}>
-                <Text style={s.releaseTitle}>{release.name}</Text>
-                <Text style={s.releaseMeta}>{release.tagName} · {formatDateTime(release.publishedAt)}</Text>
+        {releases.map((release) => {
+          const releaseIdentifier = releaseKey(release)
+          const releaseIsCurrent = compareReleaseVersions(release.version, appVersion) === 0
+          const releaseIsNewer = compareReleaseVersions(release.version, appVersion) > 0
+          const installingThisRelease = updateState.phase === UPDATE_PHASES.DOWNLOADING
+            && activeReleaseTag === releaseIdentifier
+
+          return (
+            <View key={release.id || release.tagName} style={s.releaseCard}>
+              <View style={s.releaseTop}>
+                <View style={s.releaseCopy}>
+                  <Text style={s.releaseTitle}>{release.name}</Text>
+                  <Text style={s.releaseMeta}>{`${release.tagName} - ${formatDateTime(release.publishedAt)}`}</Text>
+                </View>
+
+                <View style={s.releaseActionsRow}>
+                  <StatusChip
+                    label={releaseIsCurrent ? 'Version actuelle' : releaseIsNewer ? 'Nouvelle' : 'Archive'}
+                    tone={releaseIsCurrent ? 'success' : releaseIsNewer ? 'warning' : 'neutral'}
+                  />
+
+                  {updateSupported && release.apkUrl && (
+                    <TouchableOpacity
+                      style={[
+                        s.installReleaseButton,
+                        updateState.phase === UPDATE_PHASES.DOWNLOADING && !installingThisRelease && s.buttonDisabled,
+                      ]}
+                      onPress={() => installRelease(release)}
+                      disabled={updateState.phase === UPDATE_PHASES.DOWNLOADING}
+                    >
+                      {installingThisRelease
+                        ? <ActivityIndicator color={T.primary} size="small" />
+                        : <Text style={s.installReleaseButtonText}>{releaseIsCurrent ? 'Reinstaller' : 'Installer'}</Text>}
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
-              <StatusChip
-                label={compareReleaseVersions(release.version, appVersion) > 0 ? 'Nouvelle' : 'Installee ou precedente'}
-                tone={compareReleaseVersions(release.version, appVersion) > 0 ? 'warning' : 'success'}
-              />
-            </View>
 
-            <Text style={s.releaseAsset}>
-              {release.apkName
-                ? `${release.apkName} · ${Math.round((release.apkSize || 0) / 1024 / 1024)} Mo`
-                : 'APK non attachee sur cette release'}
-            </Text>
+              <Text style={s.releaseAsset}>
+                {release.apkName
+                  ? `${release.apkName} - ${releaseSizeLabel(release.apkSize)}`
+                  : 'APK non attachee sur cette release'}
+              </Text>
 
-            <View style={s.releaseNotesWrap}>
-              {(release.notesLines.length > 0 ? release.notesLines : [release.notes]).map((line, index) => (
-                <Text key={`${release.id || release.tagName}-${index}`} style={s.releaseNoteLine}>
-                  - {normalizeReleaseLine(line)}
-                </Text>
-              ))}
+              {installingThisRelease && (
+                <View style={s.releaseProgressWrap}>
+                  <Text style={s.releaseProgressLabel}>{`Telechargement ${updateProgress}%`}</Text>
+                  <View style={s.progressTrack}>
+                    <View style={[s.progressFill, { width: `${Math.max(8, updateProgress)}%` }]} />
+                  </View>
+                </View>
+              )}
+
+              <View style={s.releaseNotesWrap}>
+                {(release.notesLines.length > 0 ? release.notesLines : [release.notes]).map((line, index) => (
+                  <Text key={`${release.id || release.tagName}-${index}`} style={s.releaseNoteLine}>
+                    - {normalizeReleaseLine(line)}
+                  </Text>
+                ))}
+              </View>
             </View>
-          </View>
-        ))}
+          )
+        })}
       </View>
 
       <View style={[s.sectionCard, cardShadow]}>
@@ -289,7 +491,7 @@ export default function ProfileScreen() {
         <View style={s.infoRow}>
           <MaterialCommunityIcons name="route" size={18} color={T.info} />
           <Text style={s.infoLabel}>Session terrain</Text>
-          <Text style={s.infoValue}>{session?.id ? `#${session.id} · ${session.status}` : 'Aucune'}</Text>
+          <Text style={s.infoValue}>{session?.id ? `#${session.id} - ${session.status}` : 'Aucune'}</Text>
         </View>
         <View style={s.infoRow}>
           <MaterialCommunityIcons name="crosshairs-gps" size={18} color={T.info} />
@@ -359,7 +561,7 @@ export default function ProfileScreen() {
       </View>
 
       <View style={[s.sectionCard, cardShadow]}>
-        <Text style={s.sectionTitle}>Build & appareil</Text>
+        <Text style={s.sectionTitle}>Build et appareil</Text>
         <View style={s.infoRow}>
           <MaterialCommunityIcons name="android" size={18} color={T.primaryDark} />
           <Text style={s.infoLabel}>Plateforme</Text>
@@ -500,6 +702,51 @@ const s = StyleSheet.create({
     gap: 10,
     marginTop: 12,
   },
+  statusCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginTop: 14,
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+  },
+  statusCardInfo: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#bfdbfe',
+  },
+  statusCardSuccess: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#a7f3d0',
+  },
+  statusCardWarning: {
+    backgroundColor: '#fffbeb',
+    borderColor: '#fde68a',
+  },
+  statusCardError: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca',
+  },
+  statusCopy: {
+    flex: 1,
+  },
+  statusTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: T.text,
+  },
+  statusSubtitle: {
+    marginTop: 3,
+    fontSize: 12,
+    lineHeight: 18,
+    color: T.textSecondary,
+  },
+  statusNote: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 18,
+    color: T.textSecondary,
+  },
   primaryButton: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -528,21 +775,6 @@ const s = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
-  },
-  noticeInfo: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    marginTop: 12,
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: '#eef6ff',
-  },
-  noticeInfoText: {
-    flex: 1,
-    fontSize: 12,
-    lineHeight: 18,
-    color: T.textSecondary,
   },
   progressTrack: {
     marginTop: 10,
@@ -573,7 +805,14 @@ const s = StyleSheet.create({
   releaseTop: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
+    gap: 12,
+  },
+  releaseCopy: {
+    flex: 1,
+  },
+  releaseActionsRow: {
+    alignItems: 'flex-end',
+    gap: 8,
   },
   releaseTitle: {
     fontSize: 15,
@@ -591,6 +830,14 @@ const s = StyleSheet.create({
     fontWeight: '700',
     color: T.primaryDark,
   },
+  releaseProgressWrap: {
+    marginTop: 10,
+  },
+  releaseProgressLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: T.primaryDark,
+  },
   releaseNotesWrap: {
     marginTop: 10,
     gap: 4,
@@ -599,6 +846,23 @@ const s = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     color: T.textSecondary,
+  },
+  installReleaseButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 96,
+    minHeight: 38,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: T.border,
+  },
+  installReleaseButtonText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: T.primaryDark,
   },
   logoutButton: {
     flexDirection: 'row',
