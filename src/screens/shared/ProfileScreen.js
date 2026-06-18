@@ -3,7 +3,6 @@ import { useCallback, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,7 +15,8 @@ import PageHeader from '../../components/PageHeader'
 import StatusChip from '../../components/StatusChip'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTracking } from '../../contexts/TrackingContext'
-import { getLatestMobileReleases, getMobileReleaseHubUrl, compareReleaseVersions } from '../../services/releaseService'
+import { downloadAndLaunchApkUpdate, isInAppUpdateSupported } from '../../services/mobileUpdateService'
+import { getLatestMobileReleases, compareReleaseVersions } from '../../services/releaseService'
 import { getDevicePayload } from '../../services/sessionService'
 import { T, cardShadow } from '../../theme'
 import { formatDateTime } from '../../utils/format'
@@ -47,10 +47,16 @@ export default function ProfileScreen() {
   const [releaseLoading, setReleaseLoading] = useState(true)
   const [releaseError, setReleaseError] = useState('')
   const [releaseCheckedAt, setReleaseCheckedAt] = useState(null)
+  const [updateState, setUpdateState] = useState({
+    phase: 'idle',
+    progress: 0,
+    message: '',
+  })
 
   const appVersion = Constants.expoConfig?.version || '1.3.0'
   const apiBaseUrl = Constants.expoConfig?.extra?.apiBaseUrl || 'API non definie'
   const devicePayload = getDevicePayload()
+  const updateSupported = isInAppUpdateSupported()
 
   const loadReleases = useCallback(async () => {
     setReleaseLoading(true)
@@ -75,20 +81,50 @@ export default function ProfileScreen() {
     ? compareReleaseVersions(latestRelease.version, appVersion) > 0
     : false
 
-  const releaseHubUrl = latestRelease?.pageUrl || getMobileReleaseHubUrl()
-
-  const openUrl = useCallback(async (url, label) => {
-    if (!url) {
-      Alert.alert('Lien indisponible', `Aucun lien ${label} n est disponible pour le moment.`)
+  const installLatestUpdate = useCallback(async () => {
+    if (!latestRelease?.apkUrl) {
+      Alert.alert('APK indisponible', 'Aucun fichier APK n est attache a la derniere release stable.')
       return
     }
 
     try {
-      await Linking.openURL(url)
-    } catch {
-      Alert.alert('Ouverture impossible', `Le lien ${label} n a pas pu etre ouvert.`)
+      setUpdateState({
+        phase: 'downloading',
+        progress: 0,
+        message: 'Telechargement de la mise a jour en cours...',
+      })
+
+      await downloadAndLaunchApkUpdate({
+        url: latestRelease.apkUrl,
+        version: latestRelease.version || latestRelease.tagName,
+        onProgress: ({ ratio }) => {
+          const safeRatio = Number.isFinite(ratio) ? Math.max(0, Math.min(ratio, 1)) : 0
+
+          setUpdateState({
+            phase: 'downloading',
+            progress: safeRatio,
+            message: `Telechargement ${Math.round(safeRatio * 100)}%`,
+          })
+        },
+      })
+
+      setUpdateState({
+        phase: 'installer',
+        progress: 1,
+        message: 'Installateur Android lance. Confirmez la mise a jour sur le telephone.',
+      })
+    } catch (error) {
+      const message = error.message || 'La mise a jour integree a echoue.'
+
+      setUpdateState({
+        phase: 'error',
+        progress: 0,
+        message,
+      })
+
+      Alert.alert('Mise a jour impossible', message)
     }
-  }, [])
+  }, [latestRelease])
 
   const releaseTone = useMemo(() => {
     if (!latestRelease) return 'neutral'
@@ -139,7 +175,7 @@ export default function ProfileScreen() {
         <View style={s.infoRow}>
           <MaterialCommunityIcons name="source-branch" size={18} color={T.primaryDark} />
           <Text style={s.infoLabel}>Canal</Text>
-          <Text style={s.infoValue}>stable / GitHub releases</Text>
+          <Text style={s.infoValue}>stable / installateur integre</Text>
         </View>
         <View style={s.infoRow}>
           <MaterialCommunityIcons name="clock-outline" size={18} color={T.primaryDark} />
@@ -155,17 +191,53 @@ export default function ProfileScreen() {
         )}
 
         <View style={s.actions}>
-          <TouchableOpacity style={s.primaryButton} onPress={() => openUrl(latestRelease?.apkUrl, 'APK')}>
-            <Text style={s.primaryButtonText}>Telecharger la derniere APK</Text>
+          <TouchableOpacity
+            style={[
+              s.primaryButton,
+              (!updateSupported || !latestRelease?.apkUrl || updateState.phase === 'downloading') && s.buttonDisabled,
+            ]}
+            onPress={installLatestUpdate}
+            disabled={!updateSupported || !latestRelease?.apkUrl || updateState.phase === 'downloading'}
+          >
+            <Text style={s.primaryButtonText}>
+              {updateState.phase === 'downloading'
+                ? `Telechargement ${Math.round(updateState.progress * 100)}%`
+                : hasUpdate
+                  ? 'Mettre a jour maintenant'
+                  : 'Reinstaller la stable'}
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.secondaryButton} onPress={() => openUrl(releaseHubUrl, 'release')}>
-            <Text style={s.secondaryButtonText}>Ouvrir la page release</Text>
+          <TouchableOpacity style={s.secondaryButton} onPress={loadReleases}>
+            <Text style={s.secondaryButtonText}>Actualiser les releases</Text>
           </TouchableOpacity>
         </View>
 
+        {!!updateState.message && (
+          <View style={s.noticeInfo}>
+            <MaterialCommunityIcons
+              name={updateState.phase === 'error' ? 'alert-circle-outline' : 'download-circle-outline'}
+              size={18}
+              color={updateState.phase === 'error' ? T.warning : T.info}
+            />
+            <Text style={s.noticeInfoText}>{updateState.message}</Text>
+          </View>
+        )}
+
+        {updateState.phase === 'downloading' && (
+          <View style={s.progressTrack}>
+            <View style={[s.progressFill, { width: `${Math.max(8, Math.round(updateState.progress * 100))}%` }]} />
+          </View>
+        )}
+
         <Text style={s.releaseHint}>
-          Le mobile lit maintenant les 5 dernieres releases GitHub pour verifier si une nouvelle version stable existe.
+          Le mobile lit les 5 dernieres releases et telecharge directement l APK dans l application avant de lancer l installateur Android.
         </Text>
+
+        {!updateSupported && (
+          <Text style={s.releaseHint}>
+            Ce mode d installation integree est reserve a Android. Sur les autres plateformes, le changelog reste consultable.
+          </Text>
+        )}
 
         {releases.map((release) => (
           <View key={release.id || release.tagName} style={s.releaseCard}>
@@ -453,6 +525,36 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: T.textSecondary,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  noticeInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: '#eef6ff',
+  },
+  noticeInfoText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    color: T.textSecondary,
+  },
+  progressTrack: {
+    marginTop: 10,
+    height: 8,
+    borderRadius: 999,
+    overflow: 'hidden',
+    backgroundColor: '#dbeafe',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: T.primary,
   },
   releaseHint: {
     marginTop: 10,

@@ -173,10 +173,10 @@ export default function CamionScreen() {
                 />
                 <Text style={s.bannerTitle}>Chargement et retours</Text>
                 <Text style={s.bannerText}>
-                  Utilisez le module Session pour declarer depot vers camion, retours et affectation du camion physique sans perdre l historique.
+                  Utilisez le module Reappro pour declarer depot vers camion et retours, puis gardez Session & GPS pour l affectation du camion et le suivi terrain.
                 </Text>
-                <TouchableOpacity style={s.bannerButton} onPress={() => navigation.navigate('Session')}>
-                  <Text style={s.bannerButtonText}>Ouvrir Session</Text>
+                <TouchableOpacity style={s.bannerButton} onPress={() => navigation.navigate('Reappro')}>
+                  <Text style={s.bannerButtonText}>Ouvrir Reappro</Text>
                 </TouchableOpacity>
               </View>
             </View>

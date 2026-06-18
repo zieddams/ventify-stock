@@ -279,9 +279,9 @@ export default function RepDashboardScreen() {
             <MaterialCommunityIcons name="truck-cargo-container" size={20} color={T.warning} />
             <Text style={s.quickLabel}>Mon camion</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate('Session')}>
-            <MaterialCommunityIcons name="map-marker-radius-outline" size={20} color={T.success} />
-            <Text style={s.quickLabel}>Session & GPS</Text>
+          <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate('Reappro')}>
+            <MaterialCommunityIcons name="truck-delivery-outline" size={20} color={T.success} />
+            <Text style={s.quickLabel}>Reappro camion</Text>
           </TouchableOpacity>
         </View>
       </View>

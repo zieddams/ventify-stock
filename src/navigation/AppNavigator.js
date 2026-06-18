@@ -10,6 +10,7 @@ import DashboardScreen from '../screens/main/DashboardScreen'
 import CustomersScreen from '../screens/main/CustomersScreen'
 import InvoicesScreen from '../screens/main/InvoicesScreen'
 import CamionScreen from '../screens/main/CamionScreen'
+import ReapproScreen from '../screens/main/ReapproScreen'
 import RouteSessionScreen from '../screens/main/RouteSessionScreen'
 import InvoiceCreateScreen from '../screens/shared/InvoiceCreateScreen'
 import InvoiceDetailScreen from '../screens/shared/InvoiceDetailScreen'
@@ -161,6 +162,7 @@ function AppStack() {
       />
       <Stack.Screen name="InvoiceCreate" component={InvoiceCreateScreen} options={{ title: 'Nouvelle facture' }} />
       <Stack.Screen name="InvoiceDetail" component={InvoiceDetailScreen} options={{ title: 'Detail facture' }} />
+      <Stack.Screen name="Reappro" component={ReapproScreen} options={{ title: 'Reappro camion' }} />
       <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Reglages mobiles' }} />
     </Stack.Navigator>
   )

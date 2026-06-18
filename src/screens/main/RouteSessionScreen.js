@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
-import { useFocusEffect } from '@react-navigation/native'
+import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import PageHeader from '../../components/PageHeader'
 import StatusChip from '../../components/StatusChip'
@@ -31,6 +31,7 @@ function numericInput(value) {
 }
 
 export default function RouteSessionScreen() {
+  const navigation = useNavigation()
   const {
     session,
     loading,
@@ -297,11 +298,11 @@ export default function RouteSessionScreen() {
               <View style={s.actionStack}>
                 {isOpen && (
                   <>
-                    <TouchableOpacity style={s.primaryButton} onPress={() => setLoadVisible(true)}>
-                      <Text style={s.primaryButtonText}>Reappro camion</Text>
+                    <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Reappro', { mode: 'load' })}>
+                      <Text style={s.primaryButtonText}>Module reappro</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={s.secondaryButton} onPress={() => setReturnsVisible(true)}>
-                      <Text style={s.secondaryButtonText}>Declarer les retours</Text>
+                    <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Reappro', { mode: 'returns' })}>
+                      <Text style={s.secondaryButtonText}>Retours & ecarts</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={s.secondaryButton} onPress={() => setCloseVisible(true)}>
                       <Text style={s.secondaryButtonText}>Cloturer la session</Text>
