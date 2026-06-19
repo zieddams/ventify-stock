@@ -1,7 +1,7 @@
 module.exports = {
   name: 'El Irtiwaa',
   slug: 'ventify-stock',
-  version: '1.3.2',
+  version: '1.3.3',
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
@@ -21,7 +21,7 @@ module.exports = {
   },
   android: {
     package: 'com.ventify.stock',
-    versionCode: 9,
+    versionCode: 10,
     adaptiveIcon: {
       backgroundColor: '#0f172a',
       foregroundImage: './assets/android-icon-foreground.png',
@@ -56,3 +56,6 @@ module.exports = {
     releasePageUrl: process.env.EXPO_PUBLIC_RELEASE_PAGE_URL || 'https://github.com/zieddams/ventify-stock/releases',
   },
 }
+
+
+

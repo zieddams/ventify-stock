@@ -36,7 +36,7 @@ function sameCalendarDate(left, right = new Date()) {
 
 function locationText(location) {
   const source = location?.coords ?? location
-  if (!Number.isFinite(source?.latitude) || !Number.isFinite(source?.longitude)) return 'Aucune position capturee.'
+  if (!Number.isFinite(source?.latitude) || !Number.isFinite(source?.longitude)) return 'Aucune position capturée.'
   return `${source.latitude.toFixed(5)}, ${source.longitude.toFixed(5)}`
 }
 
@@ -155,7 +155,7 @@ export default function RepDashboardScreen() {
         {!session ? (
           <>
             <Text style={s.heroText}>
-              Aucune session ouverte pour aujourd hui. Ouvrez le module session pour choisir le camion physique avant le chargement et les livraisons.
+              Aucune session ouverte pour aujourd'hui. Ouvrez le module session pour choisir le camion physique avant le chargement et les livraisons.
             </Text>
             <View style={s.heroActions}>
               <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Session')} activeOpacity={0.85}>
@@ -196,11 +196,11 @@ export default function RepDashboardScreen() {
             </View>
 
             <View style={s.locationCard}>
-              <Text style={s.locationLabel}>Derniere position</Text>
+              <Text style={s.locationLabel}>Dernière position</Text>
               <Text style={s.locationValue}>{locationText(latestLocation)}</Text>
               <Text style={s.locationMeta}>
                 {session.latestLocation?.recorded_at
-                  ? `Derniere remontee ${formatDateTime(session.latestLocation.recorded_at)}`
+                  ? `Dernière remontée ${formatDateTime(session.latestLocation.recorded_at)}`
                   : 'La prochaine position sera envoyee au prochain releve.'}
               </Text>
             </View>
@@ -218,7 +218,7 @@ export default function RepDashboardScreen() {
             <View style={s.heroActions}>
               <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Session')}>
                 <MaterialCommunityIcons name="map-marker-path" size={18} color="#fff" />
-                <Text style={s.primaryButtonText}>Gerer la session</Text>
+                <Text style={s.primaryButtonText}>Gérer la session</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.secondaryButton} onPress={() => captureCurrentLocation('manual')}>
                 <Text style={s.secondaryButtonText}>Envoyer ma position</Text>
@@ -281,14 +281,14 @@ export default function RepDashboardScreen() {
           </TouchableOpacity>
           <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate('Reappro')}>
             <MaterialCommunityIcons name="truck-delivery-outline" size={20} color={T.success} />
-            <Text style={s.quickLabel}>Reappro camion</Text>
+            <Text style={s.quickLabel}>Réappro camion</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       <View style={[s.sectionCard, cardShadow]}>
         <View style={s.sectionHeaderRow}>
-          <Text style={s.sectionTitle}>Dernieres factures</Text>
+          <Text style={s.sectionTitle}>Dernières factures</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Factures')}>
             <Text style={s.linkText}>Tout voir</Text>
           </TouchableOpacity>
@@ -297,7 +297,7 @@ export default function RepDashboardScreen() {
         {loading && invoices.length === 0 ? (
           <ActivityIndicator color={T.primary} style={{ marginVertical: 24 }} />
         ) : invoices.length === 0 ? (
-          <Text style={s.emptyText}>Aucune facture encore enregistree sur ce mois.</Text>
+          <Text style={s.emptyText}>Aucune facture encore enregistrée sur ce mois.</Text>
         ) : (
           invoices.slice(0, 5).map((item) => (
             <TouchableOpacity

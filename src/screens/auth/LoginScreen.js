@@ -1,5 +1,5 @@
 import Constants from 'expo-constants'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -12,7 +12,6 @@ import {
   View,
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
-import api, { BASE_URL } from '../../services/api'
 import { useAuth } from '../../contexts/AuthContext'
 import { T, cardShadow } from '../../theme'
 
@@ -25,42 +24,31 @@ function CapabilityChip({ icon, label }) {
   )
 }
 
-const API_HOST_LABEL = BASE_URL.replace(/^https?:\/\//, '').replace(/\/.*$/, '')
-
 function firstApiErrorMessage(errors) {
   return Object.values(errors ?? {}).flat().find(Boolean)
 }
 
-function describeApiError(err, forConnectivity = false) {
+function describeApiError(err) {
   if (err.response) {
     const payload = err.response.data
-    const message =
-      payload?.message
-      || payload?.error
-      || firstApiErrorMessage(payload?.errors)
+    const message = payload?.message || payload?.error || firstApiErrorMessage(payload?.errors)
 
     if (message) {
       return message
     }
 
-    return forConnectivity
-      ? `API joignable, mais reponse invalide (${err.response.status}).`
-      : `Erreur API (${err.response.status}).`
+    return `Erreur API (${err.response.status}).`
   }
 
   if (err.code === 'ECONNABORTED') {
-    return forConnectivity
-      ? 'API de production trop lente ou indisponible.'
-      : 'Connexion API expiree. Verifiez la connectivite.'
+    return 'Connexion API expiree. Verifiez votre reseau.'
   }
 
   if (err.message === 'Network Error') {
-    return forConnectivity
-      ? 'API de production inaccessible depuis ce mobile.'
-      : 'Connexion API impossible. Verifiez internet ou l URL de production.'
+    return 'Connexion impossible. Verifiez Internet et la configuration mobile.'
   }
 
-  return err.message || (forConnectivity ? 'API de production indisponible.' : 'Connexion impossible.')
+  return err.message || 'Connexion impossible.'
 }
 
 export default function LoginScreen() {
@@ -69,32 +57,11 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [apiStatus, setApiStatus] = useState({ state: 'checking', message: 'Verification de l API production...' })
-  const version = Constants.expoConfig?.version || '1.3.2'
-
-  const checkApiStatus = async () => {
-    setApiStatus({ state: 'checking', message: 'Verification de l API production...' })
-
-    try {
-      const response = await api.get('/system/ping', { timeout: 7000 })
-      const dbHealthy = response.data?.db_ok !== false
-      setApiStatus({
-        state: dbHealthy ? 'online' : 'warning',
-        message: dbHealthy
-          ? 'API production joignable.'
-          : 'API joignable, mais la base de donnees ne repond pas correctement.',
-      })
-    } catch (err) {
-      setApiStatus({ state: 'offline', message: describeApiError(err, true) })
-    }
-  }
-
-  useEffect(() => {
-    checkApiStatus()
-  }, [])
+  const version = Constants.expoConfig?.version || '1.3.3'
 
   const handleLogin = async () => {
     if (!email.trim() || !password) return
+
     setBusy(true)
     setError('')
 
@@ -102,10 +69,6 @@ export default function LoginScreen() {
       await login(email.trim(), password)
     } catch (err) {
       setError(describeApiError(err))
-
-      if (!err.response || err.response.status >= 500) {
-        setApiStatus({ state: 'offline', message: describeApiError(err, true) })
-      }
     } finally {
       setBusy(false)
     }
@@ -125,63 +88,18 @@ export default function LoginScreen() {
             <MaterialCommunityIcons name="water-outline" size={36} color="#fff" />
           </View>
           <Text style={s.title}>El Irtiwaa Mobile</Text>
-          <Text style={s.subtitle}>
-            Session terrain, GPS et facturation relies a la plateforme de production.
-          </Text>
+          <Text style={s.subtitle}>Session. Clients. Factures. GPS.</Text>
         </View>
 
         <View style={s.capabilities}>
-          <CapabilityChip icon="map-marker-radius-outline" label="GPS session" />
-          <CapabilityChip icon="pulse" label="Presence mobile" />
-          <CapabilityChip icon="sync" label="Mises a jour live" />
+          <CapabilityChip icon="truck-fast-outline" label="Tournee" />
+          <CapabilityChip icon="account-group-outline" label="Clients" />
+          <CapabilityChip icon="printer-wireless" label="Thermique" />
         </View>
 
         <View style={[s.card, cardShadow]}>
           <Text style={s.cardTitle}>Connexion</Text>
-          <Text style={s.cardSubtitle}>Utilisez votre compte terrain ou staff.</Text>
-
-          <View
-            style={[
-              s.apiStatusBox,
-              apiStatus.state === 'online' && s.apiStatusOnline,
-              apiStatus.state === 'warning' && s.apiStatusWarning,
-              apiStatus.state === 'offline' && s.apiStatusOffline,
-              apiStatus.state === 'checking' && s.apiStatusChecking,
-            ]}>
-            <MaterialCommunityIcons
-              name={
-                apiStatus.state === 'online'
-                  ? 'cloud-check-outline'
-                  : apiStatus.state === 'warning'
-                    ? 'cloud-alert-outline'
-                    : apiStatus.state === 'offline'
-                      ? 'cloud-off-outline'
-                      : 'cloud-sync-outline'
-              }
-              size={18}
-              color={
-                apiStatus.state === 'online'
-                  ? '#047857'
-                  : apiStatus.state === 'warning'
-                    ? '#b45309'
-                    : apiStatus.state === 'offline'
-                      ? T.danger
-                      : T.primary
-              }
-            />
-            <View style={s.apiStatusCopy}>
-              <Text style={s.apiStatusTitle}>{apiStatus.message}</Text>
-              <Text style={s.apiStatusMeta}>{API_HOST_LABEL}</Text>
-            </View>
-            <TouchableOpacity
-              style={s.apiRetryButton}
-              onPress={checkApiStatus}
-              disabled={apiStatus.state === 'checking'}>
-              {apiStatus.state === 'checking'
-                ? <ActivityIndicator size="small" color={T.primary} />
-                : <MaterialCommunityIcons name="refresh" size={18} color={T.primary} />}
-            </TouchableOpacity>
-          </View>
+          <Text style={s.cardSubtitle}>Connectez-vous avec votre compte mobile terrain.</Text>
 
           {!!error && (
             <View style={s.errorBox}>
@@ -219,10 +137,8 @@ export default function LoginScreen() {
         </View>
 
         <View style={s.footerCard}>
-          <Text style={s.footerTitle}>Build mobile {version}</Text>
-          <Text style={s.footerText}>
-            Cible production, presence app, et suivi GPS disponibles selon vos autorisations.
-          </Text>
+          <Text style={s.footerTitle}>Version {version}</Text>
+          <Text style={s.footerText}>Acces mobile centre sur la tournee, le stock camion et la facturation.</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -333,54 +249,6 @@ const s = StyleSheet.create({
     fontSize: 13,
     color: T.textMuted,
   },
-  apiStatusBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    marginBottom: 16,
-  },
-  apiStatusOnline: {
-    backgroundColor: '#ecfdf5',
-    borderColor: '#a7f3d0',
-  },
-  apiStatusWarning: {
-    backgroundColor: '#fffbeb',
-    borderColor: '#fcd34d',
-  },
-  apiStatusOffline: {
-    backgroundColor: '#fef2f2',
-    borderColor: '#fecaca',
-  },
-  apiStatusChecking: {
-    backgroundColor: '#eff6ff',
-    borderColor: '#bfdbfe',
-  },
-  apiStatusCopy: {
-    flex: 1,
-  },
-  apiStatusTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: T.text,
-  },
-  apiStatusMeta: {
-    marginTop: 2,
-    fontSize: 11,
-    color: T.textMuted,
-  },
-  apiRetryButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.65)',
-    borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.25)',
-  },
   label: {
     marginBottom: 8,
     fontSize: 12,
@@ -448,3 +316,6 @@ const s = StyleSheet.create({
     color: T.textMuted,
   },
 })
+
+
+

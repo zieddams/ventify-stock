@@ -92,7 +92,7 @@ export function isTunisiaCoordinate(latitude, longitude) {
 export function getLocationValidationMessage(location) {
   const coords = getCoords(location)
   if (!Number.isFinite(coords?.latitude) || !Number.isFinite(coords?.longitude)) {
-    return 'Position GPS invalide ou non capturee.'
+    return 'Position GPS invalide ou non capturée.'
   }
 
   if (isTunisiaCoordinate(coords.latitude, coords.longitude)) {
@@ -106,7 +106,7 @@ export function getLocationValidationMessage(location) {
     return 'L emulateur utilise encore la position Android par defaut. Definissez une position en Tunisie.'
   }
 
-  return 'Position recue hors Tunisie. Verifiez les coordonnees GPS ou la position de l emulateur.'
+  return "Position reçue hors Tunisie. Vérifiez les coordonnées GPS ou la position de l'émulateur."
 }
 
 export function mapLocationToPayload(location) {

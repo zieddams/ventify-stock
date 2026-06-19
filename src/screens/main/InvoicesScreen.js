@@ -149,7 +149,7 @@ export default function InvoicesScreen() {
       })
       await syncInteraction('invoice-list-thermal', { includeLocation: false, refreshSession: false })
     } catch (error) {
-      Alert.alert('Transfert thermique impossible', error.message || 'Veuillez reessayer.')
+      Alert.alert('Transfert thermique impossible', error.message || 'Veuillez réessayer.')
     } finally {
       setPrinting(false)
     }
@@ -170,7 +170,7 @@ export default function InvoicesScreen() {
       })
       await syncInteraction('invoice-list-pdf', { includeLocation: false, refreshSession: false })
     } catch (error) {
-      Alert.alert('Partage impossible', error.message || 'Veuillez reessayer.')
+      Alert.alert('Partage impossible', error.message || 'Veuillez réessayer.')
     } finally {
       setSharing(false)
     }

@@ -80,10 +80,9 @@ export function invoiceStatusLabel(status) {
 export function paymentStatusLabel(status) {
   const value = unwrapStatus(status)
   const map = {
-    unpaid: 'Impayee',
+    unpaid: 'Impayée',
     partial: 'Partielle',
     paid: 'Payee',
   }
-  return map[value] ?? 'Impayee'
+  return map[value] ?? 'Impayée'
 }
-

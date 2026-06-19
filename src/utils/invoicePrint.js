@@ -259,7 +259,7 @@ function buildInvoiceBody(invoice) {
       <h2 class="section-title">Client</h2>
       <table class="meta-grid">
         <tr><td>Nom</td><td>${escapeHtml(invoice?.customer_name || '--')}</td></tr>
-        <tr><td>Telephone</td><td>${escapeHtml(invoice?.customer_phone || '--')}</td></tr>
+        <tr><td>Téléphone</td><td>${escapeHtml(invoice?.customer_phone || '--')}</td></tr>
         <tr><td>Adresse</td><td>${escapeHtml(invoice?.customer_address || '--')}</td></tr>
         <tr><td>Date</td><td>${escapeHtml(formatDateTime(invoice?.created_at))}</td></tr>
         <tr><td>Session</td><td>${escapeHtml(invoice?.route_session_id ? `#${invoice.route_session_id}` : 'Aucune')}</td></tr>
@@ -272,7 +272,7 @@ function buildInvoiceBody(invoice) {
         <thead>
           <tr>
             <th>Produit</th>
-            <th>Qte</th>
+            <th>Qté</th>
             <th>PU</th>
             <th>Total</th>
           </tr>
@@ -301,7 +301,7 @@ function buildInvoiceBody(invoice) {
     </div>
 
     <div class="footer">
-      Genere depuis la plateforme mobile Irtiwaa.
+      Généré depuis la plateforme mobile Irtiwaa.
     </div>
   `
 }
@@ -363,7 +363,7 @@ function buildThermalInvoiceBody(invoice) {
     </div>
     <div class="rule"></div>
     <div class="meta-row"><span class="meta-label">Client</span><span>${escapeHtml(invoice?.customer_name || '--')}</span></div>
-    <div class="meta-row"><span class="meta-label">Telephone</span><span>${escapeHtml(invoice?.customer_phone || '--')}</span></div>
+    <div class="meta-row"><span class="meta-label">Téléphone</span><span>${escapeHtml(invoice?.customer_phone || '--')}</span></div>
     <div class="meta-row"><span class="meta-label">Date</span><span>${escapeHtml(formatDateTime(invoice?.created_at))}</span></div>
     <div class="meta-row"><span class="meta-label">Session</span><span>${escapeHtml(invoice?.route_session_id ? `#${invoice.route_session_id}` : 'Aucune')}</span></div>
     <div class="rule"></div>
@@ -386,7 +386,7 @@ function buildThermalInvoiceBody(invoice) {
     <div class="total-row"><span>TVA</span><span>${escapeHtml(formatCurrency(invoice?.tax_amount))}</span></div>
     <div class="total-row"><span>Paye</span><span>${escapeHtml(formatCurrency(invoice?.paid_amount))}</span></div>
     <div class="total-row strong"><span>Total</span><span>${escapeHtml(formatCurrency(invoice?.total))}</span></div>
-    <div class="footer">Selectionnez votre application Bluetooth thermique.</div>
+    <div class="footer">Sélectionnez votre application Bluetooth thermique.</div>
   `
 }
 
@@ -445,7 +445,7 @@ function invoiceSubtitle(invoice) {
 export async function printInvoiceDocument(invoice) {
   return shareHtmlAsPdf(
     thermalTemplate(invoiceTitle(invoice), invoiceSubtitle(invoice), buildThermalInvoiceBody(invoice)),
-    'Choisir l application d impression thermique',
+    "Choisir l'application d'impression thermique",
   )
 }
 
@@ -459,7 +459,7 @@ export async function shareInvoiceDocument(invoice) {
 export async function printInvoiceListDocument({ invoices, title = 'Liste factures', subtitle = 'Rapport mobile' }) {
   return shareHtmlAsPdf(
     thermalTemplate(title, subtitle, buildThermalInvoiceListBody({ invoices, subtitle })),
-    'Choisir l application d impression thermique',
+    "Choisir l'application d'impression thermique",
   )
 }
 

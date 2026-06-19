@@ -38,7 +38,7 @@ export function isInAppUpdateSupported() {
 
 export async function downloadAndLaunchApkUpdate({ url, version, expectedBytes, onProgress }) {
   if (!isInAppUpdateSupported()) {
-    throw new Error('L installation integree de mise a jour est disponible uniquement sur Android.')
+    throw new Error("L'installation intégrée de mise à jour est disponible uniquement sur Android.")
   }
 
   if (!url) {
@@ -48,7 +48,7 @@ export async function downloadAndLaunchApkUpdate({ url, version, expectedBytes, 
   const directory = getDownloadDirectory()
 
   if (!directory) {
-    throw new Error('Le stockage local de l application est indisponible.')
+    throw new Error("Le stockage local de l'application est indisponible.")
   }
 
   await cleanupDownloadedApks(directory)
@@ -75,7 +75,7 @@ export async function downloadAndLaunchApkUpdate({ url, version, expectedBytes, 
   const result = await downloadTask.downloadAsync()
 
   if (!result?.uri) {
-    throw new Error('Le telechargement de la mise a jour a ete interrompu.')
+    throw new Error('Le téléchargement de la mise à jour a été interrompu.')
   }
 
   const fileInfo = await FileSystem.getInfoAsync(result.uri)
@@ -90,7 +90,7 @@ export async function downloadAndLaunchApkUpdate({ url, version, expectedBytes, 
 
     if (Math.abs(downloadedBytes - normalizedExpectedBytes) > 4096) {
       await FileSystem.deleteAsync(result.uri, { idempotent: true })
-      throw new Error('Le fichier APK semble incomplet. Relancez le telechargement.')
+      throw new Error('Le fichier APK semble incomplet. Relancez le téléchargement.')
     }
   }
 

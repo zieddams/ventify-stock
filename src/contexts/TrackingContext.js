@@ -31,6 +31,7 @@ import {
 } from '../services/locationService'
 
 const TrackingContext = createContext(null)
+const REMOTE_SESSION_SYNC_MS = 10000
 
 function initialTrackingState() {
   return {
@@ -86,14 +87,23 @@ export function TrackingProvider({ children }) {
   const refreshSession = useCallback(async () => {
     if (!user || !isRep()) {
       setSession(null)
+      sessionRef.current = null
       setLoading(false)
       return null
     }
 
+    if (refreshInFlightRef.current) {
+      return sessionRef.current
+    }
+
+    refreshInFlightRef.current = true
+
     try {
       const data = await getTodayRouteSession()
-      setSession(data)
-      return data
+      const nextSession = data || null
+      setSession(nextSession)
+      sessionRef.current = nextSession
+      return nextSession
     } catch (error) {
       setTrackingState((prev) => ({
         ...prev,
@@ -101,6 +111,7 @@ export function TrackingProvider({ children }) {
       }))
       return null
     } finally {
+      refreshInFlightRef.current = false
       setLoading(false)
     }
   }, [user, isRep])
@@ -379,6 +390,25 @@ export function TrackingProvider({ children }) {
 
     return () => sub.remove()
   }, [user, isRep, refreshSession, captureCurrentLocation])
+
+  useEffect(() => {
+    if (!user || !isRep()) return undefined
+
+    const interval = setInterval(() => {
+      if (AppState.currentState !== 'active') {
+        return
+      }
+
+      if (sessionRef.current?.id) {
+        refreshSessionDetails()
+        return
+      }
+
+      refreshSession()
+    }, REMOTE_SESSION_SYNC_MS)
+
+    return () => clearInterval(interval)
+  }, [user, isRep, refreshSession, refreshSessionDetails])
 
   const value = useMemo(() => ({
     session,

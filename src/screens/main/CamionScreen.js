@@ -116,7 +116,7 @@ export default function CamionScreen() {
                   <Text style={s.assignmentMeta}>
                     {configuredCamion?.plate
                       ? `Immatriculation ${configuredCamion.plate}`
-                      : 'Affectez le camion depuis Session & GPS pour lier le vehicule reel.'}
+                      : 'Affectez le camion depuis Session & GPS pour lier le véhicule réel.'}
                   </Text>
                 </View>
                 <StatusChip
@@ -145,7 +145,7 @@ export default function CamionScreen() {
               <MetricCard
                 label="Produits"
                 value={formatCount(stock.length)}
-                hint="References presentes"
+                hint="Références présentes"
                 icon="package-variant-closed"
                 color={T.primary}
               />
@@ -173,10 +173,10 @@ export default function CamionScreen() {
                 />
                 <Text style={s.bannerTitle}>Chargement et retours</Text>
                 <Text style={s.bannerText}>
-                  Utilisez le module Reappro pour declarer depot vers camion et retours, puis gardez Session & GPS pour l affectation du camion et le suivi terrain.
+                  Utilisez le module Réappro pour déclarer dépôt vers camion et retours, puis gardez Session & GPS pour l'affectation du camion et le suivi terrain.
                 </Text>
                 <TouchableOpacity style={s.bannerButton} onPress={() => navigation.navigate('Reappro')}>
-                  <Text style={s.bannerButtonText}>Ouvrir Reappro</Text>
+                  <Text style={s.bannerButtonText}>Ouvrir Réappro</Text>
                 </TouchableOpacity>
               </View>
             </View>

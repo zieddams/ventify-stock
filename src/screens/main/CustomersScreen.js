@@ -105,7 +105,7 @@ export default function CustomersScreen() {
       Alert.alert('Client cree', 'Le client est maintenant disponible sur le mobile et sur le web.')
     } catch (error) {
       setCreating(false)
-      Alert.alert('Creation impossible', error.response?.data?.message || 'Veuillez reessayer.')
+      Alert.alert('Création impossible', error.response?.data?.message || 'Veuillez réessayer.')
     }
   }
 
@@ -131,10 +131,10 @@ export default function CustomersScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={s.rowName}>{item.name}</Text>
                 <Text style={s.rowMeta}>{item.phone || 'Sans numero'}</Text>
-                <Text style={s.rowMeta}>{item.address || 'Adresse non renseignee'}</Text>
+                <Text style={s.rowMeta}>{item.address || 'Adresse non renseignée'}</Text>
                 {hasGlobalCustomerAccess && (
                   <Text style={s.rowOwner}>
-                    Affecte: {item.owner?.name || 'Compte non remonte'}
+                    Affecté: {item.owner?.name || 'Compte non remonté'}
                   </Text>
                 )}
                 <View style={s.badges}>
@@ -152,7 +152,7 @@ export default function CustomersScreen() {
                     <View style={[s.badge, s.badgeDanger]}>
                       <MaterialCommunityIcons name="credit-card-outline" size={14} color="#b91c1c" />
                       <Text style={[s.badgeText, s.badgeTextDanger]}>
-                        Credit {formatCurrency(item.credit_balance)}
+                        Crédit {formatCurrency(item.credit_balance)}
                       </Text>
                     </View>
                   )}
@@ -227,7 +227,7 @@ export default function CustomersScreen() {
               onChangeText={setNewCustomerName}
             />
 
-            <Text style={s.fieldLabel}>Telephone</Text>
+            <Text style={s.fieldLabel}>Téléphone</Text>
             <TextInput
               style={s.input}
               placeholder="+216 ..."
@@ -253,7 +253,7 @@ export default function CustomersScreen() {
                 {creating ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Text style={s.dialogPrimaryText}>Creer</Text>
+                  <Text style={s.dialogPrimaryText}>Créer</Text>
                 )}
               </TouchableOpacity>
             </View>

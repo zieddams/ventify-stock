@@ -71,7 +71,7 @@ export default function InvoiceDetailScreen({ route }) {
       await printInvoiceDocument(invoice)
       await syncInteraction('invoice-thermal', { includeLocation: false, refreshSession: false })
     } catch (error) {
-      Alert.alert('Transfert thermique impossible', error.message || 'Veuillez reessayer.')
+      Alert.alert('Transfert thermique impossible', error.message || 'Veuillez réessayer.')
     } finally {
       setPrinting(false)
     }
@@ -85,7 +85,7 @@ export default function InvoiceDetailScreen({ route }) {
       await shareInvoiceDocument(invoice)
       await syncInteraction('invoice-pdf', { includeLocation: false, refreshSession: false })
     } catch (error) {
-      Alert.alert('Partage impossible', error.message || 'Veuillez reessayer.')
+      Alert.alert('Partage impossible', error.message || 'Veuillez réessayer.')
     } finally {
       setSharing(false)
     }
@@ -167,7 +167,7 @@ export default function InvoiceDetailScreen({ route }) {
         </View>
         <View style={s.infoRow}>
           <MaterialCommunityIcons name="map-marker-outline" size={18} color={T.primary} />
-          <Text style={s.infoText}>{invoice?.customer_address || 'Adresse non renseignee'}</Text>
+          <Text style={s.infoText}>{invoice?.customer_address || 'Adresse non renseignée'}</Text>
         </View>
       </View>
 
@@ -195,7 +195,7 @@ export default function InvoiceDetailScreen({ route }) {
         <View style={s.infoRow}>
           <MaterialCommunityIcons name="truck-outline" size={18} color={T.info} />
           <Text style={s.infoText}>
-            {invoice?.route_session_id ? `Session #${invoice.route_session_id}` : 'Aucune session associee'}
+            {invoice?.route_session_id ? `Session #${invoice.route_session_id}` : 'Aucune session associée'}
           </Text>
         </View>
         <View style={s.infoRow}>
@@ -203,7 +203,7 @@ export default function InvoiceDetailScreen({ route }) {
           <Text style={s.infoText}>
             {Number.isFinite(invoice?.latitude) && Number.isFinite(invoice?.longitude)
               ? `${invoice.latitude.toFixed(5)}, ${invoice.longitude.toFixed(5)}`
-              : 'Coordonnees GPS non remontees'}
+              : 'Coordonnées GPS non remontées'}
           </Text>
         </View>
       </View>
