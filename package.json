@@ -1,7 +1,7 @@
 {
   "name": "ventify-stock",
-  "version": "1.3.3",
-  "main": "expo/AppEntry",
+  "version": "1.3.4",
+  "main": "index.js",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
     "@react-navigation/bottom-tabs": "^7.18.2",
@@ -33,3 +33,4 @@
   },
   "private": true
 }
+

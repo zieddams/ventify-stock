@@ -1,8 +1,12 @@
-import { registerRootComponent } from 'expo';
+import 'react-native-gesture-handler'
 
-import App from './App';
+if (typeof globalThis.FormData === 'undefined') {
+  const ReactNativeFormData = require('react-native/Libraries/Network/FormData').default
+  globalThis.FormData = ReactNativeFormData
+}
 
-// registerRootComponent calls AppRegistry.registerComponent('main', () => App);
-// It also ensures that whether you load the app in Expo Go or in a native build,
-// the environment is set up appropriately
-registerRootComponent(App);
+const { registerRootComponent } = require('expo')
+const App = require('./App').default
+
+registerRootComponent(App)
+
