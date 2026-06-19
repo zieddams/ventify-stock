@@ -121,7 +121,10 @@ export function AuthProvider({ children }) {
 
     try {
       const payload = includeLocation
-        ? (await capturePresenceLocation({ shouldRequest: false, forceFresh: false })).payload
+        ? (await capturePresenceLocation({
+          shouldRequest: false,
+          forceFresh: reason === 'heartbeat',
+        })).payload
         : getRememberedLocationPayload()
 
       await pingSession(payload)
@@ -213,7 +216,7 @@ export function AuthProvider({ children }) {
 
     const interval = setInterval(() => {
       if (AppState.currentState === 'active') {
-        sendSessionPing({ reason: 'heartbeat' })
+        sendSessionPing({ reason: 'heartbeat', includeLocation: true })
       }
     }, PRESENCE_HEARTBEAT_MS)
 
