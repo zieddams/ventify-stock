@@ -31,7 +31,7 @@ import {
 } from '../services/locationService'
 
 const TrackingContext = createContext(null)
-const REMOTE_SESSION_SYNC_MS = 10000
+const REMOTE_SESSION_SYNC_MS = 4000
 
 function initialTrackingState() {
   return {
@@ -454,3 +454,4 @@ export function TrackingProvider({ children }) {
 export function useTracking() {
   return useContext(TrackingContext)
 }
+

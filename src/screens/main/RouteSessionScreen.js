@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -47,7 +47,6 @@ export default function RouteSessionScreen() {
     trackingState,
     refreshSessionDetails,
     startSession,
-    captureCurrentLocation,
     endSession,
   } = useTracking()
 
@@ -193,15 +192,15 @@ export default function RouteSessionScreen() {
     return (
       <ScrollView style={s.root} contentContainerStyle={s.content}>
         <PageHeader
-          title="Session terrain"
-          subtitle="Camion reel, chargement initial et GPS live."
+          title="Session commerciale"
+          subtitle="Camion, chargement initial et etat courant."
         />
 
         <View style={[s.emptyCard, cardShadow]}>
           <MaterialCommunityIcons name="account-lock-outline" size={34} color={T.primary} />
           <Text style={s.emptyTitle}>Compte commercial requis</Text>
           <Text style={s.emptyText}>
-            L ouverture et le suivi d une tournee mobile doivent etre testes avec un compte commercial afin de rester alignes avec les routes API de session.
+            L ouverture et la gestion d une session mobile doivent etre testees avec un compte commercial pour rester alignees avec les routes API de session.
           </Text>
         </View>
       </ScrollView>
@@ -216,11 +215,8 @@ export default function RouteSessionScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.primary} />}
       >
         <PageHeader
-          title="Session terrain"
-          subtitle="Camion reel, chargement initial et GPS live."
-          actionIcon="crosshairs-gps"
-          actionLabel="Position"
-          onActionPress={() => captureCurrentLocation('session-manual')}
+          title="Session commerciale"
+          subtitle="Camion, chargement initial et etat courant."
         />
 
         {!!error && (
@@ -235,9 +231,9 @@ export default function RouteSessionScreen() {
             <View style={[s.summaryCard, cardShadow]}>
               <View style={s.summaryTop}>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.summaryTitle}>Demarrer la tournee</Text>
+                  <Text style={s.summaryTitle}>Demarrer la session</Text>
                   <Text style={s.summarySub}>
-                    Le backend attend un camion reel et au moins une ligne de chargement initial.
+                    Le backend attend un camion reel et au moins une ligne de chargement initial avant de lancer la session.
                   </Text>
                 </View>
                 <StatusChip label="A ouvrir" tone="warning" />
@@ -259,7 +255,7 @@ export default function RouteSessionScreen() {
               <View style={s.infoCard}>
                 <MaterialCommunityIcons name="information-outline" size={18} color={T.info} />
                 <Text style={s.infoCardText}>
-                  Le depot visible vient de l API produits (`depot_qty`) et le stock deja embarque vient de l API camion de votre compte.
+                  Le depot visible vient de l API produits (`depot_qty`). Le suivi temps reel continue ensuite automatiquement en arriere-plan.
                 </Text>
               </View>
             </View>
@@ -331,7 +327,7 @@ export default function RouteSessionScreen() {
               <View style={s.summaryTop}>
                 <View style={{ flex: 1 }}>
                   <Text style={s.summaryTitle}>Session du {session.session_date}</Text>
-                  <Text style={s.summarySub}>Etat terrain, GPS live et chargement courant.</Text>
+                  <Text style={s.summarySub}>Etat courant, stock camion et synchronisation automatique.</Text>
                 </View>
                 <StatusChip label={routeStatusLabel(session.status)} tone={currentSessionOpen ? 'success' : 'info'} />
               </View>
@@ -342,11 +338,11 @@ export default function RouteSessionScreen() {
                   <Text style={s.factValue}>{formatTime(session.opened_at)}</Text>
                 </View>
                 <View style={s.factItem}>
-                  <Text style={s.factLabel}>Points GPS</Text>
+                  <Text style={s.factLabel}>Points sync</Text>
                   <Text style={s.factValue}>{formatNumber(session.locations_count || 0, 0)}</Text>
                 </View>
                 <View style={s.factItem}>
-                  <Text style={s.factLabel}>GPS mobile</Text>
+                  <Text style={s.factLabel}>Sync mobile</Text>
                   <Text style={s.factValue}>{locationPermission === 'granted' ? 'OK' : 'A verifier'}</Text>
                 </View>
               </View>
@@ -363,7 +359,7 @@ export default function RouteSessionScreen() {
 
               <View style={s.bannerRow}>
                 <StatusChip
-                  label={trackingState.active ? 'Tracking actif' : 'Tracking en attente'}
+                  label={trackingState.active ? 'Synchronisation active' : 'Synchronisation en attente'}
                   tone={trackingState.active ? 'success' : 'warning'}
                 />
                 <StatusChip
@@ -373,7 +369,7 @@ export default function RouteSessionScreen() {
               </View>
 
               <View style={s.locationBox}>
-                <Text style={s.locationLabel}>Derniere position mobile</Text>
+                <Text style={s.locationLabel}>Derniere position synchronisee</Text>
                 <Text style={s.locationValue}>{locationText(latestLocation)}</Text>
                 <Text style={s.locationMeta}>
                   {session.latestLocation?.recorded_at
@@ -449,7 +445,7 @@ export default function RouteSessionScreen() {
           <View style={s.dialogLarge}>
             <Text style={s.dialogTitle}>Choisir le camion</Text>
             <Text style={s.dialogText}>
-              Selectionnez le camion reel de la tournee. Un camion occupe ne peut pas etre reutilise pour une autre session ouverte.
+              Selectionnez le camion reel de la session. Un camion occupe ne peut pas etre reutilise pour une autre session ouverte.
             </Text>
 
             <ScrollView style={s.camionList} contentContainerStyle={{ gap: 10 }}>
@@ -518,7 +514,7 @@ export default function RouteSessionScreen() {
         <View style={s.overlay}>
           <View style={s.dialog}>
             <Text style={s.dialogTitle}>Cloturer la session</Text>
-            <Text style={s.dialogText}>Enregistrez les montants collectes avant la fermeture de la tournee.</Text>
+            <Text style={s.dialogText}>Enregistrez les montants collectes avant la fermeture de la session.</Text>
 
             <Text style={s.fieldLabel}>Cash collecte</Text>
             <TextInput
@@ -1037,6 +1033,10 @@ const s = StyleSheet.create({
     color: T.danger,
   },
 })
+
+
+
+
 
 
 

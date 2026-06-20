@@ -5,19 +5,20 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuth } from '../contexts/AuthContext'
-import LoginScreen from '../screens/auth/LoginScreen'
-import DashboardScreen from '../screens/main/DashboardScreen'
-import CustomersScreen from '../screens/main/CustomersScreen'
-import InvoicesScreen from '../screens/main/InvoicesScreen'
-import RouteSessionScreen from '../screens/main/RouteSessionScreen'
-import InvoiceCreateScreen from '../screens/shared/InvoiceCreateScreen'
-import InvoiceDetailScreen from '../screens/shared/InvoiceDetailScreen'
-import ProfileScreen from '../screens/shared/ProfileScreen'
-import ReapproScreen from '../screens/main/ReapproScreen'
 import { T } from '../theme'
 
 const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
+
+const getLoginScreen = () => require('../screens/auth/LoginScreen').default
+const getDashboardScreen = () => require('../screens/main/DashboardScreen').default
+const getCustomersScreen = () => require('../screens/main/CustomersScreen').default
+const getInvoicesScreen = () => require('../screens/main/InvoicesScreen').default
+const getRouteSessionScreen = () => require('../screens/main/RouteSessionScreen').default
+const getInvoiceCreateScreen = () => require('../screens/shared/InvoiceCreateScreen').default
+const getInvoiceDetailScreen = () => require('../screens/shared/InvoiceDetailScreen').default
+const getProfileScreen = () => require('../screens/shared/ProfileScreen').default
+const getReapproScreen = () => require('../screens/main/ReapproScreen').default
 
 function useTabLayout() {
   const insets = useSafeAreaInsets()
@@ -36,6 +37,7 @@ function MobileTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
+        lazy: true,
         sceneStyle: { backgroundColor: T.background },
         tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: T.primary,
@@ -67,11 +69,11 @@ function MobileTabs() {
           return <MaterialCommunityIcons name={icons[route.name]} size={21} color={color} />
         },
       })}>
-      <Tab.Screen name="Accueil" component={DashboardScreen} options={{ title: 'Accueil' }} />
-      <Tab.Screen name="Clients" component={CustomersScreen} options={{ title: 'Clients' }} />
-      <Tab.Screen name="Factures" component={InvoicesScreen} options={{ title: 'Factures' }} />
-      <Tab.Screen name="Session" component={RouteSessionScreen} options={{ title: 'Session' }} />
-      <Tab.Screen name="Reglages" component={ProfileScreen} options={{ title: 'Reglages' }} />
+      <Tab.Screen name="Accueil" getComponent={getDashboardScreen} options={{ title: 'Accueil' }} />
+      <Tab.Screen name="Clients" getComponent={getCustomersScreen} options={{ title: 'Clients' }} />
+      <Tab.Screen name="Factures" getComponent={getInvoicesScreen} options={{ title: 'Factures' }} />
+      <Tab.Screen name="Session" getComponent={getRouteSessionScreen} options={{ title: 'Session' }} />
+      <Tab.Screen name="Reglages" getComponent={getProfileScreen} options={{ title: 'Reglages' }} />
     </Tab.Navigator>
   )
 }
@@ -79,7 +81,7 @@ function MobileTabs() {
 function AuthStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="Login" getComponent={getLoginScreen} />
     </Stack.Navigator>
   )
 }
@@ -98,10 +100,10 @@ function AppStack() {
         component={MobileTabs}
         options={{ headerShown: false }}
       />
-      <Stack.Screen name="InvoiceCreate" component={InvoiceCreateScreen} options={{ title: 'Nouvelle facture' }} />
-      <Stack.Screen name="InvoiceDetail" component={InvoiceDetailScreen} options={{ title: 'Detail facture' }} />
-      <Stack.Screen name="Reappro" component={ReapproScreen} options={{ title: 'Reappro camion' }} />
-      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: 'Reglages mobiles' }} />
+      <Stack.Screen name="InvoiceCreate" getComponent={getInvoiceCreateScreen} options={{ title: 'Nouvelle facture' }} />
+      <Stack.Screen name="InvoiceDetail" getComponent={getInvoiceDetailScreen} options={{ title: 'Detail facture' }} />
+      <Stack.Screen name="Reappro" getComponent={getReapproScreen} options={{ title: 'Reappro camion' }} />
+      <Stack.Screen name="Profile" getComponent={getProfileScreen} options={{ title: 'Reglages mobiles' }} />
     </Stack.Navigator>
   )
 }

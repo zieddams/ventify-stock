@@ -90,12 +90,12 @@ export default function InvoiceCreateScreen({ navigation, route }) {
       setProducts(productItems)
       setPaymentMethods(paymentItems.length > 0 ? paymentItems : [{
         value: 'cash',
-        display_label: 'Espèces',
+        display_label: 'EspÃ¨ces',
       }])
       setPaymentMethod(paymentItems.find((item) => item.is_default)?.value || paymentItems[0]?.value || 'cash')
       setCamionStock(camionResponse.data?.by_product_id ?? {})
     } catch (error) {
-      Alert.alert('Chargement impossible', error.response?.data?.message || 'Les données mobiles ne sont pas accessibles.')
+      Alert.alert('Chargement impossible', error.response?.data?.message || 'Les donnÃ©es mobiles ne sont pas accessibles.')
     } finally {
       setLoading(false)
     }
@@ -163,7 +163,7 @@ export default function InvoiceCreateScreen({ navigation, route }) {
     const price = toNumber(priceInput)
 
     if (!pendingProduct || qty <= 0 || price < 0) {
-      Alert.alert('Ligne invalide', 'Vérifiez la quantité et le prix.')
+      Alert.alert('Ligne invalide', 'VÃ©rifiez la quantitÃ© et le prix.')
       return
     }
 
@@ -224,13 +224,13 @@ export default function InvoiceCreateScreen({ navigation, route }) {
       setNewCustomerPhone('')
       setNewCustomerAddress('')
     } catch (error) {
-      Alert.alert('Création impossible', error.response?.data?.message || 'Veuillez réessayer.')
+      Alert.alert('CrÃ©ation impossible', error.response?.data?.message || 'Veuillez rÃ©essayer.')
     }
   }
 
   const saveInvoice = async () => {
     if (!selectedCustomer?.name) {
-      Alert.alert('Client requis', 'Sélectionnez ou créez un client avant de continuer.')
+      Alert.alert('Client requis', 'Selectionnez ou creez un client avant de continuer.')
       return
     }
 
@@ -251,8 +251,17 @@ export default function InvoiceCreateScreen({ navigation, route }) {
     }
 
     setSaving(true)
+    let shouldResetSaving = true
+
     try {
-      const currentLocation = await captureCurrentLocation('invoice')
+      let currentLocation = null
+
+      try {
+        currentLocation = await captureCurrentLocation('invoice')
+      } catch {
+        currentLocation = null
+      }
+
       const coords = currentLocation?.coords
 
       const response = await api.post('/invoices', {
@@ -280,18 +289,22 @@ export default function InvoiceCreateScreen({ navigation, route }) {
         })),
       })
 
-      await syncInteraction('invoice-created', { includeLocation: false, refreshSession: true })
+      void syncInteraction('invoice-created', { includeLocation: false, refreshSession: true }).catch(() => {})
+
+      shouldResetSaving = false
+      setSaving(false)
       navigation.replace('InvoiceDetail', {
         id: response.data.id,
         initialInvoice: response.data,
       })
     } catch (error) {
-      Alert.alert('Enregistrement impossible', error.response?.data?.message || 'Veuillez réessayer.')
+      Alert.alert('Enregistrement impossible', error.response?.data?.message || 'Veuillez reessayer.')
     } finally {
-      setSaving(false)
+      if (shouldResetSaving) {
+        setSaving(false)
+      }
     }
   }
-
   if (loading) {
     return (
       <View style={s.loadingWrap}>
@@ -310,7 +323,7 @@ export default function InvoiceCreateScreen({ navigation, route }) {
             title="Nouvelle facture"
             subtitle={session?.status === 'open'
               ? (hasGlobalCustomerAccess ? 'Session mobile active et base clients globale' : 'Session mobile active')
-              : 'Session non ouverte - facture quand même possible'}
+              : 'Session non ouverte - facture quand mÃªme possible'}
           />
 
           <View style={[s.sectionCard, cardShadow]}>
@@ -324,15 +337,15 @@ export default function InvoiceCreateScreen({ navigation, route }) {
             {!selectedCustomer ? (
               <TouchableOpacity style={s.selector} onPress={() => setCustomerPickerVisible(true)}>
                 <MaterialCommunityIcons name="account-search-outline" size={20} color={T.primary} />
-                <Text style={s.selectorText}>Sélectionner un client</Text>
+                <Text style={s.selectorText}>SÃ©lectionner un client</Text>
               </TouchableOpacity>
             ) : (
               <View style={s.customerCard}>
                 <Text style={s.customerName}>{selectedCustomer.name}</Text>
-                <Text style={s.customerMeta}>{selectedCustomer.phone || 'Sans numéro'}</Text>
-                <Text style={s.customerMeta}>{selectedCustomer.address || 'Adresse non renseignée'}</Text>
+                <Text style={s.customerMeta}>{selectedCustomer.phone || 'Sans numÃ©ro'}</Text>
+                <Text style={s.customerMeta}>{selectedCustomer.address || 'Adresse non renseignÃ©e'}</Text>
                 {selectedCustomer.owner?.name && (
-                  <Text style={s.customerMeta}>Affecté: {selectedCustomer.owner.name}</Text>
+                  <Text style={s.customerMeta}>AffectÃ©: {selectedCustomer.owner.name}</Text>
                 )}
               </View>
             )}
@@ -350,7 +363,7 @@ export default function InvoiceCreateScreen({ navigation, route }) {
             {lines.length === 0 ? (
               <TouchableOpacity style={s.emptyLines} onPress={() => setProductPickerVisible(true)}>
                 <MaterialCommunityIcons name="package-variant-closed-plus" size={30} color={T.textMuted} />
-                <Text style={s.emptyLinesText}>Ajouter votre première ligne produit</Text>
+                <Text style={s.emptyLinesText}>Ajouter votre premiÃ¨re ligne produit</Text>
               </TouchableOpacity>
             ) : (
               lines.map((line, index) => {
@@ -411,7 +424,7 @@ export default function InvoiceCreateScreen({ navigation, route }) {
               })}
             </View>
 
-            <Text style={s.fieldLabel}>Montant payé</Text>
+            <Text style={s.fieldLabel}>Montant payÃ©</Text>
             <TextInput
               style={s.input}
               keyboardType="decimal-pad"
@@ -438,11 +451,11 @@ export default function InvoiceCreateScreen({ navigation, route }) {
               <Text style={s.totalValue}>{formatCurrency(subtotal)}</Text>
             </View>
             <View style={s.totalRow}>
-              <Text style={s.totalLabel}>Payé maintenant</Text>
+              <Text style={s.totalLabel}>PayÃ© maintenant</Text>
               <Text style={s.totalValue}>{formatCurrency(paidValue)}</Text>
             </View>
             <View style={s.totalRow}>
-              <Text style={s.totalLabelStrong}>Reste à régler</Text>
+              <Text style={s.totalLabelStrong}>Reste Ã  rÃ©gler</Text>
               <Text style={s.totalValueStrong}>{formatCurrency(Math.max(subtotal - paidValue, 0))}</Text>
             </View>
           </View>
@@ -451,7 +464,7 @@ export default function InvoiceCreateScreen({ navigation, route }) {
             <View style={s.noticeWarning}>
               <MaterialCommunityIcons name="information-outline" size={18} color={T.warning} />
               <Text style={s.noticeWarningText}>
-                La facture sera envoyée sans session terrain ouverte. Ouvrez la session si vous voulez suivre la tournée et les chargements.
+                La facture sera envoyÃ©e sans session terrain ouverte. Ouvrez la session si vous voulez suivre la tournÃ©e et les chargements.
               </Text>
             </View>
           ) : (
@@ -480,14 +493,14 @@ export default function InvoiceCreateScreen({ navigation, route }) {
 
             <TextInput
               style={s.searchInput}
-              placeholder="Nom, téléphone, adresse, propriétaire"
+              placeholder="Nom, tÃ©lÃ©phone, adresse, propriÃ©taire"
               placeholderTextColor={T.textMuted}
               value={customerQuery}
               onChangeText={setCustomerQuery}
           />
 
           <TouchableOpacity style={s.secondaryButton} onPress={() => setCreateCustomerVisible(true)}>
-            <Text style={s.secondaryButtonText}>Créer un nouveau client</Text>
+            <Text style={s.secondaryButtonText}>CrÃ©er un nouveau client</Text>
           </TouchableOpacity>
 
           <ScrollView contentContainerStyle={{ paddingBottom: 30 }}>
@@ -500,9 +513,9 @@ export default function InvoiceCreateScreen({ navigation, route }) {
                   setCustomerPickerVisible(false)
                 }}>
                 <Text style={s.modalTitle}>{item.name}</Text>
-                <Text style={s.modalMeta}>{item.phone || 'Sans numéro'}</Text>
-                <Text style={s.modalMeta}>{item.address || 'Adresse non renseignée'}</Text>
-                {item.owner?.name && <Text style={s.modalMeta}>Affecté: {item.owner.name}</Text>}
+                <Text style={s.modalMeta}>{item.phone || 'Sans numÃ©ro'}</Text>
+                <Text style={s.modalMeta}>{item.address || 'Adresse non renseignÃ©e'}</Text>
+                {item.owner?.name && <Text style={s.modalMeta}>AffectÃ©: {item.owner.name}</Text>}
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -520,7 +533,7 @@ export default function InvoiceCreateScreen({ navigation, route }) {
 
           <TextInput
             style={s.searchInput}
-            placeholder="Nom ou référence"
+            placeholder="Nom ou rÃ©fÃ©rence"
             placeholderTextColor={T.textMuted}
             value={productQuery}
             onChangeText={setProductQuery}
@@ -565,9 +578,9 @@ export default function InvoiceCreateScreen({ navigation, route }) {
         <View style={s.overlay}>
           <View style={s.dialog}>
             <Text style={s.dialogTitle}>{pendingProduct?.name || 'Produit'}</Text>
-            <Text style={s.dialogText}>{pendingProduct?.reference || pendingProduct?.unit || 'Édition de ligne'}</Text>
+            <Text style={s.dialogText}>{pendingProduct?.reference || pendingProduct?.unit || 'Ã‰dition de ligne'}</Text>
 
-            <Text style={s.fieldLabel}>Quantité</Text>
+            <Text style={s.fieldLabel}>QuantitÃ©</Text>
             <TextInput
               style={s.input}
               keyboardType="decimal-pad"
@@ -609,7 +622,7 @@ export default function InvoiceCreateScreen({ navigation, route }) {
           <View style={s.dialog}>
             <Text style={s.dialogTitle}>Nouveau client</Text>
             <Text style={s.dialogText}>
-              Création rapide depuis le mobile. Le client sera affecté à votre compte et visible pour les rôles globaux.
+              CrÃ©ation rapide depuis le mobile. Le client sera affectÃ© Ã  votre compte et visible pour les rÃ´les globaux.
             </Text>
 
             <Text style={s.fieldLabel}>Nom</Text>
@@ -621,7 +634,7 @@ export default function InvoiceCreateScreen({ navigation, route }) {
               onChangeText={setNewCustomerName}
             />
 
-            <Text style={s.fieldLabel}>Téléphone</Text>
+            <Text style={s.fieldLabel}>TÃ©lÃ©phone</Text>
             <TextInput
               style={s.input}
               placeholder="+216 ..."
@@ -644,7 +657,7 @@ export default function InvoiceCreateScreen({ navigation, route }) {
                 <Text style={s.dialogSecondaryText}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.dialogPrimary} onPress={createCustomer}>
-                <Text style={s.dialogPrimaryText}>Créer</Text>
+                <Text style={s.dialogPrimaryText}>CrÃ©er</Text>
               </TouchableOpacity>
             </View>
           </View>

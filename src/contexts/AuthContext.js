@@ -1,6 +1,13 @@
 import { AppState } from 'react-native'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import api, { clearToken, getToken, saveToken } from '../services/api'
+import api, {
+  clearStoredUser,
+  clearToken,
+  getStoredUser,
+  getToken,
+  saveStoredUser,
+  saveToken,
+} from '../services/api'
 import {
   getLocationValidationMessage,
   getCurrentLocation,
@@ -39,6 +46,7 @@ export function AuthProvider({ children }) {
   const refreshUser = useCallback(async () => {
     const response = await api.get('/auth/me')
     setUser(response.data)
+    await saveStoredUser(response.data)
     return response.data
   }, [])
 
@@ -184,16 +192,20 @@ export function AuthProvider({ children }) {
           return
         }
 
+        const cachedUser = await getStoredUser()
+        if (cachedUser && mounted) {
+          setUser(cachedUser)
+          setLoading(false)
+        }
+
         try {
           await refreshUser()
         } catch {
-          await clearToken()
+          await Promise.allSettled([clearToken(), clearStoredUser()])
           if (mounted) setUser(null)
         }
       } catch {
-        try {
-          await clearToken()
-        } catch {}
+        await Promise.allSettled([clearToken(), clearStoredUser()])
         if (mounted) setUser(null)
       } finally {
         if (mounted) setLoading(false)
@@ -242,6 +254,7 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     const response = await api.post('/auth/login', { email, password })
     await saveToken(response.data.token)
+    await saveStoredUser(response.data.user)
     setUser(response.data.user)
     return response.data.user
   }
@@ -255,7 +268,7 @@ export function AuthProvider({ children }) {
       await api.post('/auth/logout')
     } catch {}
 
-    await clearToken()
+    await Promise.allSettled([clearToken(), clearStoredUser()])
     setUser(null)
   }
 

@@ -54,7 +54,6 @@ export default function DashboardScreen() {
     locationPermission,
     trackingState,
     refreshSession,
-    captureCurrentLocation,
   } = useTracking()
 
   const [invoices, setInvoices] = useState([])
@@ -132,7 +131,7 @@ export default function DashboardScreen() {
     >
       <PageHeader
         title={`Bonjour ${firstName(user?.name)}`}
-        subtitle="Votre espace mobile terrain"
+        subtitle="Votre espace mobile commercial"
         actionIcon="cog-outline"
         actionLabel="Reglages"
         onActionPress={() => navigation.navigate('Reglages')}
@@ -150,7 +149,7 @@ export default function DashboardScreen() {
           <View style={{ flex: 1 }}>
             <Text style={s.heroTitle}>Mon activite du jour</Text>
             <Text style={s.heroSubtitle}>
-              Facturation mobile, session terrain et stock camion lies a votre compte courant.
+              Facturation mobile, session commerciale et stock camion lies a votre compte courant.
             </Text>
           </View>
           <StatusChip
@@ -163,13 +162,13 @@ export default function DashboardScreen() {
           <View style={s.infoBlock}>
             <Text style={s.infoBlockTitle}>Mode terrain reserve au compte commercial</Text>
             <Text style={s.infoBlockText}>
-              Ce compte peut consulter les donnees mobiles, mais l ouverture d une tournee et le tracking GPS actif doivent etre testes avec un compte commercial.
+              Ce compte peut consulter les donnees mobiles, mais l ouverture et la gestion d une session doivent etre testees avec un compte commercial.
             </Text>
           </View>
         ) : !session ? (
           <>
             <Text style={s.heroText}>
-              Aucune session ouverte pour aujourd hui. Choisissez le camion reel et le chargement initial pour demarrer la tournee.
+              Aucune session ouverte pour aujourd hui. Choisissez le camion reel et le chargement initial pour demarrer la session.
             </Text>
             <View style={s.heroActions}>
               <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Session')} activeOpacity={0.85}>
@@ -193,14 +192,14 @@ export default function DashboardScreen() {
                 <Text style={s.factValue}>{session.camion?.name || configuredCamion?.name || 'A definir'}</Text>
               </View>
               <View style={s.factItem}>
-                <Text style={s.factLabel}>GPS</Text>
+                <Text style={s.factLabel}>Sync</Text>
                 <Text style={s.factValue}>{locationPermission === 'granted' ? 'OK' : 'A valider'}</Text>
               </View>
             </View>
 
             <View style={s.bannerRow}>
               <StatusChip
-                label={trackingState.active ? 'Tracking actif' : 'Tracking en attente'}
+                label={trackingState.active ? 'Synchronisation active' : 'Synchronisation en attente'}
                 tone={trackingState.active ? 'success' : 'warning'}
               />
               <StatusChip
@@ -210,7 +209,7 @@ export default function DashboardScreen() {
             </View>
 
             <View style={s.locationCard}>
-              <Text style={s.locationLabel}>Derniere position</Text>
+              <Text style={s.locationLabel}>Derniere position synchronisee</Text>
               <Text style={s.locationValue}>{locationText(latestLocation)}</Text>
               <Text style={s.locationMeta}>
                 {session.latestLocation?.recorded_at
@@ -226,9 +225,6 @@ export default function DashboardScreen() {
               </TouchableOpacity>
               <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Reappro')}>
                 <Text style={s.secondaryButtonText}>Reappro camion</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.secondaryButton} onPress={() => captureCurrentLocation('dashboard-manual')}>
-                <Text style={s.secondaryButtonText}>Envoyer ma position</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -263,7 +259,7 @@ export default function DashboardScreen() {
         <MetricCard
           label="Derniere sync"
           value={trackingState.lastSyncAt ? formatTime(trackingState.lastSyncAt) : '--'}
-          hint={trackingState.error || 'Heartbeat et GPS auto'}
+          hint={trackingState.error || 'Session et suivi auto en arriere-plan'}
           icon="crosshairs-gps"
           color={trackingState.error ? T.warning : T.success}
         />
@@ -574,3 +570,4 @@ const s = StyleSheet.create({
     color: T.danger,
   },
 })
+

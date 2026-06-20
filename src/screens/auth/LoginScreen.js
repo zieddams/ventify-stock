@@ -57,7 +57,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const version = Constants.expoConfig?.version || '1.3.3'
+  const version = Constants.expoConfig?.version || '1.3.6'
 
   const handleLogin = async () => {
     if (!email.trim() || !password) return
@@ -316,6 +316,8 @@ const s = StyleSheet.create({
     color: T.textMuted,
   },
 })
+
+
 
 
 
