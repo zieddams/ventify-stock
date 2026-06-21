@@ -30,6 +30,32 @@ function numericInput(value) {
   return value.replace(/[^0-9.]/g, '')
 }
 
+function buildCloseDefaults(session) {
+  const apiDefaults = session?.close_defaults
+  const invoices = Array.isArray(session?.invoices)
+    ? session.invoices.filter((invoice) => invoice?.status !== 'cancelled')
+    : []
+
+  if (apiDefaults) {
+    return {
+      invoiceCount: Number(apiDefaults.invoice_count ?? invoices.length ?? 0),
+      totalSold: toNumber(apiDefaults.total_sold),
+      cashCollected: toNumber(apiDefaults.cash_collected),
+      creditTotal: toNumber(apiDefaults.credit_total),
+    }
+  }
+
+  return {
+    invoiceCount: invoices.length,
+    totalSold: invoices.reduce((sum, invoice) => sum + toNumber(invoice?.total), 0),
+    cashCollected: invoices.reduce((sum, invoice) => sum + toNumber(invoice?.paid_amount), 0),
+    creditTotal: invoices.reduce(
+      (sum, invoice) => sum + Math.max(toNumber(invoice?.total) - toNumber(invoice?.paid_amount), 0),
+      0,
+    ),
+  }
+}
+
 export default function RouteSessionScreen() {
   const navigation = useNavigation()
   const { isRep } = useAuth()
@@ -107,6 +133,17 @@ export default function RouteSessionScreen() {
     }
   }, [camions, selectedCamionId, session?.camion?.id])
 
+  const closeDefaults = useMemo(() => buildCloseDefaults(session), [session])
+
+  useEffect(() => {
+    if (!closeVisible) {
+      return
+    }
+
+    setCashCollected(closeDefaults.cashCollected.toFixed(3))
+    setCreditCollected(closeDefaults.creditTotal.toFixed(3))
+  }, [closeDefaults.cashCollected, closeDefaults.creditTotal, closeVisible])
+
   const activeCamions = camions.filter((camion) => camion.active !== false)
   const selectedCamion = activeCamions.find((camion) => String(camion.id) === String(selectedCamionId)) ?? null
   const currentSessionOpen = session?.status === 'open'
@@ -182,7 +219,7 @@ export default function RouteSessionScreen() {
       await load()
       Alert.alert(
         'Session clôturée',
-        `Total vendu: ${formatCurrency(closedSession?.total_sold || 0)}\nCrédit donné: ${formatCurrency(closedSession?.credit_given || 0)}\nCash collecté: ${formatCurrency(closedSession?.cash_collected || 0)}`,
+        `Total vendu: ${formatCurrency(closedSession?.total_sold || 0)}\nCrédit session: ${formatCurrency(closedSession?.credit_given || 0)}\nCash collecté: ${formatCurrency(closedSession?.cash_collected || 0)}`,
       )
     } catch (err) {
       Alert.alert('Clôture impossible', err.response?.data?.message || err.message || 'Veuillez réessayer.')
@@ -519,10 +556,17 @@ export default function RouteSessionScreen() {
       <Modal visible={closeVisible} transparent animationType="fade" onRequestClose={() => setCloseVisible(false)}>
         <View style={s.overlay}>
           <View style={s.dialog}>
-            <Text style={s.dialogTitle}>Clôturer la session</Text>
-            <Text style={s.dialogText}>Enregistrez les montants collectés avant la fermeture de la session.</Text>
+            <Text style={s.dialogTitle}>Cloturer la session</Text>
+            <Text style={s.dialogText}>Verifiez les montants proposes a partir des factures de la session avant fermeture.</Text>
 
-            <Text style={s.fieldLabel}>Cash collecté</Text>
+            <View style={s.infoCard}>
+              <MaterialCommunityIcons name="cash-register" size={18} color={T.info} />
+              <Text style={s.infoCardText}>
+                {`${closeDefaults.invoiceCount} facture(s) | Ventes ${formatCurrency(closeDefaults.totalSold)} | Cash propose ${formatCurrency(closeDefaults.cashCollected)} | Credit session ${formatCurrency(closeDefaults.creditTotal)}`}
+              </Text>
+            </View>
+
+            <Text style={s.fieldLabel}>Cash collecte a valider</Text>
             <TextInput
               style={s.fieldInput}
               keyboardType="decimal-pad"
@@ -532,7 +576,7 @@ export default function RouteSessionScreen() {
               onChangeText={(value) => setCashCollected(numericInput(value))}
             />
 
-            <Text style={s.fieldLabel}>Crédit collecté</Text>
+            <Text style={s.fieldLabel}>Credit session a valider</Text>
             <TextInput
               style={s.fieldInput}
               keyboardType="decimal-pad"
