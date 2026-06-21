@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,12 +16,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import PageHeader from '../../components/PageHeader'
 import StatusChip from '../../components/StatusChip'
 import { useAuth } from '../../contexts/AuthContext'
-import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
 import { downloadAndLaunchApkUpdate, isInAppUpdateSupported } from '../../services/mobileUpdateService'
 import { compareReleaseVersions, getLatestMobileReleases } from '../../services/releaseService'
 import { T, cardShadow } from '../../theme'
-import { formatDateTime, routeStatusLabel } from '../../utils/format'
+import { formatDateTime } from '../../utils/format'
 
 function firstApiErrorMessage(errors) {
   return Object.values(errors ?? {}).flat().find(Boolean)
@@ -39,29 +40,28 @@ function progressPercent(progress) {
   return Math.max(0, Math.min(100, Math.round(ratio * 100)))
 }
 
+const BUG_SEVERITIES = [
+  { value: 'low', label: 'Faible' },
+  { value: 'medium', label: 'Moyenne' },
+  { value: 'high', label: 'Haute' },
+]
+
 export default function ProfileScreen() {
-  const { user, refreshUser, logout, sessionStatus } = useAuth()
-  const { session, trackingState, locationPermission } = useTracking()
-  const [name, setName] = useState(user?.name || '')
-  const [email, setEmail] = useState(user?.email || '')
-  const [savingProfile, setSavingProfile] = useState(false)
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [savingPassword, setSavingPassword] = useState(false)
+  const { user, logout } = useAuth()
   const [checkingRelease, setCheckingRelease] = useState(false)
   const [releaseError, setReleaseError] = useState('')
   const [latestRelease, setLatestRelease] = useState(null)
   const [installingUpdate, setInstallingUpdate] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState(null)
+  const [bugModalVisible, setBugModalVisible] = useState(false)
+  const [aboutVisible, setAboutVisible] = useState(false)
+  const [sendingBug, setSendingBug] = useState(false)
+  const [bugSubject, setBugSubject] = useState('')
+  const [bugSeverity, setBugSeverity] = useState('medium')
+  const [bugDescription, setBugDescription] = useState('')
 
-  const currentVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || '1.3.11'
+  const currentVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || '1.3.12'
   const buildVersion = Constants.nativeBuildVersion || String(Constants.expoConfig?.android?.versionCode ?? '')
-
-  useEffect(() => {
-    setName(user?.name || '')
-    setEmail(user?.email || '')
-  }, [user?.name, user?.email])
 
   const loadLatestRelease = useCallback(async ({ silent = false } = {}) => {
     if (!silent) {
@@ -74,8 +74,7 @@ export default function ProfileScreen() {
       setReleaseError('')
       return release || null
     } catch (error) {
-      const message = describeApiError(error, 'Vérification des mises à jour indisponible.')
-      setReleaseError(message)
+      setReleaseError(describeApiError(error, 'Verification des mises a jour indisponible.'))
       return null
     } finally {
       if (!silent) {
@@ -93,67 +92,11 @@ export default function ProfileScreen() {
     return compareReleaseVersions(latestRelease.version, currentVersion) > 0
   }, [currentVersion, latestRelease?.version])
 
-  const sessionTone = !session
-    ? 'warning'
-    : session.status === 'open'
-      ? 'success'
-      : 'info'
-
-  const handleSaveProfile = async () => {
-    if (!name.trim()) {
-      Alert.alert('Profil', 'Le nom est obligatoire.')
-      return
-    }
-
-    if (!email.trim()) {
-      Alert.alert('Profil', 'L email est obligatoire.')
-      return
-    }
-
-    setSavingProfile(true)
-
-    try {
-      await api.put('/auth/profile', {
-        name: name.trim(),
-        email: email.trim(),
-      })
-      await refreshUser()
-      Alert.alert('Profil', 'Vos informations ont été mises à jour.')
-    } catch (error) {
-      Alert.alert('Profil', describeApiError(error, 'Mise à jour impossible.'))
-    } finally {
-      setSavingProfile(false)
-    }
-  }
-
-  const handleSavePassword = async () => {
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      Alert.alert('Mot de passe', 'Renseignez les trois champs.')
-      return
-    }
-
-    if (newPassword !== confirmPassword) {
-      Alert.alert('Mot de passe', 'La confirmation ne correspond pas.')
-      return
-    }
-
-    setSavingPassword(true)
-
-    try {
-      await api.put('/auth/password', {
-        current_password: currentPassword,
-        password: newPassword,
-        password_confirmation: confirmPassword,
-      })
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
-      Alert.alert('Mot de passe', 'Votre mot de passe a été mis à jour.')
-    } catch (error) {
-      Alert.alert('Mot de passe', describeApiError(error, 'Changement impossible.'))
-    } finally {
-      setSavingPassword(false)
-    }
+  const confirmLogout = () => {
+    Alert.alert('Deconnexion', 'Voulez-vous fermer la session mobile ?', [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Se deconnecter', style: 'destructive', onPress: () => logout() },
+    ])
   }
 
   const handleInstallUpdate = async () => {
@@ -165,7 +108,7 @@ export default function ProfileScreen() {
 
     const comparison = compareReleaseVersions(release.version, currentVersion)
     if (comparison <= 0) {
-      Alert.alert('Application', 'Cette version est déjà à jour.')
+      Alert.alert('Application', 'Cette version est deja a jour.')
       return
     }
 
@@ -180,199 +123,249 @@ export default function ProfileScreen() {
         onProgress: setDownloadProgress,
       })
     } catch (error) {
-      Alert.alert('Mise à jour', describeApiError(error, 'Installation impossible.'))
+      Alert.alert('Mise a jour', describeApiError(error, 'Installation impossible.'))
     } finally {
       setInstallingUpdate(false)
     }
   }
 
-  const confirmLogout = () => {
-    Alert.alert('Deconnexion', 'Voulez-vous fermer la session mobile ?', [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Se deconnecter', style: 'destructive', onPress: () => logout() },
-    ])
+  const resetBugForm = () => {
+    setBugSubject('')
+    setBugSeverity('medium')
+    setBugDescription('')
+    setSendingBug(false)
+    setBugModalVisible(false)
+  }
+
+  const submitBugReport = async () => {
+    if (!bugSubject.trim()) {
+      Alert.alert('Signalement', 'Le sujet est obligatoire.')
+      return
+    }
+
+    if (!bugDescription.trim()) {
+      Alert.alert('Signalement', 'Ajoutez une description du probleme.')
+      return
+    }
+
+    setSendingBug(true)
+
+    try {
+      await api.post('/bug-reports', {
+        subject: bugSubject.trim(),
+        area: 'mobile_app',
+        severity: bugSeverity,
+        description: bugDescription.trim(),
+        metadata: {
+          source: 'mobile_app',
+          platform: Platform.OS,
+          app_version: currentVersion,
+          build_version: buildVersion || null,
+          user_role: user?.role || null,
+        },
+      })
+
+      resetBugForm()
+      Alert.alert('Signalement envoye', 'Votre signalement a ete transmis a l equipe support.')
+    } catch (error) {
+      setSendingBug(false)
+      Alert.alert('Signalement impossible', describeApiError(error, 'Veuillez reessayer.'))
+    }
   }
 
   return (
-    <ScrollView style={s.root} contentContainerStyle={s.content}>
-      <PageHeader
-        title="Réglages mobiles"
-        subtitle="Compte, session, tracking et mise à jour."
-      />
-
-      <View style={[s.heroCard, cardShadow]}>
-        <View style={s.heroTop}>
-          <View style={{ flex: 1 }}>
-            <Text style={s.heroTitle}>{user?.name || 'Compte mobile'}</Text>
-            <Text style={s.heroSubtitle}>{user?.email || 'Email non renseigne'}</Text>
-          </View>
-          <StatusChip label={user?.role || 'mobile'} tone="info" />
-        </View>
-
-        <View style={s.heroMetaRow}>
-          <StatusChip
-            label={session ? routeStatusLabel(session.status) : 'Sans session'}
-            tone={sessionTone}
-          />
-          <StatusChip
-            label={trackingState.active ? 'Tracking actif' : 'Tracking en attente'}
-            tone={trackingState.active ? 'success' : 'warning'}
-          />
-          <StatusChip
-            label={locationPermission === 'granted' ? 'GPS autorisé' : 'GPS à vérifier'}
-            tone={locationPermission === 'granted' ? 'success' : 'warning'}
-          />
-        </View>
-
-        <Text style={s.heroInfo}>
-          Version {currentVersion}{buildVersion ? ` (${buildVersion})` : ''} | Dernier heartbeat {sessionStatus.lastPingAt ? formatDateTime(sessionStatus.lastPingAt) : '--'}
-        </Text>
-      </View>
-
-      <View style={[s.sectionCard, cardShadow]}>
-        <Text style={s.sectionTitle}>Mon profil</Text>
-
-        <Text style={s.fieldLabel}>Nom</Text>
-        <TextInput
-          style={s.input}
-          value={name}
-          onChangeText={setName}
-          placeholder="Nom complet"
-          placeholderTextColor={T.textMuted}
+    <>
+      <ScrollView style={s.root} contentContainerStyle={s.content}>
+        <PageHeader
+          title="Compte"
+          subtitle="Application, support et deconnexion."
         />
 
-        <Text style={s.fieldLabel}>Email</Text>
-        <TextInput
-          style={s.input}
-          value={email}
-          onChangeText={setEmail}
-          placeholder="Adresse email"
-          placeholderTextColor={T.textMuted}
-          autoCapitalize="none"
-          keyboardType="email-address"
-        />
-
-        <TouchableOpacity style={[s.primaryButton, savingProfile && s.buttonDisabled]} onPress={handleSaveProfile} disabled={savingProfile}>
-          {savingProfile ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>Enregistrer le profil</Text>}
-        </TouchableOpacity>
-      </View>
-
-      <View style={[s.sectionCard, cardShadow]}>
-        <Text style={s.sectionTitle}>Mot de passe</Text>
-
-        <Text style={s.fieldLabel}>Mot de passe actuel</Text>
-        <TextInput
-          style={s.input}
-          value={currentPassword}
-          onChangeText={setCurrentPassword}
-          placeholder="Mot de passe actuel"
-          placeholderTextColor={T.textMuted}
-          secureTextEntry
-        />
-
-        <Text style={s.fieldLabel}>Nouveau mot de passe</Text>
-        <TextInput
-          style={s.input}
-          value={newPassword}
-          onChangeText={setNewPassword}
-          placeholder="Nouveau mot de passe"
-          placeholderTextColor={T.textMuted}
-          secureTextEntry
-        />
-
-        <Text style={s.fieldLabel}>Confirmation</Text>
-        <TextInput
-          style={s.input}
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          placeholder="Confirmer le mot de passe"
-          placeholderTextColor={T.textMuted}
-          secureTextEntry
-        />
-
-        <TouchableOpacity style={[s.primaryButton, savingPassword && s.buttonDisabled]} onPress={handleSavePassword} disabled={savingPassword}>
-          {savingPassword ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>Changer le mot de passe</Text>}
-        </TouchableOpacity>
-      </View>
-
-      <View style={[s.sectionCard, cardShadow]}>
-        <View style={s.sectionHeaderRow}>
-          <Text style={s.sectionTitle}>Application</Text>
-          <TouchableOpacity style={s.secondaryInlineButton} onPress={() => loadLatestRelease()}>
-            {checkingRelease ? <ActivityIndicator size="small" color={T.primary} /> : <Text style={s.secondaryInlineButtonText}>Vérifier</Text>}
-          </TouchableOpacity>
-        </View>
-
-        <View style={s.infoRow}>
-          <Text style={s.infoLabel}>Version installée</Text>
-          <Text style={s.infoValue}>{currentVersion}{buildVersion ? ` (${buildVersion})` : ''}</Text>
-        </View>
-        <View style={s.infoRow}>
-          <Text style={s.infoLabel}>Dernière release</Text>
-          <Text style={s.infoValue}>{latestRelease?.version || '--'}</Text>
-        </View>
-        <View style={s.infoRow}>
-          <Text style={s.infoLabel}>Etat</Text>
-          <Text style={s.infoValue}>{hasUpdate ? 'Mise à jour disponible' : 'Application à jour'}</Text>
-        </View>
-
-        {!!releaseError && <Text style={s.inlineError}>{releaseError}</Text>}
-
-        {isInAppUpdateSupported() ? (
-          <TouchableOpacity
-            style={[s.primaryButton, (!hasUpdate || installingUpdate) && s.buttonDisabled]}
-            onPress={handleInstallUpdate}
-            disabled={!hasUpdate || installingUpdate}
-          >
-            {installingUpdate ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>Télécharger et installer</Text>}
-          </TouchableOpacity>
-        ) : (
-          <Text style={s.helperText}>L’installation intégrée est réservée à Android.</Text>
-        )}
-
-        {downloadProgress ? (
-          <View style={s.progressWrap}>
-            <View style={s.progressTrack}>
-              <View style={[s.progressBar, { width: `${progressPercent(downloadProgress)}%` }]} />
+        <View style={[s.heroCard, cardShadow]}>
+          <View style={s.heroTop}>
+            <View style={s.avatar}>
+              <Text style={s.avatarText}>{user?.name?.[0]?.toUpperCase() ?? 'U'}</Text>
             </View>
-            <Text style={s.progressText}>{progressPercent(downloadProgress)}%</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.heroTitle}>{user?.name || 'Compte mobile'}</Text>
+              <Text style={s.heroSubtitle}>{user?.email || 'Email non renseigne'}</Text>
+            </View>
+            <StatusChip label={user?.role || 'mobile'} tone="info" />
           </View>
-        ) : null}
-      </View>
 
-      <View style={[s.sectionCard, cardShadow]}>
-        <Text style={s.sectionTitle}>Etat mobile</Text>
-
-        <View style={s.infoRow}>
-          <Text style={s.infoLabel}>Session du jour</Text>
-          <Text style={s.infoValue}>{session ? `#${session.id} - ${routeStatusLabel(session.status)}` : 'Aucune session'}</Text>
-        </View>
-        <View style={s.infoRow}>
-          <Text style={s.infoLabel}>Dernier report</Text>
-          <Text style={s.infoValue}>{sessionStatus.lastReportAt ? formatDateTime(sessionStatus.lastReportAt) : '--'}</Text>
-        </View>
-        <View style={s.infoRow}>
-          <Text style={s.infoLabel}>Dernier ping</Text>
-          <Text style={s.infoValue}>{sessionStatus.lastPingAt ? formatDateTime(sessionStatus.lastPingAt) : '--'}</Text>
-        </View>
-        <View style={s.infoRow}>
-          <Text style={s.infoLabel}>Dernière sync tracking</Text>
-          <Text style={s.infoValue}>{trackingState.lastSyncAt ? formatDateTime(trackingState.lastSyncAt) : '--'}</Text>
+          <Text style={s.heroInfo}>
+            Vous etes connecte avec le compte {user?.name || 'mobile'}.
+          </Text>
+          <Text style={s.heroMeta}>
+            Version {currentVersion}{buildVersion ? ` (${buildVersion})` : ''}
+          </Text>
         </View>
 
-        {trackingState.error ? (
-          <View style={s.noticeWarning}>
-            <MaterialCommunityIcons name="map-marker-alert-outline" size={18} color={T.warning} />
-            <Text style={s.noticeWarningText}>{trackingState.error}</Text>
+        <View style={[s.sectionCard, cardShadow]}>
+          <View style={s.sectionHeaderRow}>
+            <Text style={s.sectionTitle}>Mise a jour</Text>
+            <TouchableOpacity style={s.inlineButton} onPress={() => loadLatestRelease()}>
+              {checkingRelease ? <ActivityIndicator size="small" color={T.primary} /> : <Text style={s.inlineButtonText}>Verifier</Text>}
+            </TouchableOpacity>
           </View>
-        ) : null}
-      </View>
 
-      <TouchableOpacity style={s.logoutButton} onPress={confirmLogout}>
-        <MaterialCommunityIcons name="logout" size={18} color={T.danger} />
-        <Text style={s.logoutText}>Se deconnecter</Text>
-      </TouchableOpacity>
-    </ScrollView>
+          <View style={s.infoRow}>
+            <Text style={s.infoLabel}>Version installee</Text>
+            <Text style={s.infoValue}>{currentVersion}{buildVersion ? ` (${buildVersion})` : ''}</Text>
+          </View>
+          <View style={s.infoRow}>
+            <Text style={s.infoLabel}>Derniere release</Text>
+            <Text style={s.infoValue}>{latestRelease?.version || '--'}</Text>
+          </View>
+          <View style={s.infoRow}>
+            <Text style={s.infoLabel}>Etat</Text>
+            <Text style={s.infoValue}>{hasUpdate ? 'Mise a jour disponible' : 'Application a jour'}</Text>
+          </View>
+          {latestRelease?.publishedAt ? (
+            <View style={s.infoRow}>
+              <Text style={s.infoLabel}>Publication</Text>
+              <Text style={s.infoValue}>{formatDateTime(latestRelease.publishedAt)}</Text>
+            </View>
+          ) : null}
+
+          {!!releaseError && <Text style={s.inlineError}>{releaseError}</Text>}
+
+          {installingUpdate && (
+            <View style={s.progressWrap}>
+              <View style={s.progressBar}>
+                <View style={[s.progressFill, { width: `${progressPercent(downloadProgress)}%` }]} />
+              </View>
+              <Text style={s.progressText}>{progressPercent(downloadProgress)}%</Text>
+            </View>
+          )}
+
+          {isInAppUpdateSupported() ? (
+            <TouchableOpacity
+              style={[s.primaryButton, (!hasUpdate || installingUpdate) && s.buttonDisabled]}
+              onPress={handleInstallUpdate}
+              disabled={!hasUpdate || installingUpdate}
+            >
+              {installingUpdate ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={s.primaryButtonText}>
+                  {hasUpdate ? 'Telecharger et installer' : 'Application a jour'}
+                </Text>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <Text style={s.inlineHint}>L installation integree est disponible uniquement sur Android.</Text>
+          )}
+        </View>
+
+        <View style={[s.sectionCard, cardShadow]}>
+          <Text style={s.sectionTitle}>Support</Text>
+          <Text style={s.sectionText}>
+            Un signalement mobile est envoye au meme centre support que la plateforme web.
+          </Text>
+
+          <TouchableOpacity style={s.secondaryButton} onPress={() => setBugModalVisible(true)}>
+            <MaterialCommunityIcons name="bug-outline" size={18} color={T.primary} />
+            <Text style={s.secondaryButtonText}>Signaler un bug</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={s.secondaryButton} onPress={() => setAboutVisible(true)}>
+            <MaterialCommunityIcons name="information-outline" size={18} color={T.primary} />
+            <Text style={s.secondaryButtonText}>A propos</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={[s.sectionCard, cardShadow]}>
+          <Text style={s.sectionTitle}>Session mobile</Text>
+          <Text style={s.sectionText}>
+            Vous etes connecte avec le compte {user?.email || 'mobile'}.
+          </Text>
+
+          <TouchableOpacity style={s.logoutButton} onPress={confirmLogout}>
+            <MaterialCommunityIcons name="logout" size={18} color="#fff" />
+            <Text style={s.logoutButtonText}>Se deconnecter</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+
+      <Modal visible={bugModalVisible} transparent animationType="fade" onRequestClose={resetBugForm}>
+        <View style={s.overlay}>
+          <View style={s.dialog}>
+            <Text style={s.dialogTitle}>Signaler un bug</Text>
+            <Text style={s.dialogText}>Decrivez simplement le probleme rencontre sur le mobile.</Text>
+
+            <Text style={s.fieldLabel}>Sujet</Text>
+            <TextInput
+              style={s.input}
+              placeholder="Exemple: facture bloquee"
+              placeholderTextColor={T.textMuted}
+              value={bugSubject}
+              onChangeText={setBugSubject}
+            />
+
+            <Text style={s.fieldLabel}>Priorite</Text>
+            <View style={s.severityRow}>
+              {BUG_SEVERITIES.map((item) => {
+                const active = bugSeverity === item.value
+                return (
+                  <TouchableOpacity
+                    key={item.value}
+                    style={[s.severityChip, active && s.severityChipActive]}
+                    onPress={() => setBugSeverity(item.value)}
+                  >
+                    <Text style={[s.severityChipText, active && s.severityChipTextActive]}>{item.label}</Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+
+            <Text style={s.fieldLabel}>Description</Text>
+            <TextInput
+              style={[s.input, s.textarea]}
+              placeholder="Que s est-il passe ?"
+              placeholderTextColor={T.textMuted}
+              multiline
+              textAlignVertical="top"
+              value={bugDescription}
+              onChangeText={setBugDescription}
+            />
+
+            <View style={s.dialogActions}>
+              <TouchableOpacity style={s.dialogSecondary} onPress={resetBugForm}>
+                <Text style={s.dialogSecondaryText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.dialogPrimary, sendingBug && s.buttonDisabled]} onPress={submitBugReport} disabled={sendingBug}>
+                {sendingBug ? <ActivityIndicator color="#fff" /> : <Text style={s.dialogPrimaryText}>Envoyer</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={aboutVisible} transparent animationType="fade" onRequestClose={() => setAboutVisible(false)}>
+        <View style={s.overlay}>
+          <View style={s.dialog}>
+            <Text style={s.dialogTitle}>A propos</Text>
+            <Text style={s.dialogText}>
+              El Irtiwaa Mobile accompagne la session commerciale, le stock camion et la facturation terrain.
+            </Text>
+
+            <View style={s.infoRow}>
+              <Text style={s.infoLabel}>Version</Text>
+              <Text style={s.infoValue}>{currentVersion}{buildVersion ? ` (${buildVersion})` : ''}</Text>
+            </View>
+            <View style={s.infoRow}>
+              <Text style={s.infoLabel}>Compte</Text>
+              <Text style={s.infoValue}>{user?.email || '--'}</Text>
+            </View>
+
+            <TouchableOpacity style={s.dialogSecondary} onPress={() => setAboutVisible(false)}>
+              <Text style={s.dialogSecondaryText}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </>
   )
 }
 
@@ -395,12 +388,24 @@ const s = StyleSheet.create({
   },
   heroTop: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+    alignItems: 'center',
     gap: 12,
   },
-  heroTitle: {
+  avatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: T.primary,
+  },
+  avatarText: {
     fontSize: 20,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  heroTitle: {
+    fontSize: 18,
     fontWeight: '800',
     color: T.text,
   },
@@ -409,14 +414,14 @@ const s = StyleSheet.create({
     fontSize: 13,
     color: T.textSecondary,
   },
-  heroMetaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 14,
-  },
   heroInfo: {
-    marginTop: 12,
+    marginTop: 16,
+    fontSize: 14,
+    lineHeight: 20,
+    color: T.textSecondary,
+  },
+  heroMeta: {
+    marginTop: 6,
     fontSize: 12,
     color: T.textMuted,
   },
@@ -430,15 +435,149 @@ const s = StyleSheet.create({
   },
   sectionHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
-    marginBottom: 4,
+    alignItems: 'center',
+    gap: 12,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '800',
     color: T.text,
+  },
+  sectionText: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 18,
+    color: T.textSecondary,
+  },
+  inlineButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: T.surfaceAlt,
+    borderWidth: 1,
+    borderColor: T.border,
+  },
+  inlineButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: T.primary,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: T.border,
+  },
+  infoLabel: {
+    fontSize: 12,
+    color: T.textMuted,
+  },
+  infoValue: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    color: T.text,
+    textAlign: 'right',
+  },
+  inlineError: {
+    marginTop: 12,
+    fontSize: 12,
+    color: T.danger,
+  },
+  inlineHint: {
+    marginTop: 12,
+    fontSize: 12,
+    color: T.textMuted,
+  },
+  progressWrap: {
+    marginTop: 14,
+    gap: 8,
+  },
+  progressBar: {
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: '#e2e8f0',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: T.primary,
+  },
+  progressText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: T.textSecondary,
+    textAlign: 'right',
+  },
+  primaryButton: {
+    marginTop: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    paddingVertical: 15,
+    backgroundColor: T.primary,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  secondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 12,
+    borderRadius: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: T.surfaceAlt,
+  },
+  secondaryButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: T.textSecondary,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+    borderRadius: 16,
+    paddingVertical: 15,
+    backgroundColor: T.danger,
+  },
+  logoutButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  dialog: {
+    borderRadius: 22,
+    backgroundColor: T.surface,
+    padding: 20,
+  },
+  dialogTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: T.text,
+  },
+  dialogText: {
+    marginTop: 6,
+    fontSize: 14,
+    lineHeight: 20,
+    color: T.textSecondary,
   },
   fieldLabel: {
     marginTop: 12,
@@ -459,121 +598,69 @@ const s = StyleSheet.create({
     fontSize: 14,
     color: T.text,
   },
-  primaryButton: {
+  textarea: {
+    minHeight: 120,
+  },
+  severityRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  severityChip: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 16,
-    paddingVertical: 15,
-    backgroundColor: T.primary,
-    marginTop: 16,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  buttonDisabled: {
-    opacity: 0.65,
-  },
-  secondaryInlineButton: {
-    minWidth: 86,
-    minHeight: 36,
-    borderRadius: 12,
+    borderRadius: 14,
+    paddingVertical: 12,
     borderWidth: 1,
     borderColor: T.border,
     backgroundColor: T.surfaceAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12,
   },
-  secondaryInlineButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: T.primary,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: T.border,
-  },
-  infoLabel: {
-    flex: 1,
-    fontSize: 13,
-    color: T.textSecondary,
-  },
-  infoValue: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: '700',
-    textAlign: 'right',
-    color: T.text,
-  },
-  helperText: {
-    marginTop: 12,
-    fontSize: 13,
-    color: T.textMuted,
-  },
-  inlineError: {
-    marginTop: 12,
-    fontSize: 13,
-    color: T.danger,
-  },
-  progressWrap: {
-    marginTop: 14,
-    gap: 8,
-  },
-  progressTrack: {
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: '#dbeafe',
-    overflow: 'hidden',
-  },
-  progressBar: {
-    height: '100%',
-    borderRadius: 999,
+  severityChipActive: {
+    borderColor: T.primary,
     backgroundColor: T.primary,
   },
-  progressText: {
-    fontSize: 12,
+  severityChipText: {
+    fontSize: 13,
     fontWeight: '700',
     color: T.textSecondary,
   },
-  noticeWarning: {
+  severityChipTextActive: {
+    color: '#fff',
+  },
+  dialogActions: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 10,
-    marginTop: 14,
-    padding: 12,
-    borderRadius: 14,
-    backgroundColor: '#fffbeb',
-    borderWidth: 1,
-    borderColor: '#fde68a',
+    marginTop: 20,
   },
-  noticeWarningText: {
+  dialogSecondary: {
     flex: 1,
-    fontSize: 13,
-    color: T.warning,
-  },
-  logoutButton: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    borderRadius: 16,
+    borderRadius: 14,
+    paddingVertical: 14,
+    backgroundColor: T.surfaceAlt,
     borderWidth: 1,
-    borderColor: '#fecaca',
-    backgroundColor: '#fff1f2',
-    paddingVertical: 15,
+    borderColor: T.border,
   },
-  logoutText: {
+  dialogSecondaryText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: T.textSecondary,
+  },
+  dialogPrimary: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    paddingVertical: 14,
+    backgroundColor: T.primary,
+  },
+  dialogPrimaryText: {
     fontSize: 14,
     fontWeight: '800',
-    color: T.danger,
+    color: '#fff',
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
 })
-
-

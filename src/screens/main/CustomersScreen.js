@@ -21,7 +21,7 @@ import { T, cardShadow } from '../../theme'
 import { formatCurrency } from '../../utils/format'
 
 function sortByName(items) {
-  return [...items].sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')))
+  return [...items].sort((left, right) => String(left.name || '').localeCompare(String(right.name || ''), 'fr'))
 }
 
 export default function CustomersScreen() {
@@ -102,10 +102,10 @@ export default function CustomersScreen() {
       setCustomers((current) => sortByName([...current, response.data]))
       await syncInteraction('customer-create', { includeLocation: false, refreshSession: false })
       resetCreateForm()
-      Alert.alert('Client créé', 'Le client est maintenant disponible sur le mobile et sur le web.')
+      Alert.alert('Client cree', 'Le client est maintenant disponible sur le mobile et sur le web.')
     } catch (error) {
       setCreating(false)
-      Alert.alert('Création impossible', error.response?.data?.message || 'Veuillez réessayer.')
+      Alert.alert('Creation impossible', error.response?.data?.message || 'Veuillez reessayer.')
     }
   }
 
@@ -115,7 +115,6 @@ export default function CustomersScreen() {
         data={filtered}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => {
-          const mapped = Number.isFinite(item?.lat) && Number.isFinite(item?.lng)
           const hasCredit = Number(item?.credit_balance ?? 0) > 0
 
           return (
@@ -131,32 +130,22 @@ export default function CustomersScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={s.rowName}>{item.name}</Text>
                 <Text style={s.rowMeta}>{item.phone || 'Sans numero'}</Text>
-                <Text style={s.rowMeta}>{item.address || 'Adresse non renseignée'}</Text>
+                <Text style={s.rowMeta}>{item.address || 'Adresse non renseignee'}</Text>
                 {hasGlobalCustomerAccess && (
                   <Text style={s.rowOwner}>
-                    Affecté: {item.owner?.name || 'Compte non remonté'}
+                    Affecte: {item.owner?.name || 'Compte non remonte'}
                   </Text>
                 )}
-                <View style={s.badges}>
-                  <View style={[s.badge, mapped ? s.badgeSuccess : s.badgeWarning]}>
-                    <MaterialCommunityIcons
-                      name={mapped ? 'map-marker-check-outline' : 'map-marker-alert-outline'}
-                      size={14}
-                      color={mapped ? '#047857' : '#b45309'}
-                    />
-                    <Text style={[s.badgeText, mapped ? s.badgeTextSuccess : s.badgeTextWarning]}>
-                      {mapped ? 'Carte OK' : 'À géolocaliser'}
-                    </Text>
-                  </View>
-                  {hasCredit && (
+                {hasCredit && (
+                  <View style={s.badges}>
                     <View style={[s.badge, s.badgeDanger]}>
                       <MaterialCommunityIcons name="credit-card-outline" size={14} color="#b91c1c" />
                       <Text style={[s.badgeText, s.badgeTextDanger]}>
-                        Crédit {formatCurrency(item.credit_balance)}
+                        Credit {formatCurrency(item.credit_balance)}
                       </Text>
                     </View>
-                  )}
-                </View>
+                  </View>
+                )}
               </View>
 
               <TouchableOpacity
@@ -182,7 +171,7 @@ export default function CustomersScreen() {
               <MaterialCommunityIcons name="magnify" size={18} color={T.textMuted} />
               <TextInput
                 style={s.searchInput}
-                placeholder="Rechercher un client ou un propriétaire"
+                placeholder="Rechercher un client ou un proprietaire"
                 placeholderTextColor={T.textMuted}
                 value={search}
                 onChangeText={setSearch}
@@ -190,7 +179,7 @@ export default function CustomersScreen() {
             </View>
 
             <Text style={s.scopeHint}>
-              Les commerciaux voient seulement leur liste. Les comptes globaux voient tous les clients et leur propriétaire.
+              Les commerciaux voient seulement leur liste. Les comptes globaux voient tous les clients et leur proprietaire.
             </Text>
           </View>
         )}
@@ -215,7 +204,7 @@ export default function CustomersScreen() {
           <View style={s.dialog}>
             <Text style={s.dialogTitle}>Nouveau client</Text>
             <Text style={s.dialogText}>
-              Le client sera affecté à votre compte mobile. Les rôles globaux le verront automatiquement.
+              Le client sera affecte a votre compte mobile. Les roles globaux le verront automatiquement.
             </Text>
 
             <Text style={s.fieldLabel}>Nom</Text>
@@ -227,7 +216,7 @@ export default function CustomersScreen() {
               onChangeText={setNewCustomerName}
             />
 
-            <Text style={s.fieldLabel}>Téléphone</Text>
+            <Text style={s.fieldLabel}>Telephone</Text>
             <TextInput
               style={s.input}
               placeholder="+216 ..."
@@ -253,7 +242,7 @@ export default function CustomersScreen() {
                 {creating ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Text style={s.dialogPrimaryText}>Créer</Text>
+                  <Text style={s.dialogPrimaryText}>Creer</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -346,24 +335,12 @@ const s = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 999,
   },
-  badgeSuccess: {
-    backgroundColor: '#d1fae5',
-  },
-  badgeWarning: {
-    backgroundColor: '#fef3c7',
-  },
   badgeDanger: {
     backgroundColor: '#fee2e2',
   },
   badgeText: {
     fontSize: 11,
     fontWeight: '700',
-  },
-  badgeTextSuccess: {
-    color: '#047857',
-  },
-  badgeTextWarning: {
-    color: '#b45309',
   },
   badgeTextDanger: {
     color: '#b91c1c',

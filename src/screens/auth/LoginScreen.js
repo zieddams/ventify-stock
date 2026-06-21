@@ -41,11 +41,11 @@ function describeApiError(err) {
   }
 
   if (err.code === 'ECONNABORTED') {
-    return 'Connexion API expirée. Vérifiez votre réseau.'
+    return 'Connexion API expiree. Verifiez votre reseau.'
   }
 
   if (err.message === 'Network Error') {
-    return 'Connexion impossible. Vérifiez Internet et la configuration mobile.'
+    return 'Connexion impossible. Verifiez Internet et la configuration mobile.'
   }
 
   return err.message || 'Connexion impossible.'
@@ -57,7 +57,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const version = Constants.expoConfig?.version || '1.3.11'
+  const version = Constants.expoConfig?.version || '1.3.12'
 
   const handleLogin = async () => {
     if (!email.trim() || !password) return
@@ -77,7 +77,8 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       style={s.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <View style={s.backgroundBubbleOne} />
       <View style={s.backgroundBubbleTwo} />
       <View style={s.backgroundBubbleThree} />
@@ -88,18 +89,18 @@ export default function LoginScreen() {
             <MaterialCommunityIcons name="water-outline" size={36} color="#fff" />
           </View>
           <Text style={s.title}>El Irtiwaa Mobile</Text>
-          <Text style={s.subtitle}>Session. Clients. Factures. GPS.</Text>
+          <Text style={s.subtitle}>Session. Stock camion. Facturation.</Text>
         </View>
 
         <View style={s.capabilities}>
-          <CapabilityChip icon="truck-fast-outline" label="Tournee" />
+          <CapabilityChip icon="truck-fast-outline" label="Session" />
           <CapabilityChip icon="account-group-outline" label="Clients" />
-          <CapabilityChip icon="printer-wireless" label="Thermique" />
+          <CapabilityChip icon="printer-wireless" label="Facturation" />
         </View>
 
         <View style={[s.card, cardShadow]}>
           <Text style={s.cardTitle}>Connexion</Text>
-          <Text style={s.cardSubtitle}>Connectez-vous avec votre compte mobile terrain.</Text>
+          <Text style={s.cardSubtitle}>Connectez-vous avec votre compte mobile.</Text>
 
           {!!error && (
             <View style={s.errorBox}>
@@ -138,7 +139,7 @@ export default function LoginScreen() {
 
         <View style={s.footerCard}>
           <Text style={s.footerTitle}>Version {version}</Text>
-          <Text style={s.footerText}>Accès mobile centré sur la tournée, le stock camion et la facturation.</Text>
+          <Text style={s.footerText}>Connexion simple pour la session, le stock embarque et les ventes.</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -316,8 +317,3 @@ const s = StyleSheet.create({
     color: T.textMuted,
   },
 })
-
-
-
-
-

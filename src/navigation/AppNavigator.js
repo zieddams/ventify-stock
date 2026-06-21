@@ -15,6 +15,7 @@ const getDashboardScreen = () => require('../screens/main/DashboardScreen').defa
 const getCustomersScreen = () => require('../screens/main/CustomersScreen').default
 const getInvoicesScreen = () => require('../screens/main/InvoicesScreen').default
 const getRouteSessionScreen = () => require('../screens/main/RouteSessionScreen').default
+const getCamionScreen = () => require('../screens/main/CamionScreen').default
 const getInvoiceCreateScreen = () => require('../screens/shared/InvoiceCreateScreen').default
 const getInvoiceDetailScreen = () => require('../screens/shared/InvoiceDetailScreen').default
 const getProfileScreen = () => require('../screens/shared/ProfileScreen').default
@@ -62,18 +63,19 @@ function MobileTabs() {
             Accueil: focused ? 'view-dashboard' : 'view-dashboard-outline',
             Clients: focused ? 'account-group' : 'account-group-outline',
             Factures: focused ? 'file-document-multiple' : 'file-document-multiple-outline',
-            Session: focused ? 'map-marker-path' : 'map-marker-path',
-            Réglages: focused ? 'cog' : 'cog-outline',
+            Session: focused ? 'truck-fast' : 'truck-fast-outline',
+            Stock: focused ? 'truck-cargo-container' : 'truck-cargo-container',
           }
 
           return <MaterialCommunityIcons name={icons[route.name]} size={21} color={color} />
         },
-      })}>
+      })}
+    >
       <Tab.Screen name="Accueil" getComponent={getDashboardScreen} options={{ title: 'Accueil' }} />
       <Tab.Screen name="Clients" getComponent={getCustomersScreen} options={{ title: 'Clients' }} />
       <Tab.Screen name="Factures" getComponent={getInvoicesScreen} options={{ title: 'Factures' }} />
       <Tab.Screen name="Session" getComponent={getRouteSessionScreen} options={{ title: 'Session' }} />
-      <Tab.Screen name="Réglages" getComponent={getProfileScreen} options={{ title: 'Réglages' }} />
+      <Tab.Screen name="Stock" getComponent={getCamionScreen} options={{ title: 'Stock' }} />
     </Tab.Navigator>
   )
 }
@@ -94,16 +96,17 @@ function AppStack() {
         headerTitleStyle: { color: T.text, fontWeight: '800' },
         headerShadowVisible: false,
         contentStyle: { backgroundColor: T.background },
-      }}>
+      }}
+    >
       <Stack.Screen
         name="Tabs"
         component={MobileTabs}
         options={{ headerShown: false }}
       />
       <Stack.Screen name="InvoiceCreate" getComponent={getInvoiceCreateScreen} options={{ title: 'Nouvelle facture' }} />
-      <Stack.Screen name="InvoiceDetail" getComponent={getInvoiceDetailScreen} options={{ title: 'Détail facture' }} />
-      <Stack.Screen name="Reappro" getComponent={getReapproScreen} options={{ title: 'Réappro camion' }} />
-      <Stack.Screen name="Profile" getComponent={getProfileScreen} options={{ title: 'Réglages mobiles' }} />
+      <Stack.Screen name="InvoiceDetail" getComponent={getInvoiceDetailScreen} options={{ title: 'Detail facture' }} />
+      <Stack.Screen name="Reappro" getComponent={getReapproScreen} options={{ title: 'Reappro camion' }} />
+      <Stack.Screen name="Profile" getComponent={getProfileScreen} options={{ title: 'Compte mobile' }} />
     </Stack.Navigator>
   )
 }

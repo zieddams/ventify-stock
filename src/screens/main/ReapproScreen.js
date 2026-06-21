@@ -11,14 +11,16 @@ import {
   View,
 } from 'react-native'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import PageHeader from '../../components/PageHeader'
+import QuantityStepperField from '../../components/QuantityStepperField'
 import StatusChip from '../../components/StatusChip'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
-import { formatDateTime, formatNumber, formatTime, toNumber } from '../../utils/format'
+import { formatCount, formatNumber, formatTime, toNumber } from '../../utils/format'
 
 function parseItems(data) {
   return Array.isArray(data) ? data : data?.data ?? []
@@ -28,8 +30,9 @@ function numericInput(value) {
   return value.replace(/[^0-9.]/g, '')
 }
 
-export default function ReapproScreen({ route }) {
+export default function ReapproScreen() {
   const navigation = useNavigation()
+  const insets = useSafeAreaInsets()
   const { isRep } = useAuth()
   const {
     session,
@@ -37,37 +40,29 @@ export default function ReapproScreen({ route }) {
     busy,
     refreshSessionDetails,
     addLoad,
-    recordReturns,
   } = useTracking()
 
   const [products, setProducts] = useState([])
-  const [camionStockByProductId, setCamionStockByProductId] = useState({})
   const [refreshing, setRefreshing] = useState(false)
   const [search, setSearch] = useState('')
-  const [mode, setMode] = useState(route?.params?.mode === 'returns' ? 'returns' : 'load')
   const [loadDraft, setLoadDraft] = useState({})
-  const [returnsDraft, setReturnsDraft] = useState({})
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    setMode(route?.params?.mode === 'returns' ? 'returns' : 'load')
-  }, [route?.params?.mode])
-
   const load = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true)
+    if (isRefresh) {
+      setRefreshing(true)
+    }
 
     try {
-      const [productsResponse, camionResponse] = await Promise.all([
+      const [productsResponse] = await Promise.all([
         api.get('/products'),
-        api.get('/camion'),
         refreshSessionDetails(),
       ])
 
       setProducts(parseItems(productsResponse.data))
-      setCamionStockByProductId(camionResponse.data?.by_product_id ?? {})
       setError('')
     } catch (err) {
-      setError(err.response?.data?.message || 'Le module réappro n’a pas pu être chargé.')
+      setError(err.response?.data?.message || 'Le module reappro n a pas pu etre charge.')
     } finally {
       setRefreshing(false)
     }
@@ -83,6 +78,7 @@ export default function ReapproScreen({ route }) {
     }
   }, [load, session?.id, session?.status])
 
+  const isOpen = session?.status === 'open'
   const lineByProductId = useMemo(
     () => (session?.lines ?? []).reduce((carry, line) => {
       carry[line.product_id] = line
@@ -94,271 +90,204 @@ export default function ReapproScreen({ route }) {
   const filteredProducts = useMemo(() => {
     const needle = search.trim().toLowerCase()
 
-    const baseProducts = mode === 'returns'
-      ? products.filter((product) => {
-        const line = lineByProductId[product.id]
-        const camionQty = toNumber(camionStockByProductId[product.id])
-        return !!line || camionQty > 0
+    return products
+      .filter((product) => {
+        const searchable = !needle
+          || product.name?.toLowerCase().includes(needle)
+          || product.reference?.toLowerCase().includes(needle)
+
+        return searchable && (toNumber(product.depot_qty) > 0 || toNumber(loadDraft[product.id]) > 0)
       })
-      : products.filter((product) => toNumber(product.depot_qty) > 0 || toNumber(loadDraft[product.id]) > 0)
+      .sort((left, right) => {
+        const leftSelected = toNumber(loadDraft[left.id]) > 0 ? 1 : 0
+        const rightSelected = toNumber(loadDraft[right.id]) > 0 ? 1 : 0
 
-    return baseProducts.filter((item) => {
-      if (!needle) return true
-      return item.name?.toLowerCase().includes(needle) || item.reference?.toLowerCase().includes(needle)
-    })
-  }, [camionStockByProductId, lineByProductId, loadDraft, mode, products, search])
+        if (leftSelected !== rightSelected) {
+          return rightSelected - leftSelected
+        }
 
-  const isOpen = session?.status === 'open'
-  const activeDraft = mode === 'returns' ? returnsDraft : loadDraft
+        return String(left.name || '').localeCompare(String(right.name || ''), 'fr')
+      })
+  }, [products, search, loadDraft])
+
+  const selectedLines = useMemo(
+    () => Object.entries(loadDraft)
+      .map(([productId, qty]) => ({
+        product_id: Number(productId),
+        qty_loaded: toNumber(qty),
+      }))
+      .filter((item) => item.qty_loaded > 0),
+    [loadDraft],
+  )
+
+  const selectedTotalQty = useMemo(
+    () => selectedLines.reduce((sum, line) => sum + toNumber(line.qty_loaded), 0),
+    [selectedLines],
+  )
 
   const submit = async () => {
-    const payload = Object.entries(activeDraft)
-      .map(([productId, qty]) => (
-        mode === 'returns'
-          ? { product_id: Number(productId), qty_returned: toNumber(qty) }
-          : { product_id: Number(productId), qty_loaded: toNumber(qty) }
-      ))
-      .filter((item) => (mode === 'returns' ? item.qty_returned : item.qty_loaded) > 0)
-
-    if (payload.length === 0) {
-      Alert.alert(
-        mode === 'returns' ? 'Retours' : 'Réappro',
-        mode === 'returns' ? 'Ajoutez au moins une quantité de retour.' : 'Ajoutez au moins une quantité à charger.',
-      )
+    if (selectedLines.length === 0) {
+      Alert.alert('Reappro', 'Ajoutez au moins une quantite a charger.')
       return
     }
 
-    if (mode === 'load') {
-      const blocked = payload.find((line) => {
-        const product = products.find((entry) => entry.id === line.product_id)
-        return toNumber(line.qty_loaded) > toNumber(product?.depot_qty)
-      })
+    const blocked = selectedLines.find((line) => {
+      const product = products.find((entry) => entry.id === line.product_id)
+      return toNumber(line.qty_loaded) > toNumber(product?.depot_qty)
+    })
 
-      if (blocked) {
-        const product = products.find((entry) => entry.id === blocked.product_id)
-        Alert.alert('Stock dépôt insuffisant', `${product?.name || 'Produit'}: ${formatNumber(product?.depot_qty)} disponible(s).`)
-        return
-      }
-    }
-
-    if (mode === 'returns') {
-      const blocked = payload.find((line) => {
-        const productId = line.product_id
-        const sessionLine = lineByProductId[productId]
-        const camionQty = toNumber(camionStockByProductId[productId])
-        const maxReturnable = Math.max(0, toNumber(sessionLine?.qty_loaded) - toNumber(sessionLine?.qty_returned))
-        return toNumber(line.qty_returned) > camionQty || toNumber(line.qty_returned) > maxReturnable
-      })
-
-      if (blocked) {
-        const product = products.find((entry) => entry.id === blocked.product_id)
-        Alert.alert('Retour impossible', `${product?.name || 'Produit'} dépasse le stock camion restant ou le maximum retournable.`)
-        return
-      }
+    if (blocked) {
+      const product = products.find((entry) => entry.id === blocked.product_id)
+      Alert.alert('Stock depot insuffisant', `${product?.name || 'Produit'} depasse le stock depot disponible.`)
+      return
     }
 
     try {
-      if (mode === 'returns') {
-        await recordReturns(payload)
-        setReturnsDraft({})
-      } else {
-        await addLoad(payload)
-        setLoadDraft({})
-      }
-
+      await addLoad(selectedLines)
+      setLoadDraft({})
       await load()
-
-      Alert.alert(
-        mode === 'returns' ? 'Retours enregistrés' : 'Chargement enregistré',
-        mode === 'returns'
-          ? 'Les retours dépôt ont été synchronisés avec la session.'
-          : 'Le chargement dépôt vers camion a été synchronisé avec la session.',
-      )
+      Alert.alert('Chargement enregistre', 'La recharge camion a bien ete synchronisee.')
     } catch (err) {
-      Alert.alert(
-        mode === 'returns' ? 'Retours impossibles' : 'Chargement impossible',
-        err.response?.data?.message || err.message || 'Veuillez réessayer.',
-      )
+      Alert.alert('Chargement impossible', err.response?.data?.message || err.message || 'Veuillez reessayer.')
     }
-  }
-
-  const updateDraftValue = (productId, value) => {
-    if (mode === 'returns') {
-      setReturnsDraft((current) => ({ ...current, [productId]: numericInput(value) }))
-      return
-    }
-
-    setLoadDraft((current) => ({ ...current, [productId]: numericInput(value) }))
   }
 
   if (!isRep()) {
     return (
       <ScrollView style={s.root} contentContainerStyle={s.content}>
-        <PageHeader title="Réappro camion" subtitle="Dépôt, camion et écarts de tournée." />
+        <PageHeader title="Reappro camion" subtitle="Recharge du camion depuis le depot." />
         <View style={[s.emptyCard, cardShadow]}>
           <MaterialCommunityIcons name="account-lock-outline" size={34} color={T.primary} />
           <Text style={s.emptyTitle}>Compte commercial requis</Text>
-          <Text style={s.emptyText}>Le réappro mobile est réservé au compte commercial qui porte la session terrain du jour.</Text>
+          <Text style={s.emptyText}>La recharge mobile est reservee au compte commercial qui porte la session du jour.</Text>
         </View>
       </ScrollView>
     )
   }
 
+  const footerBottom = insets.bottom + 12
+
   return (
-    <ScrollView
-      style={s.root}
-      contentContainerStyle={s.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.primary} />}
-    >
-      <PageHeader
-        title="Réappro camion"
-        subtitle="Dépôt, camion et écarts liés à la session mobile."
-        actionIcon="map-marker-path"
-        actionLabel="Session"
-        onActionPress={() => navigation.navigate('Tabs', { screen: 'Session' })}
-      />
+    <>
+      <ScrollView
+        style={s.root}
+        contentContainerStyle={[s.content, { paddingBottom: 148 + footerBottom }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.primary} />}
+      >
+        <PageHeader
+          title="Reappro camion"
+          subtitle="Ajoutez du stock a la session active."
+          actionIcon="truck-cargo-container"
+          actionLabel="Stock"
+          onActionPress={() => navigation.navigate('Tabs', { screen: 'Stock' })}
+        />
 
-      {!!error && (
-        <View style={s.noticeDanger}>
-          <MaterialCommunityIcons name="alert-circle-outline" size={18} color={T.danger} />
-          <Text style={s.noticeDangerText}>{error}</Text>
-        </View>
-      )}
-
-      {!session || !isOpen ? (
-        <View style={[s.emptyCard, cardShadow]}>
-          <MaterialCommunityIcons name="truck-fast-outline" size={34} color={T.primary} />
-          <Text style={s.emptyTitle}>Session ouverte requise</Text>
-          <Text style={s.emptyText}>
-            Ouvrez d’abord la session du jour avec un camion physique pour déclarer les chargements et retours.
-          </Text>
-          <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Tabs', { screen: 'Session' })}>
-            <Text style={s.primaryButtonText}>Ouvrir Session</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <>
-          <View style={[s.heroCard, cardShadow]}>
-            <View style={s.heroTop}>
-              <View style={{ flex: 1 }}>
-                <Text style={s.heroTitle}>Session du {session.session_date}</Text>
-                <Text style={s.heroSubtitle}>
-                  {session.camion?.name
-                    ? `${session.camion.name}${session.camion?.plate ? ` | ${session.camion.plate}` : ''}`
-                    : 'Camion physique non affecté'}
-                </Text>
-              </View>
-              <StatusChip label="Session ouverte" tone="success" />
-            </View>
-
-            <View style={s.factGrid}>
-              <View style={s.factItem}>
-                <Text style={s.factLabel}>Ouverture</Text>
-                <Text style={s.factValue}>{formatTime(session.opened_at)}</Text>
-              </View>
-              <View style={s.factItem}>
-                <Text style={s.factLabel}>Lignes</Text>
-                <Text style={s.factValue}>{formatNumber((session.lines ?? []).length, 0)}</Text>
-              </View>
-              <View style={s.factItem}>
-                <Text style={s.factLabel}>Dernière sync</Text>
-                <Text style={s.factValue}>{formatDateTime(session.updated_at)}</Text>
-              </View>
-            </View>
-
-            <View style={s.noticeCard}>
-              <MaterialCommunityIcons name="sync-circle" size={18} color={T.info} />
-              <Text style={s.noticeText}>
-                Chaque validation met à jour la session mobile, le stock camion du compte et les notifications côté plateforme.
-              </Text>
-            </View>
+        {!!error && (
+          <View style={s.noticeDanger}>
+            <MaterialCommunityIcons name="alert-circle-outline" size={18} color={T.danger} />
+            <Text style={s.noticeDangerText}>{error}</Text>
           </View>
+        )}
 
-          <View style={[s.sectionCard, cardShadow]}>
-            <View style={s.segmentedWrap}>
-              <TouchableOpacity
-                style={[s.segmentButton, mode === 'load' && s.segmentButtonActive]}
-                onPress={() => setMode('load')}
-              >
-                <MaterialCommunityIcons name="truck-delivery-outline" size={18} color={mode === 'load' ? '#fff' : T.textSecondary} />
-                <Text style={[s.segmentLabel, mode === 'load' && s.segmentLabelActive]}>Chargement</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[s.segmentButton, mode === 'returns' && s.segmentButtonActive]}
-                onPress={() => setMode('returns')}
-              >
-                <MaterialCommunityIcons name="keyboard-return" size={18} color={mode === 'returns' ? '#fff' : T.textSecondary} />
-                <Text style={[s.segmentLabel, mode === 'returns' && s.segmentLabelActive]}>Retours</Text>
-              </TouchableOpacity>
-            </View>
-
-            <TextInput
-              style={s.searchInput}
-              placeholder={mode === 'returns' ? 'Rechercher un produit chargé' : 'Rechercher un produit du dépôt'}
-              placeholderTextColor={T.textMuted}
-              value={search}
-              onChangeText={setSearch}
-            />
-
-            {loading && products.length === 0 ? (
-              <ActivityIndicator color={T.primary} style={{ marginVertical: 24 }} />
-            ) : filteredProducts.length === 0 ? (
-              <View style={s.emptyInline}>
-                <MaterialCommunityIcons name="package-variant-closed" size={28} color={T.textMuted} />
-                <Text style={s.emptyInlineTitle}>{mode === 'returns' ? 'Aucun produit à retourner' : 'Aucun produit disponible'}</Text>
-                <Text style={s.emptyInlineText}>
-                  {mode === 'returns'
-                    ? 'Les retours apparaissent seulement pour les produits déjà engagés dans la session.'
-                    : 'Essayez une autre recherche ou attendez un nouveau stock dépôt.'}
-                </Text>
-              </View>
-            ) : (
-              <View style={s.rowsWrap}>
-                {filteredProducts.map((product) => {
-                  const line = lineByProductId[product.id] ?? null
-                  const depotQty = toNumber(product.depot_qty)
-                  const camionQty = toNumber(camionStockByProductId[product.id])
-                  const maxReturnable = Math.max(0, toNumber(line?.qty_loaded) - toNumber(line?.qty_returned))
-
-                  return (
-                    <View key={product.id} style={s.row}>
-                      <View style={s.rowIcon}>
-                        <MaterialCommunityIcons
-                          name={mode === 'returns' ? 'keyboard-return' : 'truck-delivery-outline'}
-                          size={18}
-                          color={mode === 'returns' ? T.warning : T.primary}
-                        />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.rowTitle}>{product.name}</Text>
-                        <Text style={s.rowMeta}>{product.reference || product.unit || 'Produit'}</Text>
-                        <Text style={s.rowStats}>
-                          {mode === 'returns'
-                            ? `Camion ${formatNumber(camionQty)} | Retour max ${formatNumber(maxReturnable)} | Vendu ${formatNumber(line?.qty_sold)}`
-                            : `Dépôt ${formatNumber(depotQty)} | Camion ${formatNumber(camionQty)} | Charge ${formatNumber(line?.qty_loaded)}`}
-                        </Text>
-                      </View>
-                      <TextInput
-                        style={s.qtyInput}
-                        keyboardType="decimal-pad"
-                        placeholder="0"
-                        placeholderTextColor={T.textMuted}
-                        value={activeDraft[product.id] ?? ''}
-                        onChangeText={(value) => updateDraftValue(product.id, value)}
-                      />
-                    </View>
-                  )
-                })}
-              </View>
-            )}
-
-            <TouchableOpacity style={[s.primaryButton, busy && s.buttonDisabled]} onPress={submit} disabled={busy}>
-              {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>{mode === 'returns' ? 'Valider les retours' : 'Valider le chargement'}</Text>}
+        {!session || !isOpen ? (
+          <View style={[s.emptyCard, cardShadow]}>
+            <MaterialCommunityIcons name="truck-fast-outline" size={34} color={T.primary} />
+            <Text style={s.emptyTitle}>Session ouverte requise</Text>
+            <Text style={s.emptyText}>
+              Ouvrez d abord la session du jour avec un camion physique pour declarer une recharge.
+            </Text>
+            <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Tabs', { screen: 'Session' })}>
+              <Text style={s.primaryButtonText}>Ouvrir la session</Text>
             </TouchableOpacity>
           </View>
-        </>
+        ) : (
+          <>
+            <View style={[s.heroCard, cardShadow]}>
+              <View style={s.heroTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.heroTitle}>Session en cours</Text>
+                  <Text style={s.heroSubtitle}>
+                    {session.camion?.name
+                      ? `${session.camion.name}${session.camion?.plate ? ` · ${session.camion.plate}` : ''}`
+                      : 'Camion non affecte'}
+                  </Text>
+                </View>
+                <StatusChip label="Session ouverte" tone="success" />
+              </View>
+
+              <View style={s.factGrid}>
+                <View style={s.factItem}>
+                  <Text style={s.factLabel}>Ouverture</Text>
+                  <Text style={s.factValue}>{formatTime(session.opened_at)}</Text>
+                </View>
+                <View style={s.factItem}>
+                  <Text style={s.factLabel}>Lignes session</Text>
+                  <Text style={s.factValue}>{formatCount((session.lines ?? []).length)}</Text>
+                </View>
+                <View style={s.factItem}>
+                  <Text style={s.factLabel}>Camion</Text>
+                  <Text style={s.factValue}>{session.camion?.name || 'Aucun'}</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={[s.sectionCard, cardShadow]}>
+              <Text style={s.sectionTitle}>Produits a charger</Text>
+              <TextInput
+                style={s.searchInput}
+                placeholder="Rechercher un produit du depot"
+                placeholderTextColor={T.textMuted}
+                value={search}
+                onChangeText={setSearch}
+              />
+
+              {loading && products.length === 0 ? (
+                <ActivityIndicator color={T.primary} style={{ marginVertical: 24 }} />
+              ) : filteredProducts.length === 0 ? (
+                <View style={s.emptyInline}>
+                  <MaterialCommunityIcons name="package-variant-closed" size={28} color={T.textMuted} />
+                  <Text style={s.emptyInlineTitle}>Aucun produit disponible</Text>
+                  <Text style={s.emptyInlineText}>
+                    Essayez une autre recherche ou attendez un nouveau stock depot.
+                  </Text>
+                </View>
+              ) : (
+                <View style={s.rowsWrap}>
+                  {filteredProducts.map((product) => {
+                    const line = lineByProductId[product.id] ?? null
+                    const draftQty = loadDraft[product.id] ?? ''
+                    const currentLoaded = toNumber(line?.qty_loaded)
+
+                    return (
+                      <QuantityStepperField
+                        key={product.id}
+                        title={product.name}
+                        subtitle={product.reference || product.unit || 'Produit'}
+                        helper={currentLoaded > 0 ? `Charge actuel ${formatNumber(currentLoaded)}` : 'Disponible pour la recharge.'}
+                        icon="truck-delivery-outline"
+                        value={draftQty}
+                        onChangeText={(value) => setLoadDraft((current) => ({ ...current, [product.id]: numericInput(value) }))}
+                      />
+                    )
+                  })}
+                </View>
+              )}
+            </View>
+          </>
+        )}
+      </ScrollView>
+
+      {!!session && isOpen && (
+        <View style={[s.footerCard, { bottom: footerBottom }]}>
+          <Text style={s.footerText}>
+            {selectedLines.length} ligne(s) · {formatNumber(selectedTotalQty)} unite(s)
+          </Text>
+          <TouchableOpacity style={[s.footerButton, busy && s.buttonDisabled]} onPress={submit} disabled={busy}>
+            {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.footerButtonText}>Valider la recharge</Text>}
+          </TouchableOpacity>
+        </View>
       )}
-    </ScrollView>
+    </>
   )
 }
 
@@ -437,21 +366,6 @@ const s = StyleSheet.create({
     fontWeight: '800',
     color: T.text,
   },
-  noticeCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    marginTop: 16,
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: '#eef6ff',
-  },
-  noticeText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
-    color: T.textSecondary,
-  },
   sectionCard: {
     borderRadius: 22,
     borderWidth: 1,
@@ -459,33 +373,10 @@ const s = StyleSheet.create({
     backgroundColor: T.surface,
     padding: 18,
   },
-  segmentedWrap: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  segmentButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: T.border,
-    backgroundColor: T.surfaceAlt,
-  },
-  segmentButtonActive: {
-    borderColor: T.primary,
-    backgroundColor: T.primary,
-  },
-  segmentLabel: {
-    fontSize: 14,
+  sectionTitle: {
+    fontSize: 16,
     fontWeight: '800',
-    color: T.textSecondary,
-  },
-  segmentLabelActive: {
-    color: '#fff',
+    color: T.text,
   },
   searchInput: {
     marginTop: 14,
@@ -501,59 +392,13 @@ const s = StyleSheet.create({
     marginTop: 14,
     gap: 10,
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: T.border,
-    backgroundColor: T.surfaceAlt,
-    padding: 14,
-  },
-  rowIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f5f7fb',
-  },
-  rowTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: T.text,
-  },
-  rowMeta: {
-    marginTop: 2,
-    fontSize: 12,
-    color: T.textMuted,
-  },
-  rowStats: {
-    marginTop: 5,
-    fontSize: 12,
-    color: T.textSecondary,
-  },
-  qtyInput: {
-    width: 84,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: T.border,
-    backgroundColor: T.surface,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    textAlign: 'center',
-    color: T.text,
-    fontWeight: '800',
-  },
   emptyInline: {
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 32,
+    paddingVertical: 28,
   },
   emptyInlineTitle: {
-    marginTop: 12,
-    fontSize: 16,
+    marginTop: 10,
+    fontSize: 15,
     fontWeight: '800',
     color: T.text,
   },
@@ -574,30 +419,56 @@ const s = StyleSheet.create({
   },
   primaryButtonText: {
     color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  footerCard: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    padding: 16,
+    gap: 12,
+    ...cardShadow,
+  },
+  footerText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: T.textSecondary,
+  },
+  footerButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    paddingVertical: 15,
+    backgroundColor: T.primary,
+  },
+  footerButtonText: {
+    color: '#fff',
     fontSize: 15,
     fontWeight: '800',
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
   noticeDanger: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 10,
-    padding: 14,
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderRadius: 16,
-    backgroundColor: '#fef2f2',
     borderWidth: 1,
     borderColor: '#fecaca',
-    marginBottom: 14,
+    backgroundColor: '#fef2f2',
   },
   noticeDangerText: {
     flex: 1,
     fontSize: 13,
     color: T.danger,
   },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
 })
-
-
-
-

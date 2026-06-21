@@ -1,6 +1,6 @@
 {
   "name": "ventify-stock",
-  "version": "1.3.11",
+  "version": "1.3.12",
   "main": "index.js",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",

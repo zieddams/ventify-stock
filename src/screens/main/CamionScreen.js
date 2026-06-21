@@ -20,7 +20,7 @@ import { formatCount, formatCurrency, formatDateTime, formatNumber, toNumber } f
 
 function sessionLabel(routeSession) {
   if (!routeSession) return 'Sans session'
-  return routeSession.status === 'open' ? 'Session ouverte' : 'Session clôturée'
+  return routeSession.status === 'open' ? 'Session ouverte' : 'Session cloturee'
 }
 
 export default function CamionScreen() {
@@ -52,24 +52,40 @@ export default function CamionScreen() {
     return () => clearInterval(interval)
   }, [load]))
 
-  const lowStockCount = useMemo(() => stock.filter((item) => {
+  const sortedStock = useMemo(() => {
+    return [...stock].sort((left, right) => {
+      const leftMin = Math.max(toNumber(left.product?.min_stock, 1), 1)
+      const rightMin = Math.max(toNumber(right.product?.min_stock, 1), 1)
+      const leftLow = toNumber(left.qty) <= leftMin ? 1 : 0
+      const rightLow = toNumber(right.qty) <= rightMin ? 1 : 0
+
+      if (leftLow !== rightLow) {
+        return rightLow - leftLow
+      }
+
+      return String(left.product?.name || '').localeCompare(String(right.product?.name || ''), 'fr')
+    })
+  }, [stock])
+
+  const lowStockCount = useMemo(() => sortedStock.filter((item) => {
     const minStock = Math.max(toNumber(item.product?.min_stock, 1), 1)
     return toNumber(item.qty) <= minStock
-  }).length, [stock])
+  }).length, [sortedStock])
 
-  const totalValue = useMemo(() => stock.reduce((sum, item) => {
+  const totalValue = useMemo(() => sortedStock.reduce((sum, item) => {
     const unitPrice = toNumber(item.product?.sale_price ?? item.product?.depot_price ?? item.product?.price)
     return sum + toNumber(item.qty) * unitPrice
-  }, 0), [stock])
+  }, 0), [sortedStock])
 
   return (
     <View style={s.root}>
       <FlatList
-        data={stock}
+        data={sortedStock}
         keyExtractor={(item) => String(item.product_id)}
         renderItem={({ item }) => {
           const minStock = Math.max(toNumber(item.product?.min_stock, 1), 1)
           const isLow = toNumber(item.qty) <= minStock
+
           return (
             <View style={[s.row, cardShadow, isLow && s.rowLow]}>
               <View style={s.rowIcon}>
@@ -82,8 +98,8 @@ export default function CamionScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={s.rowName}>{item.product?.name || 'Produit'}</Text>
                 <Text style={s.rowMeta}>
-                  {item.product?.reference || item.product?.unit || 'Camion'}
-                  {`  ·  min ${formatNumber(minStock)}`}
+                  {item.product?.reference || item.product?.unit || 'Stock camion'}
+                  {` · min ${formatNumber(minStock)}`}
                 </Text>
               </View>
               <View style={{ alignItems: 'flex-end', gap: 6 }}>
@@ -98,10 +114,10 @@ export default function CamionScreen() {
         ListHeaderComponent={(
           <View style={s.headerWrap}>
             <PageHeader
-              title="Mon camion"
-              subtitle={session?.status === 'open' ? 'Session ouverte : chargements audités' : 'Stock embarqué du jour'}
-              actionIcon="map-marker-path"
-              actionLabel={session?.status === 'open' ? 'Session' : 'Ouvrir'}
+              title="Stock camion"
+              subtitle={session?.status === 'open' ? 'Votre stock embarque en cours de vente.' : 'Votre stock embarque du jour.'}
+              actionIcon="clipboard-list-outline"
+              actionLabel="Session"
               onActionPress={() => navigation.navigate('Session')}
             />
 
@@ -111,12 +127,12 @@ export default function CamionScreen() {
                   <MaterialCommunityIcons name="truck-fast-outline" size={22} color={T.primary} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.assignmentLabel}>Camion physique</Text>
-                  <Text style={s.assignmentTitle}>{configuredCamion?.name || 'Aucun camion assigné'}</Text>
+                  <Text style={s.assignmentLabel}>Camion actif</Text>
+                  <Text style={s.assignmentTitle}>{configuredCamion?.name || 'Aucun camion assigne'}</Text>
                   <Text style={s.assignmentMeta}>
                     {configuredCamion?.plate
                       ? `Immatriculation ${configuredCamion.plate}`
-                      : 'Affectez le camion depuis Session & GPS pour lier le véhicule réel.'}
+                      : 'Affectez un camion depuis la session du jour.'}
                   </Text>
                 </View>
                 <StatusChip
@@ -131,12 +147,12 @@ export default function CamionScreen() {
                   <Text style={s.assignmentFactValue}>{routeSession?.id ? `#${routeSession.id}` : 'Aucune'}</Text>
                 </View>
                 <View style={s.assignmentFact}>
-                  <Text style={s.assignmentFactLabel}>Zone</Text>
-                  <Text style={s.assignmentFactValue}>{routeSession?.zone?.name || 'Non definie'}</Text>
-                </View>
-                <View style={s.assignmentFact}>
                   <Text style={s.assignmentFactLabel}>Ouverture</Text>
                   <Text style={s.assignmentFactValue}>{routeSession?.opened_at ? formatDateTime(routeSession.opened_at) : 'Non demarree'}</Text>
+                </View>
+                <View style={s.assignmentFact}>
+                  <Text style={s.assignmentFactLabel}>Zone</Text>
+                  <Text style={s.assignmentFactValue}>{routeSession?.zone?.name || 'Non definie'}</Text>
                 </View>
               </View>
             </View>
@@ -144,8 +160,8 @@ export default function CamionScreen() {
             <View style={s.summaryGrid}>
               <MetricCard
                 label="Produits"
-                value={formatCount(stock.length)}
-                hint="Références présentes"
+                value={formatCount(sortedStock.length)}
+                hint="References presentes"
                 icon="package-variant-closed"
                 color={T.primary}
               />
@@ -168,15 +184,15 @@ export default function CamionScreen() {
               />
               <View style={[s.banner, cardShadow]}>
                 <StatusChip
-                  label={session?.status === 'open' ? 'Audit actif' : 'Session fermée'}
+                  label={session?.status === 'open' ? 'Session active' : 'Session fermee'}
                   tone={session?.status === 'open' ? 'success' : 'warning'}
                 />
-                <Text style={s.bannerTitle}>Chargement et retours</Text>
+                <Text style={s.bannerTitle}>Recharger le camion</Text>
                 <Text style={s.bannerText}>
-                  Utilisez le module Réappro pour déclarer dépôt vers camion et retours, puis gardez Session & GPS pour l'affectation du camion et le suivi terrain.
+                  Utilisez la recharge pour ajouter du stock pendant la journee, puis revenez ici pour verifier l embarque.
                 </Text>
                 <TouchableOpacity style={s.bannerButton} onPress={() => navigation.navigate('Reappro')}>
-                  <Text style={s.bannerButtonText}>Ouvrir Réappro</Text>
+                  <Text style={s.bannerButtonText}>Ouvrir la recharge</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -324,22 +340,22 @@ const s = StyleSheet.create({
     backgroundColor: '#fff7ed',
   },
   rowIcon: {
-    width: 38,
-    height: 38,
+    width: 40,
+    height: 40,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 14,
     backgroundColor: T.surfaceAlt,
   },
   rowName: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
     color: T.text,
   },
   rowMeta: {
     marginTop: 4,
     fontSize: 12,
-    color: T.textMuted,
+    color: T.textSecondary,
   },
   rowQty: {
     fontSize: 15,
@@ -348,10 +364,10 @@ const s = StyleSheet.create({
   emptyWrap: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 80,
-    gap: 10,
+    paddingVertical: 40,
   },
   emptyText: {
+    marginTop: 12,
     fontSize: 14,
     color: T.textMuted,
   },

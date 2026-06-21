@@ -48,6 +48,36 @@ export function formatTime(value) {
   })
 }
 
+export function formatElapsedSince(value, now = new Date()) {
+  if (!value) return '--'
+
+  const startedAt = new Date(value)
+  const currentDate = now instanceof Date ? now : new Date(now)
+  const diffMs = Math.max(0, currentDate.getTime() - startedAt.getTime())
+  const totalMinutes = Math.floor(diffMs / 60000)
+
+  if (totalMinutes < 1) {
+    const totalSeconds = Math.max(1, Math.floor(diffMs / 1000))
+    return `${totalSeconds} s`
+  }
+
+  if (totalMinutes < 60) {
+    return `${totalMinutes} min`
+  }
+
+  const totalHours = Math.floor(totalMinutes / 60)
+  const remainingMinutes = totalMinutes % 60
+
+  if (totalHours < 24) {
+    return remainingMinutes > 0 ? `${totalHours} h ${remainingMinutes} min` : `${totalHours} h`
+  }
+
+  const totalDays = Math.floor(totalHours / 24)
+  const remainingHours = totalHours % 24
+
+  return remainingHours > 0 ? `${totalDays} j ${remainingHours} h` : `${totalDays} j`
+}
+
 export function firstName(name) {
   return String(name || '').trim().split(/\s+/)[0] || 'Equipe'
 }

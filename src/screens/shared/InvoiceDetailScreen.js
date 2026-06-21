@@ -71,7 +71,7 @@ export default function InvoiceDetailScreen({ route }) {
       await printInvoiceDocument(invoice)
       await syncInteraction('invoice-thermal', { includeLocation: false, refreshSession: false })
     } catch (error) {
-      Alert.alert('Transfert thermique impossible', error.message || 'Veuillez réessayer.')
+      Alert.alert('Transfert thermique impossible', error.message || 'Veuillez reessayer.')
     } finally {
       setPrinting(false)
     }
@@ -85,7 +85,7 @@ export default function InvoiceDetailScreen({ route }) {
       await shareInvoiceDocument(invoice)
       await syncInteraction('invoice-pdf', { includeLocation: false, refreshSession: false })
     } catch (error) {
-      Alert.alert('Partage impossible', error.message || 'Veuillez réessayer.')
+      Alert.alert('Partage impossible', error.message || 'Veuillez reessayer.')
     } finally {
       setSharing(false)
     }
@@ -95,7 +95,8 @@ export default function InvoiceDetailScreen({ route }) {
     <ScrollView
       style={s.root}
       contentContainerStyle={s.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.primary} />}>
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.primary} />}
+    >
       <View style={[s.hero, cardShadow]}>
         <Text style={s.heroNumber}>{invoice?.number || 'Facture'}</Text>
         <Text style={s.heroCustomer}>{invoice?.customer_name}</Text>
@@ -150,7 +151,7 @@ export default function InvoiceDetailScreen({ route }) {
           <Text style={s.amountTotal}>{formatCurrency(invoice?.total)}</Text>
         </View>
         <View style={s.amountRow}>
-          <Text style={s.amountLabel}>Payé</Text>
+          <Text style={s.amountLabel}>Paye</Text>
           <Text style={s.amountValue}>{formatCurrency(invoice?.paid_amount)}</Text>
         </View>
       </View>
@@ -163,11 +164,11 @@ export default function InvoiceDetailScreen({ route }) {
         </View>
         <View style={s.infoRow}>
           <MaterialCommunityIcons name="phone-outline" size={18} color={T.primary} />
-          <Text style={s.infoText}>{invoice?.customer_phone || 'Aucun numéro'}</Text>
+          <Text style={s.infoText}>{invoice?.customer_phone || 'Aucun numero'}</Text>
         </View>
         <View style={s.infoRow}>
           <MaterialCommunityIcons name="map-marker-outline" size={18} color={T.primary} />
-          <Text style={s.infoText}>{invoice?.customer_address || 'Adresse non renseignée'}</Text>
+          <Text style={s.infoText}>{invoice?.customer_address || 'Adresse non renseignee'}</Text>
         </View>
       </View>
 
@@ -191,19 +192,11 @@ export default function InvoiceDetailScreen({ route }) {
       </View>
 
       <View style={[s.sectionCard, cardShadow]}>
-        <Text style={s.sectionTitle}>Contexte mobile</Text>
+        <Text style={s.sectionTitle}>Contexte</Text>
         <View style={s.infoRow}>
           <MaterialCommunityIcons name="truck-outline" size={18} color={T.info} />
           <Text style={s.infoText}>
-            {invoice?.route_session_id ? `Session #${invoice.route_session_id}` : 'Aucune session associée'}
-          </Text>
-        </View>
-        <View style={s.infoRow}>
-          <MaterialCommunityIcons name="crosshairs-gps" size={18} color={T.info} />
-          <Text style={s.infoText}>
-            {Number.isFinite(invoice?.latitude) && Number.isFinite(invoice?.longitude)
-              ? `${invoice.latitude.toFixed(5)}, ${invoice.longitude.toFixed(5)}`
-              : 'Coordonnées GPS non remontées'}
+            {invoice?.route_session_id ? `Session #${invoice.route_session_id}` : 'Aucune session associee'}
           </Text>
         </View>
       </View>
@@ -261,27 +254,28 @@ const s = StyleSheet.create({
     gap: 10,
     marginTop: 16,
   },
-  heroHint: {
-    marginTop: 10,
-    fontSize: 12,
-    color: T.textMuted,
-  },
   heroActionButton: {
     flex: 1,
-    minHeight: 42,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: T.border,
-    backgroundColor: T.surfaceAlt,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: T.surfaceAlt,
+    paddingVertical: 14,
   },
   heroActionLabel: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
     color: T.primary,
+  },
+  heroHint: {
+    marginTop: 12,
+    fontSize: 12,
+    lineHeight: 18,
+    color: T.textMuted,
   },
   sectionCard: {
     borderRadius: 22,
@@ -295,15 +289,14 @@ const s = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: T.text,
-    marginBottom: 10,
   },
   amountRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: 12,
     paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: T.border,
+    borderBottomWidth: 1,
+    borderBottomColor: T.border,
   },
   amountLabel: {
     fontSize: 13,
@@ -315,33 +308,32 @@ const s = StyleSheet.create({
     color: T.text,
   },
   amountTotal: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: T.primaryDark,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
     paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: T.border,
   },
   infoText: {
     flex: 1,
-    fontSize: 14,
-    color: T.text,
+    fontSize: 13,
+    color: T.textSecondary,
   },
   lineRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
     paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: T.border,
+    borderBottomWidth: 1,
+    borderBottomColor: T.border,
   },
   lineName: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
     color: T.text,
   },
   lineMeta: {
@@ -352,9 +344,10 @@ const s = StyleSheet.create({
   lineTotal: {
     fontSize: 14,
     fontWeight: '800',
-    color: T.primary,
+    color: T.primaryDark,
   },
   emptyText: {
+    marginTop: 12,
     fontSize: 13,
     color: T.textMuted,
   },

@@ -12,15 +12,24 @@ import {
   View,
 } from 'react-native'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import PageHeader from '../../components/PageHeader'
+import QuantityStepperField from '../../components/QuantityStepperField'
 import StatusChip from '../../components/StatusChip'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTracking } from '../../contexts/TrackingContext'
-import { listRouteSessions } from '../../services/routeSessionService'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
-import { formatCurrency, formatDateTime, formatNumber, formatTime, routeStatusLabel, toNumber } from '../../utils/format'
+import {
+  formatCount,
+  formatCurrency,
+  formatElapsedSince,
+  formatNumber,
+  formatTime,
+  routeStatusLabel,
+  toNumber,
+} from '../../utils/format'
 
 function parseItems(data) {
   return Array.isArray(data) ? data : data?.data ?? []
@@ -58,6 +67,7 @@ function buildCloseDefaults(session) {
 
 export default function RouteSessionScreen() {
   const navigation = useNavigation()
+  const insets = useSafeAreaInsets()
   const { isRep } = useAuth()
   const {
     session,
@@ -70,8 +80,6 @@ export default function RouteSessionScreen() {
 
   const [products, setProducts] = useState([])
   const [camions, setCamions] = useState([])
-  const [camionStockByProductId, setCamionStockByProductId] = useState({})
-  const [sessionHistory, setSessionHistory] = useState([])
   const [refreshing, setRefreshing] = useState(false)
   const [camionPickerVisible, setCamionPickerVisible] = useState(false)
   const [closeVisible, setCloseVisible] = useState(false)
@@ -88,21 +96,17 @@ export default function RouteSessionScreen() {
     }
 
     try {
-      const [productsResponse, camionsResponse, camionResponse, , historyResponse] = await Promise.all([
+      const [productsResponse, camionsResponse] = await Promise.all([
         api.get('/products'),
         api.get('/camions'),
-        api.get('/camion'),
         refreshSessionDetails(),
-        listRouteSessions({ per_page: 6 }),
       ])
 
       setProducts(parseItems(productsResponse.data))
       setCamions(parseItems(camionsResponse.data))
-      setCamionStockByProductId(camionResponse.data?.by_product_id ?? {})
-      setSessionHistory(parseItems(historyResponse))
       setError('')
     } catch (err) {
-      setError(err.response?.data?.message || 'Le module session n’a pas pu être chargé.')
+      setError(err.response?.data?.message || 'Le module session n a pas pu etre charge.')
     } finally {
       setRefreshing(false)
     }
@@ -116,18 +120,13 @@ export default function RouteSessionScreen() {
   }, [load, refreshSessionDetails]))
 
   useEffect(() => {
-    if (session?.id) {
-      load()
-    }
-  }, [load, session?.id, session?.status])
-
-  useEffect(() => {
     if (session?.camion?.id) {
       setSelectedCamionId(String(session.camion.id))
       return
     }
 
     const availableCamion = camions.find((camion) => camion.active !== false && camion.is_available !== false) ?? camions[0]
+
     if (!selectedCamionId && availableCamion?.id) {
       setSelectedCamionId(String(availableCamion.id))
     }
@@ -146,7 +145,6 @@ export default function RouteSessionScreen() {
 
   const activeCamions = camions.filter((camion) => camion.active !== false)
   const selectedCamion = activeCamions.find((camion) => String(camion.id) === String(selectedCamionId)) ?? null
-  const currentSessionOpen = session?.status === 'open'
   const selectedLines = useMemo(
     () => Object.entries(startLoadDraft)
       .map(([productId, qty]) => ({
@@ -160,23 +158,39 @@ export default function RouteSessionScreen() {
   const filteredProducts = useMemo(() => {
     const needle = search.trim().toLowerCase()
 
-    return products.filter((product) => {
-      const depotQty = toNumber(product.depot_qty)
-      const hasDraft = toNumber(startLoadDraft[product.id]) > 0
-      const searchable = !needle || product.name?.toLowerCase().includes(needle) || product.reference?.toLowerCase().includes(needle)
+    return products
+      .filter((product) => {
+        const searchable = !needle
+          || product.name?.toLowerCase().includes(needle)
+          || product.reference?.toLowerCase().includes(needle)
 
-      return searchable && (depotQty > 0 || hasDraft)
-    })
+        return searchable && (toNumber(product.depot_qty) > 0 || toNumber(startLoadDraft[product.id]) > 0)
+      })
+      .sort((left, right) => {
+        const leftSelected = toNumber(startLoadDraft[left.id]) > 0 ? 1 : 0
+        const rightSelected = toNumber(startLoadDraft[right.id]) > 0 ? 1 : 0
+
+        if (leftSelected !== rightSelected) {
+          return rightSelected - leftSelected
+        }
+
+        return String(left.name || '').localeCompare(String(right.name || ''), 'fr')
+      })
   }, [products, search, startLoadDraft])
+
+  const selectedTotalQty = useMemo(
+    () => selectedLines.reduce((sum, line) => sum + toNumber(line.qty_loaded), 0),
+    [selectedLines],
+  )
 
   const submitStartSession = async () => {
     if (!selectedCamionId) {
-      Alert.alert('Camion requis', 'Choisissez le camion physique de la tournée.')
+      Alert.alert('Camion requis', 'Choisissez le camion physique de la tournee.')
       return
     }
 
     if (selectedLines.length === 0) {
-      Alert.alert('Chargement requis', 'Ajoutez au moins une ligne de chargement initial pour démarrer la session.')
+      Alert.alert('Chargement requis', 'Ajoutez au moins une ligne avant de demarrer la session.')
       return
     }
 
@@ -188,8 +202,8 @@ export default function RouteSessionScreen() {
     if (blocked) {
       const product = products.find((entry) => entry.id === blocked.product_id)
       Alert.alert(
-        'Stock dépôt insuffisant',
-        `${product?.name || 'Produit'}: ${formatNumber(product?.depot_qty)} disponible(s) au dépôt.`,
+        'Stock depot insuffisant',
+        `${product?.name || 'Produit'} depasse le stock depot disponible.`,
       )
       return
     }
@@ -199,11 +213,12 @@ export default function RouteSessionScreen() {
         camion_id: Number(selectedCamionId),
         lines: selectedLines,
       })
+
       setStartLoadDraft({})
       setSearch('')
       await load()
     } catch (err) {
-      Alert.alert('Session impossible', err.response?.data?.message || err.message || 'Veuillez réessayer.')
+      Alert.alert('Session impossible', err.response?.data?.message || err.message || 'Veuillez reessayer.')
     }
   }
 
@@ -213,16 +228,17 @@ export default function RouteSessionScreen() {
         cash_collected: toNumber(cashCollected),
         credit_collected: toNumber(creditCollected),
       })
+
       setCloseVisible(false)
       setCashCollected('')
       setCreditCollected('')
-      await load()
+
       Alert.alert(
-        'Session clôturée',
-        `Total vendu: ${formatCurrency(closedSession?.total_sold || 0)}\nCrédit session: ${formatCurrency(closedSession?.credit_given || 0)}\nCash collecté: ${formatCurrency(closedSession?.cash_collected || 0)}`,
+        'Session cloturee',
+        `Ventes ${formatCurrency(closedSession?.total_sold || 0)}\nCredit ${formatCurrency(closedSession?.credit_given || 0)}\nCash ${formatCurrency(closedSession?.cash_collected || 0)}`,
       )
     } catch (err) {
-      Alert.alert('Clôture impossible', err.response?.data?.message || err.message || 'Veuillez réessayer.')
+      Alert.alert('Cloture impossible', err.response?.data?.message || err.message || 'Veuillez reessayer.')
     }
   }
 
@@ -230,31 +246,36 @@ export default function RouteSessionScreen() {
     return (
       <ScrollView style={s.root} contentContainerStyle={s.content}>
         <PageHeader
-          title="Session commerciale"
-          subtitle="Camion, chargement initial et état courant."
+          title="Session"
+          subtitle="Camion, chargement et cloture de la journee."
         />
 
         <View style={[s.emptyCard, cardShadow]}>
           <MaterialCommunityIcons name="account-lock-outline" size={34} color={T.primary} />
           <Text style={s.emptyTitle}>Compte commercial requis</Text>
           <Text style={s.emptyText}>
-            L’ouverture et la gestion d’une session mobile doivent être testées avec un compte commercial pour rester alignées avec les routes API de session.
+            L ouverture et la gestion d une session mobile restent reservees au compte commercial.
           </Text>
         </View>
       </ScrollView>
     )
   }
 
+  const footerBottom = insets.bottom + 12
+
   return (
     <>
       <ScrollView
         style={s.root}
-        contentContainerStyle={s.content}
+        contentContainerStyle={[s.content, !session && { paddingBottom: 148 + footerBottom }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.primary} />}
       >
         <PageHeader
-          title="Session commerciale"
-          subtitle="Choisissez le camion, chargez le stock puis démarrez votre journée."
+          title="Session"
+          subtitle={session ? 'Votre session commerciale du jour.' : 'Choisissez un camion puis preparez le chargement initial.'}
+          actionIcon="truck-cargo-container"
+          actionLabel="Stock"
+          onActionPress={() => navigation.navigate('Stock')}
         />
 
         {!!error && (
@@ -269,32 +290,25 @@ export default function RouteSessionScreen() {
             <View style={[s.summaryCard, cardShadow]}>
               <View style={s.summaryTop}>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.summaryTitle}>Démarrer la session</Text>
+                  <Text style={s.summaryTitle}>Nouvelle session</Text>
                   <Text style={s.summarySub}>
-                    Si une session vous est affectée depuis le web, elle apparaîtra ici automatiquement. Sinon, démarrez-la depuis ce mobile.
+                    Si une session vous est affectee depuis le web, elle apparaitra ici automatiquement.
                   </Text>
                 </View>
-                <StatusChip label="À ouvrir" tone="warning" />
+                <StatusChip label="A ouvrir" tone="warning" />
               </View>
 
               <View style={s.camionCard}>
-                <Text style={s.boxLabel}>Camion sélectionné</Text>
+                <Text style={s.boxLabel}>Camion choisi</Text>
                 <Text style={s.boxValue}>{selectedCamion?.name || 'Aucun camion choisi'}</Text>
                 <Text style={s.boxMeta}>
                   {selectedCamion?.plate
                     ? `Immatriculation ${selectedCamion.plate}`
-                    : 'Choisissez le camion physique avant d’ouvrir la session.'}
+                    : 'Choisissez le camion avant d ouvrir la session.'}
                 </Text>
                 <TouchableOpacity style={s.secondaryButton} onPress={() => setCamionPickerVisible(true)}>
                   <Text style={s.secondaryButtonText}>Choisir le camion</Text>
                 </TouchableOpacity>
-              </View>
-
-              <View style={s.infoCard}>
-                <MaterialCommunityIcons name="information-outline" size={18} color={T.info} />
-                <Text style={s.infoCardText}>
-                  Le stock affiché vient du dépôt. Le backend contrôle les quantités et empêche tout chargement supérieur au stock disponible.
-                </Text>
               </View>
             </View>
 
@@ -302,193 +316,116 @@ export default function RouteSessionScreen() {
               <Text style={s.sectionTitle}>Chargement initial</Text>
               <TextInput
                 style={s.searchInput}
-                placeholder="Rechercher un produit du dépôt"
+                placeholder="Rechercher un produit du depot"
                 placeholderTextColor={T.textMuted}
                 value={search}
                 onChangeText={setSearch}
               />
 
-              {filteredProducts.length === 0 ? (
+              {loading && products.length === 0 ? (
+                <ActivityIndicator color={T.primary} style={{ marginVertical: 24 }} />
+              ) : filteredProducts.length === 0 ? (
                 <View style={s.inlineEmpty}>
                   <MaterialCommunityIcons name="package-variant-closed" size={28} color={T.textMuted} />
                   <Text style={s.inlineEmptyTitle}>Aucun produit disponible</Text>
                   <Text style={s.inlineEmptyText}>
-                    Les produits sans stock dépôt restent masqués tant qu’aucune quantité n’est saisie.
+                    Les produits sans stock depot restent masques tant qu aucune quantite n est saisie.
                   </Text>
                 </View>
               ) : (
                 <View style={s.rowsWrap}>
                   {filteredProducts.map((product) => {
-                    const depotQty = toNumber(product.depot_qty)
-                    const camionQty = toNumber(camionStockByProductId[product.id])
                     const draftQty = startLoadDraft[product.id] ?? ''
+                    const isSelected = toNumber(draftQty) > 0
 
                     return (
-                      <View key={product.id} style={s.productRow}>
-                        <View style={s.rowIcon}>
-                          <MaterialCommunityIcons name="truck-delivery-outline" size={18} color={T.primary} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={s.rowTitle}>{product.name}</Text>
-                          <Text style={s.rowMeta}>{product.reference || product.unit || 'Produit'}</Text>
-                          <Text style={s.rowStats}>
-                            Dépôt {formatNumber(depotQty)} | Camion {formatNumber(camionQty)} | Min {formatNumber(Math.max(toNumber(product.min_stock, 1), 1))}
-                          </Text>
-                        </View>
-                        <TextInput
-                          style={s.qtyInput}
-                          keyboardType="decimal-pad"
-                          placeholder="0"
-                          placeholderTextColor={T.textMuted}
-                          value={draftQty}
-                          onChangeText={(value) => setStartLoadDraft((current) => ({ ...current, [product.id]: numericInput(value) }))}
-                        />
-                      </View>
+                      <QuantityStepperField
+                        key={product.id}
+                        title={product.name}
+                        subtitle={product.reference || product.unit || 'Produit'}
+                        helper={isSelected ? 'Selectionne pour le chargement initial.' : 'Disponible pour le chargement.'}
+                        icon="truck-delivery-outline"
+                        value={draftQty}
+                        onChangeText={(value) => setStartLoadDraft((current) => ({ ...current, [product.id]: numericInput(value) }))}
+                      />
                     )
                   })}
                 </View>
               )}
-
-              <View style={s.startFooter}>
-                <Text style={s.startFooterText}>
-                  {selectedLines.length} ligne(s) | {formatNumber(selectedLines.reduce((sum, line) => sum + toNumber(line.qty_loaded), 0))} unité(s)
-                </Text>
-                <TouchableOpacity style={[s.primaryButton, busy && s.buttonDisabled]} onPress={submitStartSession} disabled={busy}>
-                  {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>Démarrer la session</Text>}
-                </TouchableOpacity>
-              </View>
             </View>
           </>
         ) : (
-          <>
-            <View style={[s.summaryCard, cardShadow]}>
-              <View style={s.summaryTop}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.summaryTitle}>Session du {session.session_date}</Text>
-                  <Text style={s.summarySub}>
-                    Cette session reste synchronisée avec la plateforme web. Les ventes, recharges et retours alimentent automatiquement le suivi.
-                  </Text>
-                </View>
-                <StatusChip label={routeStatusLabel(session.status)} tone={currentSessionOpen ? 'success' : 'info'} />
+          <View style={[s.summaryCard, cardShadow]}>
+            <View style={s.summaryTop}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.summaryTitle}>Session du jour</Text>
+                <Text style={s.summarySub}>Suivez votre vente, rechargez le camion puis cloturez en fin de tournee.</Text>
               </View>
-
-              <View style={s.factGrid}>
-                <View style={s.factItem}>
-                  <Text style={s.factLabel}>Ouverture</Text>
-                  <Text style={s.factValue}>{formatTime(session.opened_at)}</Text>
-                </View>
-                <View style={s.factItem}>
-                  <Text style={s.factLabel}>Camion</Text>
-                  <Text style={s.factValue}>{session.camion?.name || 'Aucun camion assigné'}</Text>
-                </View>
-                <View style={s.factItem}>
-                  <Text style={s.factLabel}>Dernière mise à jour</Text>
-                  <Text style={s.factValue}>{session.updated_at ? formatTime(session.updated_at) : '--'}</Text>
-                </View>
-              </View>
-
-              <View style={s.camionCard}>
-                <Text style={s.boxLabel}>Camion physique</Text>
-                <Text style={s.boxValue}>{session.camion?.name || 'Aucun camion assigné'}</Text>
-                <Text style={s.boxMeta}>
-                  {session.camion?.plate
-                    ? `Immatriculation ${session.camion.plate}`
-                    : 'Aucune immatriculation disponible pour cette session.'}
-                </Text>
-              </View>
-
-              {currentSessionOpen ? (
-                <View style={s.actionStack}>
-                  <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Reappro', { mode: 'load' })}>
-                    <Text style={s.primaryButtonText}>Recharger le camion</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Reappro', { mode: 'returns' })}>
-                    <Text style={s.secondaryButtonText}>Retours et écarts</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={s.secondaryButton} onPress={() => setCloseVisible(true)}>
-                    <Text style={s.secondaryButtonText}>Clôturer la session</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <View style={s.closedMetrics}>
-                  <View style={s.closedMetric}>
-                    <Text style={s.factLabel}>Total vendu</Text>
-                    <Text style={s.closedValue}>{formatCurrency(session.total_sold)}</Text>
-                  </View>
-                  <View style={s.closedMetric}>
-                    <Text style={s.factLabel}>Bénéfice</Text>
-                    <Text style={s.closedValue}>{formatCurrency(session.profit_total)}</Text>
-                  </View>
-                  <View style={s.closedMetric}>
-                    <Text style={s.factLabel}>Clôturée</Text>
-                    <Text style={s.closedValue}>{formatTime(session.closed_at)}</Text>
-                  </View>
-                </View>
-              )}
+              <StatusChip label={routeStatusLabel(session.status)} tone="success" />
             </View>
 
-            <View style={[s.sectionCard, cardShadow]}>
-              <Text style={s.sectionTitle}>Lignes de session</Text>
-
-              {loading && (session.lines ?? []).length === 0 ? (
-                <ActivityIndicator color={T.primary} style={{ marginVertical: 22 }} />
-              ) : (session.lines ?? []).length === 0 ? (
-                <Text style={s.emptyText}>Aucune ligne de session n’a encore été enregistrée.</Text>
-              ) : (
-                (session.lines ?? []).map((line) => (
-                  <View key={line.id || line.product_id} style={s.lineRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.lineName}>{line.product?.name || 'Produit'}</Text>
-                      <Text style={s.lineMeta}>
-                        Chargé {formatNumber(line.qty_loaded)} | Retour {formatNumber(line.qty_returned)} | Vendu {formatNumber(line.qty_sold)}
-                      </Text>
-                    </View>
-                    <Text style={s.linePrice}>{line.unit_price ? formatCurrency(line.unit_price) : '--'}</Text>
-                  </View>
-                ))
-              )}
+            <View style={s.factGrid}>
+              <View style={s.factItem}>
+                <Text style={s.factLabel}>Ouverture</Text>
+                <Text style={s.factValue}>{formatTime(session.opened_at)}</Text>
+              </View>
+              <View style={s.factItem}>
+                <Text style={s.factLabel}>Duree</Text>
+                <Text style={s.factValue}>{formatElapsedSince(session.opened_at)}</Text>
+              </View>
+              <View style={s.factItem}>
+                <Text style={s.factLabel}>Camion</Text>
+                <Text style={s.factValue}>{session.camion?.name || 'Aucun camion'}</Text>
+              </View>
             </View>
-          </>
-        )}
 
-        <View style={[s.sectionCard, cardShadow]}>
-          <View style={s.sectionHeaderRow}>
-            <Text style={s.sectionTitle}>Historique récent</Text>
-            <Text style={s.sectionHint}>6 dernières sessions</Text>
+            <View style={s.metricsGrid}>
+              <View style={s.metricCard}>
+                <Text style={s.metricLabel}>Ventes</Text>
+                <Text style={s.metricValue}>{formatCurrency(session.total_sold || 0)}</Text>
+              </View>
+              <View style={s.metricCard}>
+                <Text style={s.metricLabel}>Credit</Text>
+                <Text style={s.metricValue}>{formatCurrency(session.credit_given || 0)}</Text>
+              </View>
+              <View style={s.metricCard}>
+                <Text style={s.metricLabel}>Factures</Text>
+                <Text style={s.metricValue}>{formatCount(closeDefaults.invoiceCount)}</Text>
+              </View>
+            </View>
+
+            <View style={s.actionStack}>
+              <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Reappro')}>
+                <Text style={s.primaryButtonText}>Recharger le camion</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Stock')}>
+                <Text style={s.secondaryButtonText}>Voir mon stock</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.secondaryButton} onPress={() => setCloseVisible(true)}>
+                <Text style={s.secondaryButtonText}>Cloturer la session</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-
-          {sessionHistory.length === 0 ? (
-            <Text style={s.emptyText}>Aucune session enregistrée pour ce compte.</Text>
-          ) : (
-            sessionHistory.map((item) => (
-              <View key={item.id} style={s.historyRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.historyTitle}>
-                    {item.session_date || 'Date inconnue'} · {item.camion?.name || 'Sans camion'}
-                  </Text>
-                  <Text style={s.historyMeta}>
-                    Ouverture {formatDateTime(item.opened_at)}{item.closed_at ? ` · Clôture ${formatDateTime(item.closed_at)}` : ''}
-                  </Text>
-                  <Text style={s.historyMeta}>
-                    {item.camion?.plate || 'Immatriculation non renseignée'} · {formatCurrency(item.total_sold || 0)}
-                  </Text>
-                </View>
-                <StatusChip
-                  label={routeStatusLabel(item.status)}
-                  tone={item.status === 'open' ? 'success' : 'info'}
-                />
-              </View>
-            ))
-          )}
-        </View>
+        )}
       </ScrollView>
+
+      {!session && (
+        <View style={[s.footerCard, { bottom: footerBottom }]}>
+          <Text style={s.footerText}>
+            {selectedLines.length} ligne(s) · {formatNumber(selectedTotalQty)} unite(s)
+          </Text>
+          <TouchableOpacity style={[s.footerButton, busy && s.buttonDisabled]} onPress={submitStartSession} disabled={busy}>
+            {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.footerButtonText}>Demarrer la session</Text>}
+          </TouchableOpacity>
+        </View>
+      )}
 
       <Modal visible={camionPickerVisible} transparent animationType="fade" onRequestClose={() => setCamionPickerVisible(false)}>
         <View style={s.overlay}>
           <View style={s.dialogLarge}>
             <Text style={s.dialogTitle}>Choisir le camion</Text>
             <Text style={s.dialogText}>
-              Sélectionnez le camion réel de la session. Un camion occupé ne peut pas être réutilisé pour une autre session ouverte.
+              Un camion deja occupe ne peut pas etre reutilise sur une autre session ouverte.
             </Text>
 
             <ScrollView style={s.camionList} contentContainerStyle={{ gap: 10 }}>
@@ -496,7 +433,7 @@ export default function RouteSessionScreen() {
                 <View style={s.camionEmptyCard}>
                   <MaterialCommunityIcons name="truck-outline" size={22} color={T.textMuted} />
                   <Text style={s.camionEmptyTitle}>Aucun camion actif</Text>
-                  <Text style={s.camionEmptyText}>Le back-office doit d’abord créer et activer les camions physiques.</Text>
+                  <Text style={s.camionEmptyText}>Le back-office doit d abord creer et activer les camions physiques.</Text>
                 </View>
               ) : (
                 activeCamions.map((camion) => {
@@ -520,22 +457,13 @@ export default function RouteSessionScreen() {
                       <View style={{ flex: 1 }}>
                         <Text style={[s.camionOptionTitle, selected && { color: '#fff' }]}>{camion.name}</Text>
                         <Text style={[s.camionOptionMeta, selected && { color: 'rgba(255,255,255,0.82)' }]}>
-                          {camion.plate || 'Immatriculation non renseignée'}
+                          {camion.plate || 'Immatriculation non renseignee'}
                         </Text>
                         <Text style={[s.camionOptionMeta, selected && { color: 'rgba(255,255,255,0.82)' }]}>
                           {disabled
-                            ? `Occupé par ${camion.current_route_session?.rep?.name || 'une autre session'}`
+                            ? `Occupe par ${camion.current_route_session?.rep?.name || 'une autre session'}`
                             : camion.workflow_status_label || 'Disponible'}
                         </Text>
-                        <View style={s.camionOptionBadges}>
-                          <StatusChip
-                            label={camion.workflow_status_label || 'Disponible'}
-                            tone={disabled ? 'warning' : selected ? 'info' : 'success'}
-                          />
-                          {camion.current_route_session?.zone?.name ? (
-                            <StatusChip label={camion.current_route_session.zone.name} tone="neutral" />
-                          ) : null}
-                        </View>
                       </View>
                       {selected ? <MaterialCommunityIcons name="check-circle" size={20} color="#fff" /> : null}
                     </TouchableOpacity>
@@ -557,12 +485,12 @@ export default function RouteSessionScreen() {
         <View style={s.overlay}>
           <View style={s.dialog}>
             <Text style={s.dialogTitle}>Cloturer la session</Text>
-            <Text style={s.dialogText}>Verifiez les montants proposes a partir des factures de la session avant fermeture.</Text>
+            <Text style={s.dialogText}>Validez les montants proposes a partir des factures de la session.</Text>
 
             <View style={s.infoCard}>
               <MaterialCommunityIcons name="cash-register" size={18} color={T.info} />
               <Text style={s.infoCardText}>
-                {`${closeDefaults.invoiceCount} facture(s) | Ventes ${formatCurrency(closeDefaults.totalSold)} | Cash propose ${formatCurrency(closeDefaults.cashCollected)} | Credit session ${formatCurrency(closeDefaults.creditTotal)}`}
+                {`${closeDefaults.invoiceCount} facture(s) · Ventes ${formatCurrency(closeDefaults.totalSold)} · Cash ${formatCurrency(closeDefaults.cashCollected)} · Credit ${formatCurrency(closeDefaults.creditTotal)}`}
               </Text>
             </View>
 
@@ -591,7 +519,7 @@ export default function RouteSessionScreen() {
                 <Text style={s.dialogSecondaryText}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[s.dialogPrimary, busy && s.buttonDisabled]} onPress={submitClose} disabled={busy}>
-                {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.dialogPrimaryText}>Clôturer</Text>}
+                {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.dialogPrimaryText}>Cloturer</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -656,6 +584,73 @@ const s = StyleSheet.create({
     lineHeight: 18,
     color: T.textSecondary,
   },
+  camionCard: {
+    marginTop: 16,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: T.surfaceAlt,
+    padding: 16,
+  },
+  boxLabel: {
+    fontSize: 11,
+    color: T.textMuted,
+  },
+  boxValue: {
+    marginTop: 6,
+    fontSize: 17,
+    fontWeight: '800',
+    color: T.text,
+  },
+  boxMeta: {
+    marginTop: 4,
+    fontSize: 12,
+    color: T.textSecondary,
+  },
+  sectionCard: {
+    backgroundColor: T.surface,
+    borderRadius: 22,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: T.border,
+    marginBottom: 14,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: T.text,
+  },
+  searchInput: {
+    marginTop: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: T.surfaceAlt,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: T.text,
+  },
+  rowsWrap: {
+    marginTop: 14,
+    gap: 10,
+  },
+  inlineEmpty: {
+    alignItems: 'center',
+    paddingVertical: 28,
+  },
+  inlineEmptyTitle: {
+    marginTop: 10,
+    fontSize: 15,
+    fontWeight: '800',
+    color: T.text,
+  },
+  inlineEmptyText: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+    color: T.textSecondary,
+  },
   factGrid: {
     flexDirection: 'row',
     gap: 10,
@@ -673,32 +668,32 @@ const s = StyleSheet.create({
   },
   factValue: {
     marginTop: 6,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: T.text,
   },
-  camionCard: {
-    marginTop: 14,
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
+  metricsGrid: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
   },
-  boxLabel: {
-    fontSize: 12,
+  metricCard: {
+    flex: 1,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: '#f4fbfa',
+    padding: 12,
+  },
+  metricLabel: {
+    fontSize: 11,
     color: T.textMuted,
   },
-  boxValue: {
+  metricValue: {
     marginTop: 6,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
-    color: T.info,
-  },
-  boxMeta: {
-    marginTop: 4,
-    fontSize: 12,
-    color: T.textSecondary,
+    color: T.text,
   },
   actionStack: {
     marginTop: 16,
@@ -713,7 +708,7 @@ const s = StyleSheet.create({
   },
   primaryButtonText: {
     color: '#fff',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
   },
   secondaryButton: {
@@ -724,227 +719,71 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: T.border,
     backgroundColor: T.surfaceAlt,
-    marginTop: 12,
   },
   secondaryButtonText: {
     fontSize: 14,
     fontWeight: '700',
     color: T.textSecondary,
   },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  closedMetrics: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 16,
-  },
-  closedMetric: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 16,
-    backgroundColor: T.surfaceAlt,
-  },
-  closedValue: {
-    marginTop: 6,
-    fontSize: 14,
-    fontWeight: '800',
-    color: T.text,
-  },
-  sectionCard: {
-    backgroundColor: T.surface,
+  footerCard: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
     borderRadius: 22,
-    padding: 18,
     borderWidth: 1,
     borderColor: T.border,
-    marginBottom: 14,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: T.text,
-    marginBottom: 8,
-  },
-  sectionHint: {
-    fontSize: 12,
-    color: T.textMuted,
-  },
-  searchInput: {
-    marginTop: 12,
-    height: 50,
-    borderWidth: 1,
-    borderColor: T.border,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    fontSize: 14,
-    color: T.text,
-    backgroundColor: T.surfaceAlt,
-  },
-  rowsWrap: {
-    marginTop: 14,
-    gap: 10,
-  },
-  productRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    padding: 16,
     gap: 12,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: T.border,
-    backgroundColor: T.surfaceAlt,
-    padding: 14,
+    ...cardShadow,
   },
-  rowIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
+  footerText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: T.textSecondary,
+  },
+  footerButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f5f7fb',
+    borderRadius: 16,
+    paddingVertical: 15,
+    backgroundColor: T.primary,
   },
-  rowTitle: {
+  footerButtonText: {
+    color: '#fff',
     fontSize: 15,
     fontWeight: '800',
-    color: T.text,
-  },
-  rowMeta: {
-    marginTop: 2,
-    fontSize: 12,
-    color: T.textMuted,
-  },
-  rowStats: {
-    marginTop: 5,
-    fontSize: 12,
-    color: T.textSecondary,
-  },
-  qtyInput: {
-    width: 84,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: T.border,
-    backgroundColor: T.surface,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    textAlign: 'center',
-    color: T.text,
-    fontWeight: '800',
-  },
-  startFooter: {
-    marginTop: 16,
-    gap: 10,
-  },
-  startFooterText: {
-    fontSize: 12,
-    color: T.textMuted,
-  },
-  inlineEmpty: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 28,
-  },
-  inlineEmptyTitle: {
-    marginTop: 12,
-    fontSize: 16,
-    fontWeight: '800',
-    color: T.text,
-  },
-  inlineEmptyText: {
-    marginTop: 6,
-    fontSize: 13,
-    lineHeight: 18,
-    textAlign: 'center',
-    color: T.textSecondary,
-  },
-  infoCard: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 14,
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: '#eff6ff',
-    borderWidth: 1,
-    borderColor: '#bfdbfe',
-  },
-  infoCardText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 19,
-    color: T.textSecondary,
-  },
-  lineRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: T.border,
-  },
-  lineName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: T.text,
-  },
-  lineMeta: {
-    marginTop: 4,
-    fontSize: 12,
-    color: T.textMuted,
-  },
-  linePrice: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: T.primaryDark,
-  },
-  historyRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: T.border,
-  },
-  historyTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: T.text,
-  },
-  historyMeta: {
-    marginTop: 4,
-    fontSize: 12,
-    color: T.textSecondary,
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    backgroundColor: 'rgba(2, 6, 23, 0.46)',
     justifyContent: 'center',
-    padding: 22,
+    padding: 20,
   },
   dialog: {
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: T.border,
     backgroundColor: T.surface,
-    borderRadius: 22,
-    padding: 22,
+    padding: 20,
   },
   dialogLarge: {
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: T.border,
     backgroundColor: T.surface,
-    borderRadius: 22,
-    padding: 22,
+    padding: 20,
     maxHeight: '82%',
   },
   dialogTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
     color: T.text,
   },
   dialogText: {
-    marginTop: 8,
-    fontSize: 14,
-    lineHeight: 20,
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 18,
     color: T.textSecondary,
   },
   dialogActions: {
@@ -952,12 +791,25 @@ const s = StyleSheet.create({
     gap: 10,
     marginTop: 18,
   },
+  dialogPrimary: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    paddingVertical: 14,
+    backgroundColor: T.primary,
+  },
+  dialogPrimaryText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
   dialogSecondary: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 16,
     paddingVertical: 14,
-    borderRadius: 14,
     borderWidth: 1,
     borderColor: T.border,
     backgroundColor: T.surfaceAlt,
@@ -967,66 +819,80 @@ const s = StyleSheet.create({
     fontWeight: '700',
     color: T.textSecondary,
   },
-  dialogPrimary: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 14,
-    backgroundColor: T.primary,
-  },
-  dialogPrimaryText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#fff',
-  },
   fieldLabel: {
-    marginTop: 16,
+    marginTop: 14,
     marginBottom: 8,
     fontSize: 12,
     fontWeight: '700',
     color: T.textMuted,
-    textTransform: 'uppercase',
   },
   fieldInput: {
     height: 50,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: T.border,
-    paddingHorizontal: 14,
-    fontSize: 15,
-    fontWeight: '700',
-    color: T.text,
     backgroundColor: T.surfaceAlt,
+    paddingHorizontal: 14,
+    color: T.text,
+  },
+  infoCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: '#eef6ff',
+  },
+  infoCardText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: T.textSecondary,
   },
   camionList: {
-    marginTop: 18,
-    maxHeight: 340,
+    marginTop: 16,
+  },
+  camionEmptyCard: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  camionEmptyTitle: {
+    marginTop: 8,
+    fontSize: 15,
+    fontWeight: '800',
+    color: T.text,
+  },
+  camionEmptyText: {
+    marginTop: 6,
+    fontSize: 13,
+    textAlign: 'center',
+    color: T.textSecondary,
   },
   camionOption: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 14,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: T.border,
     backgroundColor: T.surfaceAlt,
+    padding: 14,
   },
   camionOptionSelected: {
-    borderColor: T.primary,
     backgroundColor: T.primary,
+    borderColor: T.primary,
   },
   camionOptionDisabled: {
-    opacity: 0.5,
+    opacity: 0.6,
   },
   camionOptionIcon: {
-    width: 40,
-    height: 40,
+    width: 42,
+    height: 42,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.88)',
   },
   camionOptionTitle: {
     fontSize: 15,
@@ -1036,50 +902,26 @@ const s = StyleSheet.create({
   camionOptionMeta: {
     marginTop: 3,
     fontSize: 12,
-    color: T.textMuted,
-  },
-  camionOptionBadges: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 8,
-  },
-  camionEmptyCard: {
-    alignItems: 'center',
-    paddingVertical: 18,
-    paddingHorizontal: 16,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: T.border,
-    backgroundColor: T.surfaceAlt,
-  },
-  camionEmptyTitle: {
-    marginTop: 10,
-    fontSize: 15,
-    fontWeight: '800',
-    color: T.text,
-  },
-  camionEmptyText: {
-    marginTop: 6,
-    fontSize: 13,
-    lineHeight: 19,
-    textAlign: 'center',
     color: T.textSecondary,
   },
   noticeDanger: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 10,
-    padding: 14,
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderRadius: 16,
-    backgroundColor: '#fef2f2',
     borderWidth: 1,
     borderColor: '#fecaca',
-    marginBottom: 14,
+    backgroundColor: '#fef2f2',
   },
   noticeDangerText: {
     flex: 1,
     fontSize: 13,
     color: T.danger,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
 })
