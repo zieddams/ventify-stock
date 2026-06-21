@@ -93,7 +93,7 @@ export default function RouteSessionScreen() {
     if (session?.id) {
       load()
     }
-  }, [load, session?.id, session?.status, session?.updated_at])
+  }, [load, session?.id, session?.status])
 
   useEffect(() => {
     if (session?.camion?.id) {
@@ -172,7 +172,7 @@ export default function RouteSessionScreen() {
 
   const submitClose = async () => {
     try {
-      await endSession({
+      const closedSession = await endSession({
         cash_collected: toNumber(cashCollected),
         credit_collected: toNumber(creditCollected),
       })
@@ -180,6 +180,10 @@ export default function RouteSessionScreen() {
       setCashCollected('')
       setCreditCollected('')
       await load()
+      Alert.alert(
+        'Session clôturée',
+        `Total vendu: ${formatCurrency(closedSession?.total_sold || 0)}\nCrédit donné: ${formatCurrency(closedSession?.credit_given || 0)}\nCash collecté: ${formatCurrency(closedSession?.cash_collected || 0)}`,
+      )
     } catch (err) {
       Alert.alert('Clôture impossible', err.response?.data?.message || err.message || 'Veuillez réessayer.')
     }

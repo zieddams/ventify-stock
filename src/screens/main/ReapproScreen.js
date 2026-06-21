@@ -81,7 +81,7 @@ export default function ReapproScreen({ route }) {
     if (session?.id) {
       load()
     }
-  }, [load, session?.id, session?.status, session?.updated_at])
+  }, [load, session?.id, session?.status])
 
   const lineByProductId = useMemo(
     () => (session?.lines ?? []).reduce((carry, line) => {

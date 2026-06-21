@@ -8,17 +8,9 @@ import api, {
   saveStoredUser,
   saveToken,
 } from '../services/api'
-import {
-  getLocationValidationMessage,
-  getCurrentLocation,
-  getForegroundPermission,
-  getRememberedLocationPayload,
-  mapLocationToPayload,
-  requestForegroundPermission,
-} from '../services/locationService'
-import { markSessionOffline, pingSession, reportSession } from '../services/sessionService'
 
 const AuthContext = createContext(null)
+const MOBILE_PRESENCE_ENABLED = false
 const PRESENCE_HEARTBEAT_MS = 20 * 1000
 const INTERACTION_PING_GAP_MS = 8 * 1000
 
@@ -50,73 +42,31 @@ export function AuthProvider({ children }) {
     return response.data
   }, [])
 
-  const capturePresenceLocation = useCallback(async ({ shouldRequest = false, forceFresh = false } = {}) => {
-    if (!['admin', 'developer', 'rep'].includes(user?.role)) {
-      return { payload: null, issue: null }
-    }
-
-    const cachedPayload = getRememberedLocationPayload()
-    if (!forceFresh && cachedPayload) {
-      return { payload: cachedPayload, issue: null }
-    }
-
-    try {
-      const permission = shouldRequest
-        ? await requestForegroundPermission()
-        : await getForegroundPermission()
-
-      if (permission.status !== 'granted') {
-        return { payload: cachedPayload, issue: null }
-      }
-
-      const location = await getCurrentLocation()
-      return {
-        payload: mapLocationToPayload(location) || cachedPayload,
-        issue: getLocationValidationMessage(location),
-      }
-    } catch {
-      return { payload: cachedPayload, issue: null }
-    }
-  }, [user?.role])
-
   const sendSessionReport = useCallback(async (reason = 'active') => {
-    if (!user?.id || presenceRef.current.reportInFlight) {
+    if (!MOBILE_PRESENCE_ENABLED || !user?.id || presenceRef.current.reportInFlight) {
       return false
     }
 
     presenceRef.current.reportInFlight = true
 
     try {
-      const { payload, issue } = await capturePresenceLocation({
-        shouldRequest: reason === 'login' || reason === 'resume',
-        forceFresh: reason === 'login' || reason === 'resume',
-      })
-
-      await reportSession(payload)
       setSessionStatus((prev) => ({
         ...prev,
         state: reason,
         lastReportAt: new Date().toISOString(),
-        error: issue,
+        error: null,
       }))
       return true
-    } catch (error) {
-      setSessionStatus((prev) => ({
-        ...prev,
-        error: error.response?.data?.message || error.message || 'Présence indisponible.',
-      }))
-      return false
     } finally {
       presenceRef.current.reportInFlight = false
     }
-  }, [capturePresenceLocation, user?.id])
+  }, [user?.id])
 
   const sendSessionPing = useCallback(async ({
     reason = 'heartbeat',
     force = false,
-    includeLocation = false,
   } = {}) => {
-    if (!user?.id || presenceRef.current.pingInFlight) {
+    if (!MOBILE_PRESENCE_ENABLED || !user?.id || presenceRef.current.pingInFlight) {
       return false
     }
 
@@ -128,14 +78,6 @@ export function AuthProvider({ children }) {
     presenceRef.current.pingInFlight = true
 
     try {
-      const payload = includeLocation
-        ? (await capturePresenceLocation({
-          shouldRequest: false,
-          forceFresh: reason === 'heartbeat',
-        })).payload
-        : getRememberedLocationPayload()
-
-      await pingSession(payload)
       presenceRef.current.lastPingAtMs = now
 
       setSessionStatus((prev) => ({
@@ -145,39 +87,28 @@ export function AuthProvider({ children }) {
         error: null,
       }))
       return true
-    } catch (error) {
-      setSessionStatus((prev) => ({
-        ...prev,
-        error: error.response?.data?.message || error.message || 'Heartbeat indisponible.',
-      }))
-      return false
     } finally {
       presenceRef.current.pingInFlight = false
     }
-  }, [capturePresenceLocation, user?.id])
+  }, [user?.id])
 
   const sendSessionOffline = useCallback(async (reason = 'offline') => {
-    try {
-      await markSessionOffline()
-      setSessionStatus((prev) => ({
-        ...prev,
-        state: reason,
-        lastOfflineAt: new Date().toISOString(),
-        error: null,
-      }))
-    } catch (error) {
-      setSessionStatus((prev) => ({
-        ...prev,
-        error: error.response?.data?.message || error.message || 'Statut hors ligne indisponible.',
-      }))
+    if (!MOBILE_PRESENCE_ENABLED) {
+      return
     }
+
+    setSessionStatus((prev) => ({
+      ...prev,
+      state: reason,
+      lastOfflineAt: new Date().toISOString(),
+      error: null,
+    }))
   }, [])
 
   const touchSession = useCallback((reason = 'interaction', options = {}) => (
     sendSessionPing({
       reason,
       force: options.force ?? false,
-      includeLocation: options.includeLocation ?? false,
     })
   ), [sendSessionPing])
 
@@ -224,11 +155,16 @@ export function AuthProvider({ children }) {
       return undefined
     }
 
+    if (!MOBILE_PRESENCE_ENABLED) {
+      setSessionStatus(initialSessionStatus())
+      return undefined
+    }
+
     sendSessionReport('login')
 
     const interval = setInterval(() => {
       if (AppState.currentState === 'active') {
-        sendSessionPing({ reason: 'heartbeat', includeLocation: true })
+        sendSessionPing({ reason: 'heartbeat' })
       }
     }, PRESENCE_HEARTBEAT_MS)
 

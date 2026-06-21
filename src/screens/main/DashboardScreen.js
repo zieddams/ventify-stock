@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
+  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -256,7 +257,17 @@ export default function DashboardScreen() {
       <View style={[s.sectionCard, cardShadow]}>
         <Text style={s.sectionTitle}>Actions rapides</Text>
         <View style={s.quickGrid}>
-          <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate('InvoiceCreate')}>
+          <TouchableOpacity
+            style={s.quickAction}
+            onPress={() => {
+              if (session?.status !== 'open') {
+                Alert.alert('Session requise', 'Ouvrez d’abord une session commerciale avant de créer une facture.')
+                return
+              }
+
+              navigation.navigate('InvoiceCreate')
+            }}
+          >
             <MaterialCommunityIcons name="file-document-plus-outline" size={20} color={T.primary} />
             <Text style={s.quickLabel}>Nouvelle facture</Text>
           </TouchableOpacity>

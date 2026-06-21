@@ -16,22 +16,10 @@ import {
   getTodayRouteSession,
   openRouteSession,
   recordRouteSessionReturns,
-  storeRouteLocation,
 } from '../services/routeSessionService'
-import {
-  LIVE_TRACKING_DISTANCE_METERS,
-  LIVE_TRACKING_INTERVAL_MS,
-  distanceBetweenMeters,
-  getLocationValidationMessage,
-  getCurrentLocation,
-  getForegroundPermission,
-  mapLocationToPayload,
-  requestForegroundPermission,
-  watchLocation,
-} from '../services/locationService'
 
 const TrackingContext = createContext(null)
-const REMOTE_SESSION_SYNC_MS = 4000
+const REMOTE_SESSION_SYNC_MS = 5000
 
 function initialTrackingState() {
   return {
@@ -43,15 +31,11 @@ function initialTrackingState() {
 }
 
 export function TrackingProvider({ children }) {
-  const { user, isRep, touchSession } = useAuth()
+  const { user, isRep } = useAuth()
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
-  const [currentLocation, setCurrentLocation] = useState(null)
-  const [locationPermission, setLocationPermission] = useState('undetermined')
   const [trackingState, setTrackingState] = useState(initialTrackingState)
-  const watchRef = useRef(null)
-  const lastSentRef = useRef({ at: 0, coords: null })
   const sessionRef = useRef(null)
   const refreshInFlightRef = useRef(false)
 
@@ -59,35 +43,25 @@ export function TrackingProvider({ children }) {
     sessionRef.current = session
   }, [session])
 
-  const stopWatch = useCallback(() => {
-    if (watchRef.current?.remove) {
-      watchRef.current.remove()
-    }
-    watchRef.current = null
+  const markSynced = useCallback((reason, error = null, active = null) => {
     setTrackingState((prev) => ({
       ...prev,
-      active: false,
+      active: active ?? prev.active,
+      lastSyncAt: new Date().toISOString(),
+      lastSyncReason: reason,
+      error,
     }))
   }, [])
 
-  const refreshPermission = useCallback(async (shouldRequest = false) => {
-    try {
-      const result = shouldRequest
-        ? await requestForegroundPermission()
-        : await getForegroundPermission()
-
-      setLocationPermission(result.status)
-      return result.status
-    } catch {
-      setLocationPermission('denied')
-      return 'denied'
-    }
+  const clearSessionState = useCallback(() => {
+    setSession(null)
+    sessionRef.current = null
+    setTrackingState(initialTrackingState())
   }, [])
 
   const refreshSession = useCallback(async () => {
     if (!user || !isRep()) {
-      setSession(null)
-      sessionRef.current = null
+      clearSessionState()
       setLoading(false)
       return null
     }
@@ -100,13 +74,15 @@ export function TrackingProvider({ children }) {
 
     try {
       const data = await getTodayRouteSession()
-      const nextSession = data || null
+      const nextSession = data?.status === 'open' ? data : null
       setSession(nextSession)
       sessionRef.current = nextSession
+      markSynced('session-refresh', null, Boolean(nextSession))
       return nextSession
     } catch (error) {
       setTrackingState((prev) => ({
         ...prev,
+        active: false,
         error: error.response?.data?.message || error.message || 'Session indisponible.',
       }))
       return null
@@ -114,100 +90,7 @@ export function TrackingProvider({ children }) {
       refreshInFlightRef.current = false
       setLoading(false)
     }
-  }, [user, isRep])
-
-  const uploadLocation = useCallback(async (location, reason = 'manual', targetSession = null) => {
-    const activeSession = targetSession || sessionRef.current
-    if (!activeSession?.id) return null
-
-    const payload = mapLocationToPayload(location)
-    if (!payload) {
-      setTrackingState((prev) => ({
-        ...prev,
-        error: getLocationValidationMessage(location) || 'Position GPS invalide.',
-      }))
-      return null
-    }
-
-    const now = Date.now()
-    const tooSoon = now - lastSentRef.current.at < Math.max(LIVE_TRACKING_INTERVAL_MS - 2000, 10000)
-    const tooClose = lastSentRef.current.coords
-      ? distanceBetweenMeters(lastSentRef.current.coords, payload) < Math.max(LIVE_TRACKING_DISTANCE_METERS - 5, 15)
-      : false
-
-    if (reason === 'watch' && tooSoon && tooClose) {
-      return null
-    }
-
-    try {
-      const saved = await storeRouteLocation(activeSession.id, payload)
-      lastSentRef.current = {
-        at: now,
-        coords: payload,
-      }
-
-      setTrackingState({
-        active: true,
-        lastSyncAt: saved.recorded_at || payload.recorded_at,
-        lastSyncReason: reason,
-        error: null,
-      })
-
-      setSession((prev) => {
-        if (!prev || prev.id !== activeSession.id) return prev
-        const nextSession = {
-          ...prev,
-          latestLocation: saved,
-          latest_location: saved,
-          locations_count: Number(prev.locations_count || 0) + 1,
-        }
-        sessionRef.current = nextSession
-        return nextSession
-      })
-
-      return saved
-    } catch (error) {
-      setTrackingState((prev) => ({
-        ...prev,
-        error: error.response?.data?.message || error.message || 'Synchronisation GPS indisponible.',
-      }))
-      return null
-    }
-  }, [])
-
-  const captureCurrentLocation = useCallback(async (reason = 'manual', targetSession = null) => {
-    const permission = await refreshPermission(reason !== 'status')
-    if (permission !== 'granted') {
-      setTrackingState((prev) => ({
-        ...prev,
-        error: 'Autorisez la localisation pour suivre les tournees.',
-      }))
-      return null
-    }
-
-    try {
-      const location = await getCurrentLocation()
-      setCurrentLocation(location)
-      const locationIssue = getLocationValidationMessage(location)
-      if (locationIssue) {
-        setTrackingState((prev) => ({
-          ...prev,
-          error: locationIssue,
-        }))
-        return location
-      }
-      if ((targetSession || sessionRef.current)?.id) {
-        await uploadLocation(location, reason, targetSession)
-      }
-      return location
-    } catch (error) {
-      setTrackingState((prev) => ({
-        ...prev,
-        error: error.message || 'Localisation indisponible.',
-      }))
-      return null
-    }
-  }, [refreshPermission, uploadLocation])
+  }, [clearSessionState, isRep, markSynced, user])
 
   const refreshSessionDetails = useCallback(async () => {
     const activeSession = sessionRef.current
@@ -224,9 +107,11 @@ export function TrackingProvider({ children }) {
 
     try {
       const data = await getRouteSession(activeSession.id)
-      setSession(data)
-      sessionRef.current = data
-      return data
+      const nextSession = data?.status === 'open' ? data : null
+      setSession(nextSession)
+      sessionRef.current = nextSession
+      markSynced('session-detail-refresh', null, Boolean(nextSession))
+      return nextSession
     } catch (error) {
       setTrackingState((prev) => ({
         ...prev,
@@ -236,21 +121,21 @@ export function TrackingProvider({ children }) {
     } finally {
       refreshInFlightRef.current = false
     }
-  }, [refreshSession])
+  }, [markSynced, refreshSession])
 
   const startSession = useCallback(async (payload = {}) => {
     setBusy(true)
     try {
       const data = await openRouteSession(payload)
-      setSession(data)
-      sessionRef.current = data
-      await captureCurrentLocation('session-open', data)
-      await touchSession('session-open', { force: true, includeLocation: false })
+      const nextSession = data?.status === 'open' ? data : null
+      setSession(nextSession)
+      sessionRef.current = nextSession
+      markSynced('session-open', null, Boolean(nextSession))
       return data
     } finally {
       setBusy(false)
     }
-  }, [captureCurrentLocation, touchSession])
+  }, [markSynced])
 
   const addLoad = useCallback(async (lines) => {
     if (!sessionRef.current?.id) {
@@ -260,15 +145,15 @@ export function TrackingProvider({ children }) {
     setBusy(true)
     try {
       const data = await addRouteSessionLoad(sessionRef.current.id, lines)
-      setSession(data)
-      sessionRef.current = data
-      await captureCurrentLocation('route-load', data)
-      await touchSession('route-load', { force: true, includeLocation: false })
+      const nextSession = data?.status === 'open' ? data : null
+      setSession(nextSession)
+      sessionRef.current = nextSession
+      markSynced('route-load', null, Boolean(nextSession))
       return data
     } finally {
       setBusy(false)
     }
-  }, [captureCurrentLocation, touchSession])
+  }, [markSynced])
 
   const recordReturns = useCallback(async (lines) => {
     if (!sessionRef.current?.id) {
@@ -278,15 +163,15 @@ export function TrackingProvider({ children }) {
     setBusy(true)
     try {
       const data = await recordRouteSessionReturns(sessionRef.current.id, lines)
-      setSession(data)
-      sessionRef.current = data
-      await captureCurrentLocation('route-returns', data)
-      await touchSession('route-returns', { force: true, includeLocation: false })
+      const nextSession = data?.status === 'open' ? data : null
+      setSession(nextSession)
+      sessionRef.current = nextSession
+      markSynced('route-returns', null, Boolean(nextSession))
       return data
     } finally {
       setBusy(false)
     }
-  }, [captureCurrentLocation, touchSession])
+  }, [markSynced])
 
   const endSession = useCallback(async (payload = {}) => {
     if (!sessionRef.current?.id) {
@@ -295,105 +180,59 @@ export function TrackingProvider({ children }) {
 
     setBusy(true)
     try {
-      await captureCurrentLocation('session-close', sessionRef.current)
       const data = await closeRouteSession(sessionRef.current.id, payload)
-      setSession(data)
-      sessionRef.current = data
-      stopWatch()
-      await touchSession('session-close', { force: true, includeLocation: false })
+      clearSessionState()
+      markSynced('session-close', null, false)
       return data
     } finally {
       setBusy(false)
     }
-  }, [captureCurrentLocation, stopWatch, touchSession])
+  }, [clearSessionState, markSynced])
 
   const syncInteraction = useCallback(async (reason = 'interaction', options = {}) => {
-    const includeLocation = options.includeLocation ?? false
-    const refreshSessionAfter = options.refreshSession ?? false
-
-    if (includeLocation && sessionRef.current?.id && sessionRef.current?.status === 'open') {
-      await captureCurrentLocation(reason, sessionRef.current)
-    }
-
-    if (refreshSessionAfter) {
+    if (options.refreshSession) {
       await refreshSessionDetails()
+      return
     }
 
-    await touchSession(reason, {
-      force: options.force ?? true,
-      includeLocation: false,
-    })
-  }, [captureCurrentLocation, refreshSessionDetails, touchSession])
+    markSynced(reason, null, Boolean(sessionRef.current?.id && sessionRef.current?.status === 'open'))
+  }, [markSynced, refreshSessionDetails])
+
+  const captureCurrentLocation = useCallback(async () => null, [])
 
   useEffect(() => {
     if (!user || !isRep()) {
-      stopWatch()
-      setSession(null)
-      sessionRef.current = null
+      clearSessionState()
       setLoading(false)
-      setCurrentLocation(null)
-      setLocationPermission('undetermined')
-      lastSentRef.current = { at: 0, coords: null }
       return
     }
 
     refreshSession()
-    refreshPermission(false)
-  }, [user, isRep, refreshSession, refreshPermission, stopWatch])
+  }, [clearSessionState, isRep, refreshSession, user])
 
   useEffect(() => {
-    if (!user || !isRep() || !session?.id || session?.status !== 'open') {
-      stopWatch()
+    if (!user || !isRep()) {
       return undefined
     }
 
-    let cancelled = false
-
-    ;(async () => {
-      const permission = await refreshPermission(true)
-      if (permission !== 'granted' || cancelled) return
-
-      await captureCurrentLocation('watch-start', sessionRef.current)
-      const subscription = await watchLocation((location) => {
-        setCurrentLocation(location)
-        uploadLocation(location, 'watch', sessionRef.current)
-      })
-
-      if (cancelled) {
-        subscription?.remove?.()
-        return
-      }
-
-      watchRef.current = subscription
-      setTrackingState((prev) => ({
-        ...prev,
-        active: true,
-      }))
-    })()
-
-    return () => {
-      cancelled = true
-      stopWatch()
-    }
-  }, [user, isRep, session?.id, session?.status, captureCurrentLocation, refreshPermission, stopWatch, uploadLocation])
-
-  useEffect(() => {
-    if (!user || !isRep()) return undefined
-
     const sub = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {
-        refreshSession()
-        if (sessionRef.current?.id && sessionRef.current?.status === 'open') {
-          captureCurrentLocation('resume')
+        if (sessionRef.current?.id) {
+          refreshSessionDetails()
+          return
         }
+
+        refreshSession()
       }
     })
 
     return () => sub.remove()
-  }, [user, isRep, refreshSession, captureCurrentLocation])
+  }, [isRep, refreshSession, refreshSessionDetails, user])
 
   useEffect(() => {
-    if (!user || !isRep()) return undefined
+    if (!user || !isRep()) {
+      return undefined
+    }
 
     const interval = setInterval(() => {
       if (AppState.currentState !== 'active') {
@@ -409,16 +248,15 @@ export function TrackingProvider({ children }) {
     }, REMOTE_SESSION_SYNC_MS)
 
     return () => clearInterval(interval)
-  }, [user, isRep, refreshSession, refreshSessionDetails])
+  }, [isRep, refreshSession, refreshSessionDetails, user])
 
   const value = useMemo(() => ({
     session,
     loading,
     busy,
-    currentLocation,
-    locationPermission,
+    currentLocation: null,
+    locationPermission: 'disabled',
     trackingState,
-    refreshPermission,
     refreshSession,
     refreshSessionDetails,
     captureCurrentLocation,
@@ -428,21 +266,18 @@ export function TrackingProvider({ children }) {
     endSession,
     syncInteraction,
   }), [
-    session,
-    loading,
+    addLoad,
     busy,
-    currentLocation,
-    locationPermission,
-    trackingState,
-    refreshPermission,
+    captureCurrentLocation,
+    endSession,
+    loading,
+    recordReturns,
     refreshSession,
     refreshSessionDetails,
-    captureCurrentLocation,
+    session,
     startSession,
-    addLoad,
-    recordReturns,
-    endSession,
     syncInteraction,
+    trackingState,
   ])
 
   return (
@@ -455,4 +290,3 @@ export function TrackingProvider({ children }) {
 export function useTracking() {
   return useContext(TrackingContext)
 }
-

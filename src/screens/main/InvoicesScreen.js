@@ -219,10 +219,17 @@ export default function InvoicesScreen() {
           <View style={s.headerWrap}>
             <PageHeader
               title="Factures"
-              subtitle={session?.status === 'open' ? 'Session du jour active' : 'Suivi facture mobile'}
+              subtitle={session?.status === 'open' ? 'Session du jour active' : 'Ouvrez une session avant de facturer'}
               actionIcon="file-document-plus-outline"
               actionLabel="Nouvelle"
-              onActionPress={() => navigation.navigate('InvoiceCreate')}
+              onActionPress={() => {
+                if (session?.status !== 'open') {
+                  Alert.alert('Session requise', 'Ouvrez d’abord une session commerciale avant de créer une facture.')
+                  return
+                }
+
+                navigation.navigate('InvoiceCreate')
+              }}
             />
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.periodRow}>

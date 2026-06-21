@@ -19,6 +19,7 @@ import StatusChip from '../../components/StatusChip'
 import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
+import { filterPaymentMethodsByScope } from '../../utils/paymentMethodScopes'
 import { formatCurrency, formatNumber, toNumber } from '../../utils/format'
 
 function parseArray(data) {
@@ -42,7 +43,6 @@ export default function InvoiceCreateScreen({ navigation, route }) {
   const { canManageAllCustomers } = useAuth()
   const {
     session,
-    captureCurrentLocation,
     syncInteraction,
   } = useTracking()
   const initialCustomerAppliedRef = useRef(false)
@@ -84,15 +84,15 @@ export default function InvoiceCreateScreen({ navigation, route }) {
 
       const customerItems = sortByName(parseArray(customersResponse.data))
       const productItems = sortByName(parseArray(productsResponse.data))
-      const paymentItems = parseArray(paymentMethodsResponse.data)
+      const paymentItems = filterPaymentMethodsByScope(parseArray(paymentMethodsResponse.data), 'customer')
+      const availablePaymentMethods = paymentItems.length > 0
+        ? paymentItems
+        : [{ value: 'cash', display_label: 'Espèces' }]
 
       setCustomers(customerItems)
       setProducts(productItems)
-      setPaymentMethods(paymentItems.length > 0 ? paymentItems : [{
-        value: 'cash',
-        display_label: 'Espèces',
-      }])
-      setPaymentMethod(paymentItems.find((item) => item.is_default)?.value || paymentItems[0]?.value || 'cash')
+      setPaymentMethods(availablePaymentMethods)
+      setPaymentMethod(availablePaymentMethods.find((item) => item.is_default)?.value || availablePaymentMethods[0]?.value || 'cash')
       setCamionStock(camionResponse.data?.by_product_id ?? {})
     } catch (error) {
       Alert.alert('Chargement impossible', error.response?.data?.message || 'Les données mobiles ne sont pas accessibles.')
@@ -136,12 +136,19 @@ export default function InvoiceCreateScreen({ navigation, route }) {
 
   const filteredProducts = useMemo(() => {
     const q = productQuery.trim().toLowerCase()
-    if (!q) return products
-    return products.filter((item) => (
+    const visibleProducts = products.filter((item) => {
+      const camionQty = toNumber(camionStock[item.id])
+      const alreadySelected = lines.some((line) => Number(line.product_id) === Number(item.id))
+
+      return camionQty > 0 || alreadySelected
+    })
+
+    if (!q) return visibleProducts
+    return visibleProducts.filter((item) => (
       item.name?.toLowerCase().includes(q)
       || item.reference?.toLowerCase().includes(q)
     ))
-  }, [productQuery, products])
+  }, [camionStock, lines, productQuery, products])
 
   const subtotal = useMemo(() => lines.reduce((sum, item) => sum + lineTotal(item), 0), [lines])
   const paidValue = toNumber(paidAmount)
@@ -229,6 +236,11 @@ export default function InvoiceCreateScreen({ navigation, route }) {
   }
 
   const saveInvoice = async () => {
+    if (session?.status !== 'open') {
+      Alert.alert('Session requise', 'Ouvrez ou récupérez d’abord une session commerciale avant de créer une facture.')
+      return
+    }
+
     if (!selectedCustomer?.name) {
       Alert.alert('Client requis', 'Sélectionnez ou créez un client avant de continuer.')
       return
@@ -254,16 +266,6 @@ export default function InvoiceCreateScreen({ navigation, route }) {
     let shouldResetSaving = true
 
     try {
-      let currentLocation = null
-
-      try {
-        currentLocation = await captureCurrentLocation('invoice')
-      } catch {
-        currentLocation = null
-      }
-
-      const coords = currentLocation?.coords
-
       const response = await api.post('/invoices', {
         customer_id: selectedCustomer.id || null,
         customer_name: selectedCustomer.name,
@@ -274,9 +276,7 @@ export default function InvoiceCreateScreen({ navigation, route }) {
         tax_rate: 0,
         paid_amount: paidValue,
         payment_method: paymentMethod || 'cash',
-        route_session_id: session?.status === 'open' ? session.id : null,
-        latitude: coords?.latitude ?? null,
-        longitude: coords?.longitude ?? null,
+        route_session_id: session.id,
         lines: lines.map((item, index) => ({
           product_id: item.product_id,
           product_name: item.product_name,
@@ -323,7 +323,7 @@ export default function InvoiceCreateScreen({ navigation, route }) {
             title="Nouvelle facture"
             subtitle={session?.status === 'open'
               ? (hasGlobalCustomerAccess ? 'Session mobile active et base clients globale' : 'Session mobile active')
-              : 'Session non ouverte - facture quand même possible'}
+              : 'Session commerciale requise pour facturer'}
           />
 
           <View style={[s.sectionCard, cardShadow]}>
@@ -464,14 +464,14 @@ export default function InvoiceCreateScreen({ navigation, route }) {
             <View style={s.noticeWarning}>
               <MaterialCommunityIcons name="information-outline" size={18} color={T.warning} />
               <Text style={s.noticeWarningText}>
-                La facture sera envoyée sans session terrain ouverte. Ouvrez la session si vous voulez suivre la tournée et les chargements.
+                Aucune session commerciale ouverte. Ouvrez ou recuperez une session avant de facturer.
               </Text>
             </View>
           ) : (
             <View style={s.noticeInfo}>
-              <MaterialCommunityIcons name="crosshairs-gps" size={18} color={T.info} />
+              <MaterialCommunityIcons name="sync-circle" size={18} color={T.info} />
               <Text style={s.noticeInfoText}>
-                La facture utilisera la session #{session.id} et tentera de capturer la position GPS actuelle.
+                La facture sera rattachee a la session #{session.id} et synchronisera les ventes avec le web en temps reel.
               </Text>
             </View>
           )}
