@@ -296,7 +296,7 @@ function buildInvoiceBody(invoice) {
     <div class="totals">
       <div class="totals-row"><span>Sous-total</span><span>${escapeHtml(formatCurrency(invoice?.subtotal))}</span></div>
       <div class="totals-row"><span>TVA</span><span>${escapeHtml(formatCurrency(invoice?.tax_amount))}</span></div>
-      <div class="totals-row"><span>Paye</span><span>${escapeHtml(formatCurrency(invoice?.paid_amount))}</span></div>
+      <div class="totals-row"><span>Payé</span><span>${escapeHtml(formatCurrency(invoice?.paid_amount))}</span></div>
       <div class="totals-row strong"><span>Total</span><span>${escapeHtml(formatCurrency(invoice?.total))}</span></div>
     </div>
 
@@ -324,7 +324,7 @@ function buildInvoiceListBody({ invoices, subtitle }) {
       <table>
         <thead>
           <tr>
-            <th>Numero</th>
+            <th>Numéro</th>
             <th>Client</th>
             <th>Commercial</th>
             <th>Date</th>
@@ -346,7 +346,7 @@ function buildInvoiceListBody({ invoices, subtitle }) {
     </div>
 
     <div class="footer">
-      Rapport mobile genere le ${escapeHtml(formatDateTime(new Date().toISOString()))}.
+      Rapport mobile généré le ${escapeHtml(formatDateTime(new Date().toISOString()))}.
     </div>
   `
 }
@@ -384,7 +384,7 @@ function buildThermalInvoiceBody(invoice) {
     <div class="rule"></div>
     <div class="total-row"><span>Sous-total</span><span>${escapeHtml(formatCurrency(invoice?.subtotal))}</span></div>
     <div class="total-row"><span>TVA</span><span>${escapeHtml(formatCurrency(invoice?.tax_amount))}</span></div>
-    <div class="total-row"><span>Paye</span><span>${escapeHtml(formatCurrency(invoice?.paid_amount))}</span></div>
+    <div class="total-row"><span>Payé</span><span>${escapeHtml(formatCurrency(invoice?.paid_amount))}</span></div>
     <div class="total-row strong"><span>Total</span><span>${escapeHtml(formatCurrency(invoice?.total))}</span></div>
     <div class="footer">Sélectionnez votre application Bluetooth thermique.</div>
   `
@@ -413,7 +413,7 @@ function buildThermalInvoiceListBody({ invoices, subtitle }) {
         </div>
       </div>
     `).join('')}
-    <div class="footer">Export mobile pret pour votre application thermique.</div>
+    <div class="footer">Export mobile prêt pour votre application thermique.</div>
   `
 }
 
@@ -421,7 +421,7 @@ async function shareHtmlAsPdf(html, dialogTitle = 'Partager le PDF') {
   const file = await Print.printToFileAsync({ html, base64: false })
 
   if (!await Sharing.isAvailableAsync()) {
-    throw new Error('Le partage n est pas disponible sur cet appareil.')
+    throw new Error('Le partage n’est pas disponible sur cet appareil.')
   }
 
   await Sharing.shareAsync(file.uri, {
@@ -439,7 +439,7 @@ function invoiceTitle(invoice) {
 function invoiceSubtitle(invoice) {
   return invoice?.customer_name
     ? `${invoice.customer_name} - ${formatDateTime(invoice.created_at)}`
-    : 'Detail facture'
+    : 'Détail facture'
 }
 
 export async function printInvoiceDocument(invoice) {

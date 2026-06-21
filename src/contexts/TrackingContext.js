@@ -158,6 +158,7 @@ export function TrackingProvider({ children }) {
         const nextSession = {
           ...prev,
           latestLocation: saved,
+          latest_location: saved,
           locations_count: Number(prev.locations_count || 0) + 1,
         }
         sessionRef.current = nextSession
@@ -229,7 +230,7 @@ export function TrackingProvider({ children }) {
     } catch (error) {
       setTrackingState((prev) => ({
         ...prev,
-        error: error.response?.data?.message || error.message || 'Detail session indisponible.',
+        error: error.response?.data?.message || error.message || 'Détail session indisponible.',
       }))
       return activeSession
     } finally {

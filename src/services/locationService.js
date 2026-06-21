@@ -60,7 +60,7 @@ export async function requestForegroundPermission() {
 export async function getCurrentLocation(options = {}) {
   const enabled = await Location.hasServicesEnabledAsync()
   if (!enabled) {
-    throw new Error('Les services de localisation sont desactives sur cet appareil.')
+    throw new Error('Les services de localisation sont désactivés sur cet appareil.')
   }
 
   const preferCached = options.preferCached ?? true
@@ -150,7 +150,7 @@ export function getLocationValidationMessage(location) {
     return 'L emulateur utilise encore la position Android par defaut. Definissez une position en Tunisie.'
   }
 
-  return 'Position recue hors Tunisie. Verifiez les coordonnees GPS ou la position de l emulateur.'
+  return 'Position reçue hors Tunisie. Vérifiez les coordonnées GPS ou la position de l’émulateur.'
 }
 
 export function mapLocationToPayload(location) {

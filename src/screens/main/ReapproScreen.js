@@ -67,7 +67,7 @@ export default function ReapproScreen({ route }) {
       setCamionStockByProductId(camionResponse.data?.by_product_id ?? {})
       setError('')
     } catch (err) {
-      setError(err.response?.data?.message || 'Le module reappro n a pas pu etre charge.')
+      setError(err.response?.data?.message || 'Le module réappro n’a pas pu être chargé.')
     } finally {
       setRefreshing(false)
     }
@@ -123,7 +123,7 @@ export default function ReapproScreen({ route }) {
     if (payload.length === 0) {
       Alert.alert(
         mode === 'returns' ? 'Retours' : 'Reappro',
-        mode === 'returns' ? 'Ajoutez au moins une quantite de retour.' : 'Ajoutez au moins une quantite a charger.',
+        mode === 'returns' ? 'Ajoutez au moins une quantité de retour.' : 'Ajoutez au moins une quantité à charger.',
       )
       return
     }
@@ -136,7 +136,7 @@ export default function ReapproScreen({ route }) {
 
       if (blocked) {
         const product = products.find((entry) => entry.id === blocked.product_id)
-        Alert.alert('Stock depot insuffisant', `${product?.name || 'Produit'}: ${formatNumber(product?.depot_qty)} disponible(s).`)
+        Alert.alert('Stock dépôt insuffisant', `${product?.name || 'Produit'}: ${formatNumber(product?.depot_qty)} disponible(s).`)
         return
       }
     }
@@ -169,15 +169,15 @@ export default function ReapproScreen({ route }) {
       await load()
 
       Alert.alert(
-        mode === 'returns' ? 'Retours enregistres' : 'Chargement enregistre',
+        mode === 'returns' ? 'Retours enregistrés' : 'Chargement enregistré',
         mode === 'returns'
-          ? 'Les retours depot ont ete synchronises avec la session.'
-          : 'Le chargement depot vers camion a ete synchronise avec la session.',
+          ? 'Les retours dépôt ont été synchronisés avec la session.'
+          : 'Le chargement dépôt vers camion a été synchronisé avec la session.',
       )
     } catch (err) {
       Alert.alert(
         mode === 'returns' ? 'Retours impossibles' : 'Chargement impossible',
-        err.response?.data?.message || err.message || 'Veuillez reessayer.',
+        err.response?.data?.message || err.message || 'Veuillez réessayer.',
       )
     }
   }
@@ -194,11 +194,11 @@ export default function ReapproScreen({ route }) {
   if (!isRep()) {
     return (
       <ScrollView style={s.root} contentContainerStyle={s.content}>
-        <PageHeader title="Reappro camion" subtitle="Depot, camion et ecarts de tournee." />
+        <PageHeader title="Réappro camion" subtitle="Dépôt, camion et écarts de tournée." />
         <View style={[s.emptyCard, cardShadow]}>
           <MaterialCommunityIcons name="account-lock-outline" size={34} color={T.primary} />
           <Text style={s.emptyTitle}>Compte commercial requis</Text>
-          <Text style={s.emptyText}>Le reappro mobile est reserve au compte commercial qui porte la session terrain du jour.</Text>
+          <Text style={s.emptyText}>Le réappro mobile est réservé au compte commercial qui porte la session terrain du jour.</Text>
         </View>
       </ScrollView>
     )
@@ -211,8 +211,8 @@ export default function ReapproScreen({ route }) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.primary} />}
     >
       <PageHeader
-        title="Reappro camion"
-        subtitle="Depot, camion et ecarts lies a la session mobile."
+        title="Réappro camion"
+        subtitle="Dépôt, camion et écarts liés à la session mobile."
         actionIcon="map-marker-path"
         actionLabel="Session"
         onActionPress={() => navigation.navigate('Tabs', { screen: 'Session' })}
@@ -230,7 +230,7 @@ export default function ReapproScreen({ route }) {
           <MaterialCommunityIcons name="truck-fast-outline" size={34} color={T.primary} />
           <Text style={s.emptyTitle}>Session ouverte requise</Text>
           <Text style={s.emptyText}>
-            Ouvrez d abord la session du jour avec un camion physique pour declarer les chargements et retours.
+            Ouvrez d’abord la session du jour avec un camion physique pour déclarer les chargements et retours.
           </Text>
           <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Tabs', { screen: 'Session' })}>
             <Text style={s.primaryButtonText}>Ouvrir Session</Text>
@@ -245,7 +245,7 @@ export default function ReapproScreen({ route }) {
                 <Text style={s.heroSubtitle}>
                   {session.camion?.name
                     ? `${session.camion.name}${session.camion?.plate ? ` | ${session.camion.plate}` : ''}`
-                    : 'Camion physique non affecte'}
+                    : 'Camion physique non affecté'}
                 </Text>
               </View>
               <StatusChip label="Session ouverte" tone="success" />
@@ -261,7 +261,7 @@ export default function ReapproScreen({ route }) {
                 <Text style={s.factValue}>{formatNumber((session.lines ?? []).length, 0)}</Text>
               </View>
               <View style={s.factItem}>
-                <Text style={s.factLabel}>Derniere sync</Text>
+                <Text style={s.factLabel}>Dernière sync</Text>
                 <Text style={s.factValue}>{formatDateTime(session.updated_at)}</Text>
               </View>
             </View>
@@ -269,7 +269,7 @@ export default function ReapproScreen({ route }) {
             <View style={s.noticeCard}>
               <MaterialCommunityIcons name="sync-circle" size={18} color={T.info} />
               <Text style={s.noticeText}>
-                Chaque validation met a jour la session mobile, le stock camion du compte et les notifications cote plateforme.
+                Chaque validation met à jour la session mobile, le stock camion du compte et les notifications côté plateforme.
               </Text>
             </View>
           </View>
@@ -294,7 +294,7 @@ export default function ReapproScreen({ route }) {
 
             <TextInput
               style={s.searchInput}
-              placeholder={mode === 'returns' ? 'Rechercher un produit charge' : 'Rechercher un produit du depot'}
+              placeholder={mode === 'returns' ? 'Rechercher un produit chargé' : 'Rechercher un produit du dépôt'}
               placeholderTextColor={T.textMuted}
               value={search}
               onChangeText={setSearch}
@@ -305,11 +305,11 @@ export default function ReapproScreen({ route }) {
             ) : filteredProducts.length === 0 ? (
               <View style={s.emptyInline}>
                 <MaterialCommunityIcons name="package-variant-closed" size={28} color={T.textMuted} />
-                <Text style={s.emptyInlineTitle}>{mode === 'returns' ? 'Aucun produit a retourner' : 'Aucun produit disponible'}</Text>
+                <Text style={s.emptyInlineTitle}>{mode === 'returns' ? 'Aucun produit à retourner' : 'Aucun produit disponible'}</Text>
                 <Text style={s.emptyInlineText}>
                   {mode === 'returns'
-                    ? 'Les retours apparaissent seulement pour les produits deja engages dans la session.'
-                    : 'Essayez une autre recherche ou attendez un nouveau stock depot.'}
+                    ? 'Les retours apparaissent seulement pour les produits déjà engagés dans la session.'
+                    : 'Essayez une autre recherche ou attendez un nouveau stock dépôt.'}
                 </Text>
               </View>
             ) : (

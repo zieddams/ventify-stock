@@ -63,7 +63,7 @@ function MobileTabs() {
             Clients: focused ? 'account-group' : 'account-group-outline',
             Factures: focused ? 'file-document-multiple' : 'file-document-multiple-outline',
             Session: focused ? 'map-marker-path' : 'map-marker-path',
-            Reglages: focused ? 'cog' : 'cog-outline',
+            Réglages: focused ? 'cog' : 'cog-outline',
           }
 
           return <MaterialCommunityIcons name={icons[route.name]} size={21} color={color} />
@@ -73,7 +73,7 @@ function MobileTabs() {
       <Tab.Screen name="Clients" getComponent={getCustomersScreen} options={{ title: 'Clients' }} />
       <Tab.Screen name="Factures" getComponent={getInvoicesScreen} options={{ title: 'Factures' }} />
       <Tab.Screen name="Session" getComponent={getRouteSessionScreen} options={{ title: 'Session' }} />
-      <Tab.Screen name="Reglages" getComponent={getProfileScreen} options={{ title: 'Reglages' }} />
+      <Tab.Screen name="Réglages" getComponent={getProfileScreen} options={{ title: 'Réglages' }} />
     </Tab.Navigator>
   )
 }
@@ -101,9 +101,9 @@ function AppStack() {
         options={{ headerShown: false }}
       />
       <Stack.Screen name="InvoiceCreate" getComponent={getInvoiceCreateScreen} options={{ title: 'Nouvelle facture' }} />
-      <Stack.Screen name="InvoiceDetail" getComponent={getInvoiceDetailScreen} options={{ title: 'Detail facture' }} />
-      <Stack.Screen name="Reappro" getComponent={getReapproScreen} options={{ title: 'Reappro camion' }} />
-      <Stack.Screen name="Profile" getComponent={getProfileScreen} options={{ title: 'Reglages mobiles' }} />
+      <Stack.Screen name="InvoiceDetail" getComponent={getInvoiceDetailScreen} options={{ title: 'Détail facture' }} />
+      <Stack.Screen name="Reappro" getComponent={getReapproScreen} options={{ title: 'Réappro camion' }} />
+      <Stack.Screen name="Profile" getComponent={getProfileScreen} options={{ title: 'Réglages mobiles' }} />
     </Stack.Navigator>
   )
 }

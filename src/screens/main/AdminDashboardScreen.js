@@ -77,7 +77,7 @@ export default function AdminDashboardScreen() {
                 <MetricCard
                   label="CA aujourd'hui"
                   value={formatCurrency(stats.today_revenue)}
-                  hint="Mise a jour auto chaque minute"
+                  hint="Mise à jour auto chaque minute"
                   icon="cash-multiple"
                   color={T.primary}
                 />
@@ -91,7 +91,7 @@ export default function AdminDashboardScreen() {
 
               <View style={s.grid}>
                 <MetricCard
-                  label="Benefice"
+                  label="Bénéfice"
                   value={formatCurrency(stats.month_profit)}
                   icon="trending-up"
                   color={T.success}

@@ -20,7 +20,7 @@ import { formatCount, formatCurrency, formatDateTime, formatNumber, toNumber } f
 
 function sessionLabel(routeSession) {
   if (!routeSession) return 'Sans session'
-  return routeSession.status === 'open' ? 'Session ouverte' : 'Session cloturee'
+  return routeSession.status === 'open' ? 'Session ouverte' : 'Session clôturée'
 }
 
 export default function CamionScreen() {
@@ -99,7 +99,7 @@ export default function CamionScreen() {
           <View style={s.headerWrap}>
             <PageHeader
               title="Mon camion"
-              subtitle={session?.status === 'open' ? 'Session ouverte : chargements audites' : 'Stock embarque du jour'}
+              subtitle={session?.status === 'open' ? 'Session ouverte : chargements audités' : 'Stock embarqué du jour'}
               actionIcon="map-marker-path"
               actionLabel={session?.status === 'open' ? 'Session' : 'Ouvrir'}
               onActionPress={() => navigation.navigate('Session')}
@@ -112,7 +112,7 @@ export default function CamionScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.assignmentLabel}>Camion physique</Text>
-                  <Text style={s.assignmentTitle}>{configuredCamion?.name || 'Aucun camion assigne'}</Text>
+                  <Text style={s.assignmentTitle}>{configuredCamion?.name || 'Aucun camion assigné'}</Text>
                   <Text style={s.assignmentMeta}>
                     {configuredCamion?.plate
                       ? `Immatriculation ${configuredCamion.plate}`
@@ -168,7 +168,7 @@ export default function CamionScreen() {
               />
               <View style={[s.banner, cardShadow]}>
                 <StatusChip
-                  label={session?.status === 'open' ? 'Audit actif' : 'Session fermee'}
+                  label={session?.status === 'open' ? 'Audit actif' : 'Session fermée'}
                   tone={session?.status === 'open' ? 'success' : 'warning'}
                 />
                 <Text style={s.bannerTitle}>Chargement et retours</Text>

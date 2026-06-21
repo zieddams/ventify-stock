@@ -103,7 +103,7 @@ export function AuthProvider({ children }) {
     } catch (error) {
       setSessionStatus((prev) => ({
         ...prev,
-        error: error.response?.data?.message || error.message || 'Presence indisponible.',
+        error: error.response?.data?.message || error.message || 'Présence indisponible.',
       }))
       return false
     } finally {

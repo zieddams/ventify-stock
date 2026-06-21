@@ -39,22 +39,21 @@ function sameCalendarDate(left, right = new Date()) {
     && leftDate.getFullYear() === right.getFullYear()
 }
 
-function locationText(location) {
-  const source = location?.coords ?? location
-  if (!Number.isFinite(source?.latitude) || !Number.isFinite(source?.longitude)) return 'Aucune position capturee.'
-  return `${source.latitude.toFixed(5)}, ${source.longitude.toFixed(5)}`
+function sessionHint(session, configuredCamion) {
+  if (!session) {
+    return 'Aucune session active'
+  }
+
+  const camionLabel = session.camion?.name || configuredCamion?.name || 'Camion non défini'
+  const openedLabel = session.opened_at ? formatTime(session.opened_at) : 'heure inconnue'
+
+  return `${camionLabel} · ${openedLabel}`
 }
 
 export default function DashboardScreen() {
   const navigation = useNavigation()
   const { user, isRep } = useAuth()
-  const {
-    session,
-    currentLocation,
-    locationPermission,
-    trackingState,
-    refreshSession,
-  } = useTracking()
+  const { session, refreshSession } = useTracking()
 
   const [invoices, setInvoices] = useState([])
   const [stock, setStock] = useState([])
@@ -64,7 +63,9 @@ export default function DashboardScreen() {
   const [error, setError] = useState('')
 
   const load = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true)
+    if (isRefresh) {
+      setRefreshing(true)
+    }
 
     try {
       const [invoiceResponse, camionResponse] = await Promise.all([
@@ -83,7 +84,7 @@ export default function DashboardScreen() {
       setConfiguredCamion(camionResponse.data?.configured_camion ?? null)
       setError('')
     } catch (err) {
-      setError(err.response?.data?.message || 'Le tableau de bord mobile n a pas pu etre charge.')
+      setError(err.response?.data?.message || 'Le tableau de bord mobile n’a pas pu être chargé.')
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -93,6 +94,7 @@ export default function DashboardScreen() {
   useFocusEffect(useCallback(() => {
     load()
     const interval = setInterval(() => load(), 45000)
+
     return () => clearInterval(interval)
   }, [load]))
 
@@ -116,7 +118,6 @@ export default function DashboardScreen() {
     return toNumber(item.qty) <= minStock
   }).length, [stock])
 
-  const latestLocation = currentLocation?.coords ? currentLocation : session?.latestLocation
   const sessionTone = !session
     ? 'warning'
     : session.status === 'open'
@@ -131,10 +132,10 @@ export default function DashboardScreen() {
     >
       <PageHeader
         title={`Bonjour ${firstName(user?.name)}`}
-        subtitle="Votre espace mobile commercial"
+        subtitle="Votre espace commercial"
         actionIcon="cog-outline"
-        actionLabel="Reglages"
-        onActionPress={() => navigation.navigate('Reglages')}
+        actionLabel="Réglages"
+        onActionPress={() => navigation.navigate('Réglages')}
       />
 
       {!!error && (
@@ -147,9 +148,9 @@ export default function DashboardScreen() {
       <View style={[s.heroCard, cardShadow]}>
         <View style={s.heroTop}>
           <View style={{ flex: 1 }}>
-            <Text style={s.heroTitle}>Mon activite du jour</Text>
+            <Text style={s.heroTitle}>Ma journée</Text>
             <Text style={s.heroSubtitle}>
-              Facturation mobile, session commerciale et stock camion lies a votre compte courant.
+              L’écran d’accueil reste volontairement simple. Les détails système et GPS restent réservés au back-office.
             </Text>
           </View>
           <StatusChip
@@ -160,23 +161,23 @@ export default function DashboardScreen() {
 
         {!isRep() ? (
           <View style={s.infoBlock}>
-            <Text style={s.infoBlockTitle}>Mode terrain reserve au compte commercial</Text>
+            <Text style={s.infoBlockTitle}>Compte commercial requis</Text>
             <Text style={s.infoBlockText}>
-              Ce compte peut consulter les donnees mobiles, mais l ouverture et la gestion d une session doivent etre testees avec un compte commercial.
+              Ce compte peut consulter les données mobiles, mais l’ouverture et la gestion terrain restent réservées au commercial.
             </Text>
           </View>
         ) : !session ? (
           <>
             <Text style={s.heroText}>
-              Aucune session ouverte pour aujourd hui. Choisissez le camion reel et le chargement initial pour demarrer la session.
+              Aucune session n’est active pour aujourd’hui. Choisissez le camion réel puis chargez le stock initial pour démarrer.
             </Text>
             <View style={s.heroActions}>
               <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Session')} activeOpacity={0.85}>
                 <MaterialCommunityIcons name="truck-fast-outline" size={18} color="#fff" />
-                <Text style={s.primaryButtonText}>Demarrer la session</Text>
+                <Text style={s.primaryButtonText}>Démarrer une session</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Session')}>
-                <Text style={s.secondaryButtonText}>Voir le module session</Text>
+              <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Clients')}>
+                <Text style={s.secondaryButtonText}>Voir mes clients</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -184,47 +185,34 @@ export default function DashboardScreen() {
           <>
             <View style={s.factGrid}>
               <View style={s.factItem}>
-                <Text style={s.factLabel}>Ouverte</Text>
+                <Text style={s.factLabel}>Ouverture</Text>
                 <Text style={s.factValue}>{formatTime(session.opened_at)}</Text>
               </View>
               <View style={s.factItem}>
                 <Text style={s.factLabel}>Camion</Text>
-                <Text style={s.factValue}>{session.camion?.name || configuredCamion?.name || 'A definir'}</Text>
+                <Text style={s.factValue}>{session.camion?.name || configuredCamion?.name || 'À définir'}</Text>
               </View>
               <View style={s.factItem}>
-                <Text style={s.factLabel}>Sync</Text>
-                <Text style={s.factValue}>{locationPermission === 'granted' ? 'OK' : 'A valider'}</Text>
+                <Text style={s.factLabel}>Mise à jour</Text>
+                <Text style={s.factValue}>{session.updated_at ? formatTime(session.updated_at) : '--'}</Text>
               </View>
             </View>
 
-            <View style={s.bannerRow}>
-              <StatusChip
-                label={trackingState.active ? 'Synchronisation active' : 'Synchronisation en attente'}
-                tone={trackingState.active ? 'success' : 'warning'}
-              />
-              <StatusChip
-                label={trackingState.lastSyncAt ? `Sync ${formatTime(trackingState.lastSyncAt)}` : 'Sync auto'}
-                tone={trackingState.lastSyncAt ? 'info' : 'neutral'}
-              />
-            </View>
-
-            <View style={s.locationCard}>
-              <Text style={s.locationLabel}>Derniere position synchronisee</Text>
-              <Text style={s.locationValue}>{locationText(latestLocation)}</Text>
-              <Text style={s.locationMeta}>
-                {session.latestLocation?.recorded_at
-                  ? `Serveur: ${formatDateTime(session.latestLocation.recorded_at)}`
-                  : 'La prochaine position sera envoyee au prochain releve.'}
+            <View style={s.sessionSummaryCard}>
+              <Text style={s.sessionSummaryLabel}>Session active</Text>
+              <Text style={s.sessionSummaryValue}>{sessionHint(session, configuredCamion)}</Text>
+              <Text style={s.sessionSummaryMeta}>
+                Les ventes, recharges et mouvements restent synchronisés avec la plateforme web en arrière-plan.
               </Text>
             </View>
 
             <View style={s.heroActions}>
               <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Session')}>
-                <MaterialCommunityIcons name="map-marker-path" size={18} color="#fff" />
-                <Text style={s.primaryButtonText}>Gerer la session</Text>
+                <MaterialCommunityIcons name="clipboard-list-outline" size={18} color="#fff" />
+                <Text style={s.primaryButtonText}>Gérer la session</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Reappro')}>
-                <Text style={s.secondaryButtonText}>Reappro camion</Text>
+                <Text style={s.secondaryButtonText}>Recharger le camion</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -233,14 +221,14 @@ export default function DashboardScreen() {
 
       <View style={s.grid}>
         <MetricCard
-          label="Factures jour"
+          label="Factures du jour"
           value={formatCount(todayInvoices.length)}
           hint={formatCurrency(todayRevenue)}
           icon="file-document-outline"
           color={T.primary}
         />
         <MetricCard
-          label="Factures mois"
+          label="Factures du mois"
           value={formatCount(invoices.length)}
           hint={formatCurrency(monthRevenue)}
           icon="calendar-month-outline"
@@ -257,11 +245,11 @@ export default function DashboardScreen() {
           color={lowStockCount > 0 ? T.warning : T.primaryDark}
         />
         <MetricCard
-          label="Derniere sync"
-          value={trackingState.lastSyncAt ? formatTime(trackingState.lastSyncAt) : '--'}
-          hint={trackingState.error || 'Session et suivi auto en arriere-plan'}
-          icon="crosshairs-gps"
-          color={trackingState.error ? T.warning : T.success}
+          label="Session du jour"
+          value={session ? routeStatusLabel(session.status) : '--'}
+          hint={sessionHint(session, configuredCamion)}
+          icon="clock-outline"
+          color={session ? T.success : T.textMuted}
         />
       </View>
 
@@ -291,7 +279,7 @@ export default function DashboardScreen() {
 
       <View style={[s.sectionCard, cardShadow]}>
         <View style={s.sectionHeaderRow}>
-          <Text style={s.sectionTitle}>Dernieres factures</Text>
+          <Text style={s.sectionTitle}>Dernières factures</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Factures')}>
             <Text style={s.linkText}>Tout voir</Text>
           </TouchableOpacity>
@@ -300,7 +288,7 @@ export default function DashboardScreen() {
         {loading && invoices.length === 0 ? (
           <ActivityIndicator color={T.primary} style={{ marginVertical: 24 }} />
         ) : invoices.length === 0 ? (
-          <Text style={s.emptyText}>Aucune facture enregistree pour ce compte.</Text>
+          <Text style={s.emptyText}>Aucune facture enregistrée pour ce compte.</Text>
         ) : (
           invoices.slice(0, 5).map((item) => (
             <TouchableOpacity
@@ -316,7 +304,7 @@ export default function DashboardScreen() {
               <View style={{ alignItems: 'flex-end', gap: 6 }}>
                 <Text style={s.invoiceTotal}>{formatCurrency(item.total)}</Text>
                 <StatusChip
-                  label={item.payment_status === 'paid' ? 'Reglee' : 'A suivre'}
+                  label={item.payment_status === 'paid' ? 'Réglée' : 'À suivre'}
                   tone={item.payment_status === 'paid' ? 'success' : 'warning'}
                 />
               </View>
@@ -421,35 +409,6 @@ const s = StyleSheet.create({
     fontWeight: '800',
     color: T.text,
   },
-  bannerRow: {
-    flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap',
-    marginTop: 14,
-  },
-  locationCard: {
-    marginTop: 14,
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: '#f0fdfa',
-    borderWidth: 1,
-    borderColor: '#99f6e4',
-  },
-  locationLabel: {
-    fontSize: 12,
-    color: T.textMuted,
-  },
-  locationValue: {
-    marginTop: 6,
-    fontSize: 16,
-    fontWeight: '800',
-    color: T.primaryDark,
-  },
-  locationMeta: {
-    marginTop: 4,
-    fontSize: 12,
-    color: T.textSecondary,
-  },
   infoBlock: {
     marginTop: 16,
     padding: 14,
@@ -467,6 +426,29 @@ const s = StyleSheet.create({
     marginTop: 6,
     fontSize: 13,
     lineHeight: 19,
+    color: T.textSecondary,
+  },
+  sessionSummaryCard: {
+    marginTop: 14,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
+  sessionSummaryLabel: {
+    fontSize: 12,
+    color: T.textMuted,
+  },
+  sessionSummaryValue: {
+    marginTop: 6,
+    fontSize: 16,
+    fontWeight: '800',
+    color: T.primaryDark,
+  },
+  sessionSummaryMeta: {
+    marginTop: 4,
+    fontSize: 12,
     color: T.textSecondary,
   },
   grid: {
@@ -570,4 +552,3 @@ const s = StyleSheet.create({
     color: T.danger,
   },
 })
-

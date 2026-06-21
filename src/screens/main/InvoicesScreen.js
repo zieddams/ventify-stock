@@ -121,7 +121,7 @@ export default function InvoicesScreen() {
       if (selectedRepId && selectedRep) {
         parts.push(`Compte: ${selectedRep.name}`)
       } else {
-        parts.push('Compte: Toute l equipe')
+        parts.push('Compte : Toute l’équipe')
       }
     } else if (user?.name) {
       parts.push(`Compte: ${user.name}`)
@@ -244,7 +244,7 @@ export default function InvoicesScreen() {
                 <TouchableOpacity style={s.toolButtonWide} onPress={() => setRepFilterVisible(true)}>
                   <MaterialCommunityIcons name="account-filter-outline" size={16} color={T.primary} />
                   <Text style={s.toolButtonLabel} numberOfLines={1}>
-                    {selectedRep ? selectedRep.name : 'Toute l equipe'}
+                    {selectedRep ? selectedRep.name : 'Toute l’équipe'}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -284,7 +284,7 @@ export default function InvoicesScreen() {
             </View>
 
             <Text style={s.filterHint}>{filterSummary}</Text>
-            <Text style={s.printHint}>Thermique ouvre votre application Bluetooth externe. PDF garde une copie a partager.</Text>
+            <Text style={s.printHint}>Thermique ouvre votre application Bluetooth externe. PDF garde une copie à partager.</Text>
           </View>
         )}
         ListEmptyComponent={(
@@ -318,7 +318,7 @@ export default function InvoicesScreen() {
               setSelectedRepId('')
               setRepFilterVisible(false)
             }}>
-            <Text style={s.filterOptionTitle}>Toute l equipe</Text>
+            <Text style={s.filterOptionTitle}>Toute l’équipe</Text>
             <Text style={s.filterOptionMeta}>Afficher toutes les factures disponibles</Text>
           </TouchableOpacity>
 

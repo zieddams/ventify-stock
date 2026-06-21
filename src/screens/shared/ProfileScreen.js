@@ -55,7 +55,7 @@ export default function ProfileScreen() {
   const [installingUpdate, setInstallingUpdate] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState(null)
 
-  const currentVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || '1.3.6'
+  const currentVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || '1.3.7'
   const buildVersion = Constants.nativeBuildVersion || String(Constants.expoConfig?.android?.versionCode ?? '')
 
   useEffect(() => {
@@ -74,7 +74,7 @@ export default function ProfileScreen() {
       setReleaseError('')
       return release || null
     } catch (error) {
-      const message = describeApiError(error, 'Verification des mises a jour indisponible.')
+      const message = describeApiError(error, 'Vérification des mises à jour indisponible.')
       setReleaseError(message)
       return null
     } finally {
@@ -118,9 +118,9 @@ export default function ProfileScreen() {
         email: email.trim(),
       })
       await refreshUser()
-      Alert.alert('Profil', 'Vos informations ont ete mises a jour.')
+      Alert.alert('Profil', 'Vos informations ont été mises à jour.')
     } catch (error) {
-      Alert.alert('Profil', describeApiError(error, 'Mise a jour impossible.'))
+      Alert.alert('Profil', describeApiError(error, 'Mise à jour impossible.'))
     } finally {
       setSavingProfile(false)
     }
@@ -148,7 +148,7 @@ export default function ProfileScreen() {
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
-      Alert.alert('Mot de passe', 'Votre mot de passe a ete mis a jour.')
+      Alert.alert('Mot de passe', 'Votre mot de passe a été mis à jour.')
     } catch (error) {
       Alert.alert('Mot de passe', describeApiError(error, 'Changement impossible.'))
     } finally {
@@ -165,7 +165,7 @@ export default function ProfileScreen() {
 
     const comparison = compareReleaseVersions(release.version, currentVersion)
     if (comparison <= 0) {
-      Alert.alert('Application', 'Cette version est deja a jour.')
+      Alert.alert('Application', 'Cette version est déjà à jour.')
       return
     }
 
@@ -180,7 +180,7 @@ export default function ProfileScreen() {
         onProgress: setDownloadProgress,
       })
     } catch (error) {
-      Alert.alert('Mise a jour', describeApiError(error, 'Installation impossible.'))
+      Alert.alert('Mise à jour', describeApiError(error, 'Installation impossible.'))
     } finally {
       setInstallingUpdate(false)
     }
@@ -196,8 +196,8 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={s.root} contentContainerStyle={s.content}>
       <PageHeader
-        title="Reglages mobiles"
-        subtitle="Compte, session, tracking et mise a jour."
+        title="Réglages mobiles"
+        subtitle="Compte, session, tracking et mise à jour."
       />
 
       <View style={[s.heroCard, cardShadow]}>
@@ -219,7 +219,7 @@ export default function ProfileScreen() {
             tone={trackingState.active ? 'success' : 'warning'}
           />
           <StatusChip
-            label={locationPermission === 'granted' ? 'GPS autorise' : 'GPS a verifier'}
+            label={locationPermission === 'granted' ? 'GPS autorisé' : 'GPS à vérifier'}
             tone={locationPermission === 'granted' ? 'success' : 'warning'}
           />
         </View>
@@ -299,7 +299,7 @@ export default function ProfileScreen() {
         <View style={s.sectionHeaderRow}>
           <Text style={s.sectionTitle}>Application</Text>
           <TouchableOpacity style={s.secondaryInlineButton} onPress={() => loadLatestRelease()}>
-            {checkingRelease ? <ActivityIndicator size="small" color={T.primary} /> : <Text style={s.secondaryInlineButtonText}>Verifier</Text>}
+            {checkingRelease ? <ActivityIndicator size="small" color={T.primary} /> : <Text style={s.secondaryInlineButtonText}>Vérifier</Text>}
           </TouchableOpacity>
         </View>
 
@@ -308,12 +308,12 @@ export default function ProfileScreen() {
           <Text style={s.infoValue}>{currentVersion}{buildVersion ? ` (${buildVersion})` : ''}</Text>
         </View>
         <View style={s.infoRow}>
-          <Text style={s.infoLabel}>Derniere release</Text>
+          <Text style={s.infoLabel}>Dernière release</Text>
           <Text style={s.infoValue}>{latestRelease?.version || '--'}</Text>
         </View>
         <View style={s.infoRow}>
           <Text style={s.infoLabel}>Etat</Text>
-          <Text style={s.infoValue}>{hasUpdate ? 'Mise a jour disponible' : 'Application a jour'}</Text>
+          <Text style={s.infoValue}>{hasUpdate ? 'Mise à jour disponible' : 'Application à jour'}</Text>
         </View>
 
         {!!releaseError && <Text style={s.inlineError}>{releaseError}</Text>}
@@ -324,10 +324,10 @@ export default function ProfileScreen() {
             onPress={handleInstallUpdate}
             disabled={!hasUpdate || installingUpdate}
           >
-            {installingUpdate ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>Telecharger et installer</Text>}
+            {installingUpdate ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>Télécharger et installer</Text>}
           </TouchableOpacity>
         ) : (
-          <Text style={s.helperText}>L installation integree est reservee a Android.</Text>
+          <Text style={s.helperText}>L’installation intégrée est réservée à Android.</Text>
         )}
 
         {downloadProgress ? (
@@ -356,7 +356,7 @@ export default function ProfileScreen() {
           <Text style={s.infoValue}>{sessionStatus.lastPingAt ? formatDateTime(sessionStatus.lastPingAt) : '--'}</Text>
         </View>
         <View style={s.infoRow}>
-          <Text style={s.infoLabel}>Derniere sync tracking</Text>
+          <Text style={s.infoLabel}>Dernière sync tracking</Text>
           <Text style={s.infoValue}>{trackingState.lastSyncAt ? formatDateTime(trackingState.lastSyncAt) : '--'}</Text>
         </View>
 

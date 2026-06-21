@@ -150,7 +150,7 @@ export default function InvoiceDetailScreen({ route }) {
           <Text style={s.amountTotal}>{formatCurrency(invoice?.total)}</Text>
         </View>
         <View style={s.amountRow}>
-          <Text style={s.amountLabel}>Paye</Text>
+          <Text style={s.amountLabel}>Payé</Text>
           <Text style={s.amountValue}>{formatCurrency(invoice?.paid_amount)}</Text>
         </View>
       </View>
@@ -163,7 +163,7 @@ export default function InvoiceDetailScreen({ route }) {
         </View>
         <View style={s.infoRow}>
           <MaterialCommunityIcons name="phone-outline" size={18} color={T.primary} />
-          <Text style={s.infoText}>{invoice?.customer_phone || 'Aucun numero'}</Text>
+          <Text style={s.infoText}>{invoice?.customer_phone || 'Aucun numéro'}</Text>
         </View>
         <View style={s.infoRow}>
           <MaterialCommunityIcons name="map-marker-outline" size={18} color={T.primary} />

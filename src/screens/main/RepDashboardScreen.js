@@ -72,7 +72,7 @@ export default function RepDashboardScreen() {
       setStock(Array.isArray(stockResponse.data?.stock) ? stockResponse.data.stock : [])
       setError('')
     } catch (err) {
-      setError(err.response?.data?.message || 'Le tableau de bord mobile n a pas pu etre charge.')
+      setError(err.response?.data?.message || 'Le tableau de bord mobile n’a pas pu être chargé.')
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -143,7 +143,7 @@ export default function RepDashboardScreen() {
           <View style={{ flex: 1 }}>
             <Text style={s.heroTitle}>Session du jour</Text>
             <Text style={s.heroSubtitle}>
-              Presence mobile, GPS et camion reel relies a la tournee active.
+              Présence mobile, GPS et camion réel reliés à la tournée active.
             </Text>
           </View>
           <StatusChip
@@ -206,12 +206,12 @@ export default function RepDashboardScreen() {
             </View>
 
             <View style={s.camionCard}>
-              <Text style={s.locationLabel}>Camion assigne</Text>
-              <Text style={s.camionValue}>{session.camion?.name || 'Aucun camion assigne'}</Text>
+              <Text style={s.locationLabel}>Camion assigné</Text>
+              <Text style={s.camionValue}>{session.camion?.name || 'Aucun camion assigné'}</Text>
               <Text style={s.locationMeta}>
                 {session.camion?.plate
                   ? `Immatriculation ${session.camion.plate}`
-                  : 'Ouvrez le module Session & GPS pour affecter le camion reel.'}
+                  : 'Ouvrez le module Session & GPS pour affecter le camion réel.'}
               </Text>
             </View>
 

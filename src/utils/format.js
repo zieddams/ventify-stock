@@ -61,7 +61,7 @@ export function routeStatusLabel(status) {
   const value = unwrapStatus(status)
   const map = {
     open: 'Ouverte',
-    closed: 'Cloturee',
+    closed: 'Clôturée',
   }
   return map[value] ?? 'Inconnue'
 }
@@ -70,9 +70,9 @@ export function invoiceStatusLabel(status) {
   const value = unwrapStatus(status)
   const map = {
     draft: 'Brouillon',
-    sent: 'Envoyee',
-    paid: 'Payee',
-    cancelled: 'Annulee',
+    sent: 'Envoyée',
+    paid: 'Payée',
+    cancelled: 'Annulée',
   }
   return map[value] ?? 'Brouillon'
 }
@@ -82,7 +82,7 @@ export function paymentStatusLabel(status) {
   const map = {
     unpaid: 'Impayée',
     partial: 'Partielle',
-    paid: 'Payee',
+    paid: 'Payée',
   }
   return map[value] ?? 'Impayée'
 }

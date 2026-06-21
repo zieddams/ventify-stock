@@ -42,7 +42,7 @@ export async function downloadAndLaunchApkUpdate({ url, version, expectedBytes, 
   }
 
   if (!url) {
-    throw new Error('Aucun fichier APK n est disponible pour cette release.')
+    throw new Error('Aucun fichier APK n’est disponible pour cette release.')
   }
 
   const directory = getDownloadDirectory()
@@ -81,7 +81,7 @@ export async function downloadAndLaunchApkUpdate({ url, version, expectedBytes, 
   const fileInfo = await FileSystem.getInfoAsync(result.uri)
 
   if (!fileInfo?.exists) {
-    throw new Error('Le fichier APK telecharge est introuvable.')
+    throw new Error('Le fichier APK téléchargé est introuvable.')
   }
 
   if (Number.isFinite(expectedBytes) && expectedBytes > 0) {

@@ -102,7 +102,7 @@ export default function CustomersScreen() {
       setCustomers((current) => sortByName([...current, response.data]))
       await syncInteraction('customer-create', { includeLocation: false, refreshSession: false })
       resetCreateForm()
-      Alert.alert('Client cree', 'Le client est maintenant disponible sur le mobile et sur le web.')
+      Alert.alert('Client créé', 'Le client est maintenant disponible sur le mobile et sur le web.')
     } catch (error) {
       setCreating(false)
       Alert.alert('Création impossible', error.response?.data?.message || 'Veuillez réessayer.')
@@ -145,7 +145,7 @@ export default function CustomersScreen() {
                       color={mapped ? '#047857' : '#b45309'}
                     />
                     <Text style={[s.badgeText, mapped ? s.badgeTextSuccess : s.badgeTextWarning]}>
-                      {mapped ? 'Carte OK' : 'A geolocaliser'}
+                      {mapped ? 'Carte OK' : 'À géolocaliser'}
                     </Text>
                   </View>
                   {hasCredit && (
@@ -182,7 +182,7 @@ export default function CustomersScreen() {
               <MaterialCommunityIcons name="magnify" size={18} color={T.textMuted} />
               <TextInput
                 style={s.searchInput}
-                placeholder="Rechercher un client ou un proprietaire"
+                placeholder="Rechercher un client ou un propriétaire"
                 placeholderTextColor={T.textMuted}
                 value={search}
                 onChangeText={setSearch}
@@ -190,7 +190,7 @@ export default function CustomersScreen() {
             </View>
 
             <Text style={s.scopeHint}>
-              Les commerciaux voient seulement leur liste. Les comptes globaux voient tous les clients et leur proprietaire.
+              Les commerciaux voient seulement leur liste. Les comptes globaux voient tous les clients et leur propriétaire.
             </Text>
           </View>
         )}
@@ -215,7 +215,7 @@ export default function CustomersScreen() {
           <View style={s.dialog}>
             <Text style={s.dialogTitle}>Nouveau client</Text>
             <Text style={s.dialogText}>
-              Le client sera affecte a votre compte mobile. Les roles globaux le verront automatiquement.
+              Le client sera affecté à votre compte mobile. Les rôles globaux le verront automatiquement.
             </Text>
 
             <Text style={s.fieldLabel}>Nom</Text>

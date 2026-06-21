@@ -17,6 +17,7 @@ import PageHeader from '../../components/PageHeader'
 import StatusChip from '../../components/StatusChip'
 import { useAuth } from '../../contexts/AuthContext'
 import { useTracking } from '../../contexts/TrackingContext'
+import { listRouteSessions } from '../../services/routeSessionService'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
 import { formatCurrency, formatDateTime, formatNumber, formatTime, routeStatusLabel, toNumber } from '../../utils/format'
@@ -29,12 +30,6 @@ function numericInput(value) {
   return value.replace(/[^0-9.]/g, '')
 }
 
-function locationText(location) {
-  const source = location?.coords ?? location
-  if (!Number.isFinite(source?.latitude) || !Number.isFinite(source?.longitude)) return 'Aucune position remontee.'
-  return `${source.latitude.toFixed(5)}, ${source.longitude.toFixed(5)}`
-}
-
 export default function RouteSessionScreen() {
   const navigation = useNavigation()
   const { isRep } = useAuth()
@@ -42,9 +37,6 @@ export default function RouteSessionScreen() {
     session,
     loading,
     busy,
-    currentLocation,
-    locationPermission,
-    trackingState,
     refreshSessionDetails,
     startSession,
     endSession,
@@ -53,6 +45,7 @@ export default function RouteSessionScreen() {
   const [products, setProducts] = useState([])
   const [camions, setCamions] = useState([])
   const [camionStockByProductId, setCamionStockByProductId] = useState({})
+  const [sessionHistory, setSessionHistory] = useState([])
   const [refreshing, setRefreshing] = useState(false)
   const [camionPickerVisible, setCamionPickerVisible] = useState(false)
   const [closeVisible, setCloseVisible] = useState(false)
@@ -64,22 +57,26 @@ export default function RouteSessionScreen() {
   const [error, setError] = useState('')
 
   const load = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true)
+    if (isRefresh) {
+      setRefreshing(true)
+    }
 
     try {
-      const [productsResponse, camionsResponse, camionResponse] = await Promise.all([
+      const [productsResponse, camionsResponse, camionResponse, , historyResponse] = await Promise.all([
         api.get('/products'),
         api.get('/camions'),
         api.get('/camion'),
         refreshSessionDetails(),
+        listRouteSessions({ per_page: 6 }),
       ])
 
       setProducts(parseItems(productsResponse.data))
       setCamions(parseItems(camionsResponse.data))
       setCamionStockByProductId(camionResponse.data?.by_product_id ?? {})
+      setSessionHistory(parseItems(historyResponse))
       setError('')
     } catch (err) {
-      setError(err.response?.data?.message || 'Le module session n a pas pu etre charge.')
+      setError(err.response?.data?.message || 'Le module session n’a pas pu être chargé.')
     } finally {
       setRefreshing(false)
     }
@@ -88,6 +85,7 @@ export default function RouteSessionScreen() {
   useFocusEffect(useCallback(() => {
     load()
     const interval = setInterval(() => refreshSessionDetails(), 45000)
+
     return () => clearInterval(interval)
   }, [load, refreshSessionDetails]))
 
@@ -109,7 +107,6 @@ export default function RouteSessionScreen() {
     }
   }, [camions, selectedCamionId, session?.camion?.id])
 
-  const latestLocation = currentLocation?.coords ? currentLocation : session?.latestLocation
   const activeCamions = camions.filter((camion) => camion.active !== false)
   const selectedCamion = activeCamions.find((camion) => String(camion.id) === String(selectedCamionId)) ?? null
   const currentSessionOpen = session?.status === 'open'
@@ -137,12 +134,12 @@ export default function RouteSessionScreen() {
 
   const submitStartSession = async () => {
     if (!selectedCamionId) {
-      Alert.alert('Camion requis', 'Choisissez le camion physique de la tournee.')
+      Alert.alert('Camion requis', 'Choisissez le camion physique de la tournée.')
       return
     }
 
     if (selectedLines.length === 0) {
-      Alert.alert('Chargement requis', 'Ajoutez au moins une ligne de chargement initial pour demarrer la session.')
+      Alert.alert('Chargement requis', 'Ajoutez au moins une ligne de chargement initial pour démarrer la session.')
       return
     }
 
@@ -154,8 +151,8 @@ export default function RouteSessionScreen() {
     if (blocked) {
       const product = products.find((entry) => entry.id === blocked.product_id)
       Alert.alert(
-        'Stock depot insuffisant',
-        `${product?.name || 'Produit'}: ${formatNumber(product?.depot_qty)} disponible(s) au depot.`,
+        'Stock dépôt insuffisant',
+        `${product?.name || 'Produit'}: ${formatNumber(product?.depot_qty)} disponible(s) au dépôt.`,
       )
       return
     }
@@ -169,7 +166,7 @@ export default function RouteSessionScreen() {
       setSearch('')
       await load()
     } catch (err) {
-      Alert.alert('Session impossible', err.response?.data?.message || err.message || 'Veuillez reessayer.')
+      Alert.alert('Session impossible', err.response?.data?.message || err.message || 'Veuillez réessayer.')
     }
   }
 
@@ -184,7 +181,7 @@ export default function RouteSessionScreen() {
       setCreditCollected('')
       await load()
     } catch (err) {
-      Alert.alert('Cloture impossible', err.response?.data?.message || err.message || 'Veuillez reessayer.')
+      Alert.alert('Clôture impossible', err.response?.data?.message || err.message || 'Veuillez réessayer.')
     }
   }
 
@@ -193,14 +190,14 @@ export default function RouteSessionScreen() {
       <ScrollView style={s.root} contentContainerStyle={s.content}>
         <PageHeader
           title="Session commerciale"
-          subtitle="Camion, chargement initial et etat courant."
+          subtitle="Camion, chargement initial et état courant."
         />
 
         <View style={[s.emptyCard, cardShadow]}>
           <MaterialCommunityIcons name="account-lock-outline" size={34} color={T.primary} />
           <Text style={s.emptyTitle}>Compte commercial requis</Text>
           <Text style={s.emptyText}>
-            L ouverture et la gestion d une session mobile doivent etre testees avec un compte commercial pour rester alignees avec les routes API de session.
+            L’ouverture et la gestion d’une session mobile doivent être testées avec un compte commercial pour rester alignées avec les routes API de session.
           </Text>
         </View>
       </ScrollView>
@@ -216,7 +213,7 @@ export default function RouteSessionScreen() {
       >
         <PageHeader
           title="Session commerciale"
-          subtitle="Camion, chargement initial et etat courant."
+          subtitle="Choisissez le camion, chargez le stock puis démarrez votre journée."
         />
 
         {!!error && (
@@ -231,21 +228,21 @@ export default function RouteSessionScreen() {
             <View style={[s.summaryCard, cardShadow]}>
               <View style={s.summaryTop}>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.summaryTitle}>Demarrer la session</Text>
+                  <Text style={s.summaryTitle}>Démarrer la session</Text>
                   <Text style={s.summarySub}>
-                    Le backend attend un camion reel et au moins une ligne de chargement initial avant de lancer la session.
+                    Si une session vous est affectée depuis le web, elle apparaîtra ici automatiquement. Sinon, démarrez-la depuis ce mobile.
                   </Text>
                 </View>
-                <StatusChip label="A ouvrir" tone="warning" />
+                <StatusChip label="À ouvrir" tone="warning" />
               </View>
 
               <View style={s.camionCard}>
-                <Text style={s.locationLabel}>Camion selectionne</Text>
-                <Text style={s.locationValue}>{selectedCamion?.name || 'Aucun camion choisi'}</Text>
-                <Text style={s.locationMeta}>
+                <Text style={s.boxLabel}>Camion sélectionné</Text>
+                <Text style={s.boxValue}>{selectedCamion?.name || 'Aucun camion choisi'}</Text>
+                <Text style={s.boxMeta}>
                   {selectedCamion?.plate
                     ? `Immatriculation ${selectedCamion.plate}`
-                    : 'Choisissez le camion physique avant d ouvrir la session.'}
+                    : 'Choisissez le camion physique avant d’ouvrir la session.'}
                 </Text>
                 <TouchableOpacity style={s.secondaryButton} onPress={() => setCamionPickerVisible(true)}>
                   <Text style={s.secondaryButtonText}>Choisir le camion</Text>
@@ -255,7 +252,7 @@ export default function RouteSessionScreen() {
               <View style={s.infoCard}>
                 <MaterialCommunityIcons name="information-outline" size={18} color={T.info} />
                 <Text style={s.infoCardText}>
-                  Le depot visible vient de l API produits (`depot_qty`). Le suivi temps reel continue ensuite automatiquement en arriere-plan.
+                  Le stock affiché vient du dépôt. Le backend contrôle les quantités et empêche tout chargement supérieur au stock disponible.
                 </Text>
               </View>
             </View>
@@ -264,7 +261,7 @@ export default function RouteSessionScreen() {
               <Text style={s.sectionTitle}>Chargement initial</Text>
               <TextInput
                 style={s.searchInput}
-                placeholder="Rechercher un produit du depot"
+                placeholder="Rechercher un produit du dépôt"
                 placeholderTextColor={T.textMuted}
                 value={search}
                 onChangeText={setSearch}
@@ -275,7 +272,7 @@ export default function RouteSessionScreen() {
                   <MaterialCommunityIcons name="package-variant-closed" size={28} color={T.textMuted} />
                   <Text style={s.inlineEmptyTitle}>Aucun produit disponible</Text>
                   <Text style={s.inlineEmptyText}>
-                    Les produits sans stock depot sont caches tant qu aucune quantite n est saisie.
+                    Les produits sans stock dépôt restent masqués tant qu’aucune quantité n’est saisie.
                   </Text>
                 </View>
               ) : (
@@ -294,7 +291,7 @@ export default function RouteSessionScreen() {
                           <Text style={s.rowTitle}>{product.name}</Text>
                           <Text style={s.rowMeta}>{product.reference || product.unit || 'Produit'}</Text>
                           <Text style={s.rowStats}>
-                            Depot {formatNumber(depotQty)} | Camion {formatNumber(camionQty)} | Min {formatNumber(Math.max(toNumber(product.min_stock, 1), 1))}
+                            Dépôt {formatNumber(depotQty)} | Camion {formatNumber(camionQty)} | Min {formatNumber(Math.max(toNumber(product.min_stock, 1), 1))}
                           </Text>
                         </View>
                         <TextInput
@@ -313,10 +310,10 @@ export default function RouteSessionScreen() {
 
               <View style={s.startFooter}>
                 <Text style={s.startFooterText}>
-                  {selectedLines.length} ligne(s) | {formatNumber(selectedLines.reduce((sum, line) => sum + toNumber(line.qty_loaded), 0))} unite(s)
+                  {selectedLines.length} ligne(s) | {formatNumber(selectedLines.reduce((sum, line) => sum + toNumber(line.qty_loaded), 0))} unité(s)
                 </Text>
                 <TouchableOpacity style={[s.primaryButton, busy && s.buttonDisabled]} onPress={submitStartSession} disabled={busy}>
-                  {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>Demarrer la session</Text>}
+                  {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>Démarrer la session</Text>}
                 </TouchableOpacity>
               </View>
             </View>
@@ -327,7 +324,9 @@ export default function RouteSessionScreen() {
               <View style={s.summaryTop}>
                 <View style={{ flex: 1 }}>
                   <Text style={s.summaryTitle}>Session du {session.session_date}</Text>
-                  <Text style={s.summarySub}>Etat courant, stock camion et synchronisation automatique.</Text>
+                  <Text style={s.summarySub}>
+                    Cette session reste synchronisée avec la plateforme web. Les ventes, recharges et retours alimentent automatiquement le suivi.
+                  </Text>
                 </View>
                 <StatusChip label={routeStatusLabel(session.status)} tone={currentSessionOpen ? 'success' : 'info'} />
               </View>
@@ -338,63 +337,35 @@ export default function RouteSessionScreen() {
                   <Text style={s.factValue}>{formatTime(session.opened_at)}</Text>
                 </View>
                 <View style={s.factItem}>
-                  <Text style={s.factLabel}>Points sync</Text>
-                  <Text style={s.factValue}>{formatNumber(session.locations_count || 0, 0)}</Text>
+                  <Text style={s.factLabel}>Camion</Text>
+                  <Text style={s.factValue}>{session.camion?.name || 'Aucun camion assigné'}</Text>
                 </View>
                 <View style={s.factItem}>
-                  <Text style={s.factLabel}>Sync mobile</Text>
-                  <Text style={s.factValue}>{locationPermission === 'granted' ? 'OK' : 'A verifier'}</Text>
+                  <Text style={s.factLabel}>Dernière mise à jour</Text>
+                  <Text style={s.factValue}>{session.updated_at ? formatTime(session.updated_at) : '--'}</Text>
                 </View>
               </View>
 
               <View style={s.camionCard}>
-                <Text style={s.locationLabel}>Camion physique</Text>
-                <Text style={s.locationValue}>{session.camion?.name || 'Aucun camion assigne'}</Text>
-                <Text style={s.locationMeta}>
+                <Text style={s.boxLabel}>Camion physique</Text>
+                <Text style={s.boxValue}>{session.camion?.name || 'Aucun camion assigné'}</Text>
+                <Text style={s.boxMeta}>
                   {session.camion?.plate
                     ? `Immatriculation ${session.camion.plate}`
                     : 'Aucune immatriculation disponible pour cette session.'}
                 </Text>
               </View>
 
-              <View style={s.bannerRow}>
-                <StatusChip
-                  label={trackingState.active ? 'Synchronisation active' : 'Synchronisation en attente'}
-                  tone={trackingState.active ? 'success' : 'warning'}
-                />
-                <StatusChip
-                  label={trackingState.lastSyncAt ? `Derniere sync ${formatTime(trackingState.lastSyncAt)}` : 'Sync auto'}
-                  tone={trackingState.lastSyncAt ? 'info' : 'neutral'}
-                />
-              </View>
-
-              <View style={s.locationBox}>
-                <Text style={s.locationLabel}>Derniere position synchronisee</Text>
-                <Text style={s.locationValue}>{locationText(latestLocation)}</Text>
-                <Text style={s.locationMeta}>
-                  {session.latestLocation?.recorded_at
-                    ? `Serveur: ${formatDateTime(session.latestLocation.recorded_at)}`
-                    : 'Position serveur non disponible pour cette session.'}
-                </Text>
-              </View>
-
-              {trackingState.error ? (
-                <View style={s.noticeWarning}>
-                  <MaterialCommunityIcons name="map-marker-alert-outline" size={18} color={T.warning} />
-                  <Text style={s.noticeWarningText}>{trackingState.error}</Text>
-                </View>
-              ) : null}
-
               {currentSessionOpen ? (
                 <View style={s.actionStack}>
                   <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Reappro', { mode: 'load' })}>
-                    <Text style={s.primaryButtonText}>Reappro camion</Text>
+                    <Text style={s.primaryButtonText}>Recharger le camion</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Reappro', { mode: 'returns' })}>
-                    <Text style={s.secondaryButtonText}>Retours et ecarts</Text>
+                    <Text style={s.secondaryButtonText}>Retours et écarts</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={s.secondaryButton} onPress={() => setCloseVisible(true)}>
-                    <Text style={s.secondaryButtonText}>Cloturer la session</Text>
+                    <Text style={s.secondaryButtonText}>Clôturer la session</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -404,11 +375,11 @@ export default function RouteSessionScreen() {
                     <Text style={s.closedValue}>{formatCurrency(session.total_sold)}</Text>
                   </View>
                   <View style={s.closedMetric}>
-                    <Text style={s.factLabel}>Benefice</Text>
+                    <Text style={s.factLabel}>Bénéfice</Text>
                     <Text style={s.closedValue}>{formatCurrency(session.profit_total)}</Text>
                   </View>
                   <View style={s.closedMetric}>
-                    <Text style={s.factLabel}>Cloturee</Text>
+                    <Text style={s.factLabel}>Clôturée</Text>
                     <Text style={s.closedValue}>{formatTime(session.closed_at)}</Text>
                   </View>
                 </View>
@@ -416,19 +387,19 @@ export default function RouteSessionScreen() {
             </View>
 
             <View style={[s.sectionCard, cardShadow]}>
-              <Text style={s.sectionTitle}>Audit des lignes</Text>
+              <Text style={s.sectionTitle}>Lignes de session</Text>
 
               {loading && (session.lines ?? []).length === 0 ? (
                 <ActivityIndicator color={T.primary} style={{ marginVertical: 22 }} />
               ) : (session.lines ?? []).length === 0 ? (
-                <Text style={s.emptyText}>Aucune ligne de session n a encore ete enregistree.</Text>
+                <Text style={s.emptyText}>Aucune ligne de session n’a encore été enregistrée.</Text>
               ) : (
                 (session.lines ?? []).map((line) => (
                   <View key={line.id || line.product_id} style={s.lineRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={s.lineName}>{line.product?.name || 'Produit'}</Text>
                       <Text style={s.lineMeta}>
-                        Charge {formatNumber(line.qty_loaded)} | Retour {formatNumber(line.qty_returned)} | Vendu {formatNumber(line.qty_sold)}
+                        Chargé {formatNumber(line.qty_loaded)} | Retour {formatNumber(line.qty_returned)} | Vendu {formatNumber(line.qty_sold)}
                       </Text>
                     </View>
                     <Text style={s.linePrice}>{line.unit_price ? formatCurrency(line.unit_price) : '--'}</Text>
@@ -438,6 +409,37 @@ export default function RouteSessionScreen() {
             </View>
           </>
         )}
+
+        <View style={[s.sectionCard, cardShadow]}>
+          <View style={s.sectionHeaderRow}>
+            <Text style={s.sectionTitle}>Historique récent</Text>
+            <Text style={s.sectionHint}>6 dernières sessions</Text>
+          </View>
+
+          {sessionHistory.length === 0 ? (
+            <Text style={s.emptyText}>Aucune session enregistrée pour ce compte.</Text>
+          ) : (
+            sessionHistory.map((item) => (
+              <View key={item.id} style={s.historyRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.historyTitle}>
+                    {item.session_date || 'Date inconnue'} · {item.camion?.name || 'Sans camion'}
+                  </Text>
+                  <Text style={s.historyMeta}>
+                    Ouverture {formatDateTime(item.opened_at)}{item.closed_at ? ` · Clôture ${formatDateTime(item.closed_at)}` : ''}
+                  </Text>
+                  <Text style={s.historyMeta}>
+                    {item.camion?.plate || 'Immatriculation non renseignée'} · {formatCurrency(item.total_sold || 0)}
+                  </Text>
+                </View>
+                <StatusChip
+                  label={routeStatusLabel(item.status)}
+                  tone={item.status === 'open' ? 'success' : 'info'}
+                />
+              </View>
+            ))
+          )}
+        </View>
       </ScrollView>
 
       <Modal visible={camionPickerVisible} transparent animationType="fade" onRequestClose={() => setCamionPickerVisible(false)}>
@@ -445,7 +447,7 @@ export default function RouteSessionScreen() {
           <View style={s.dialogLarge}>
             <Text style={s.dialogTitle}>Choisir le camion</Text>
             <Text style={s.dialogText}>
-              Selectionnez le camion reel de la session. Un camion occupe ne peut pas etre reutilise pour une autre session ouverte.
+              Sélectionnez le camion réel de la session. Un camion occupé ne peut pas être réutilisé pour une autre session ouverte.
             </Text>
 
             <ScrollView style={s.camionList} contentContainerStyle={{ gap: 10 }}>
@@ -453,7 +455,7 @@ export default function RouteSessionScreen() {
                 <View style={s.camionEmptyCard}>
                   <MaterialCommunityIcons name="truck-outline" size={22} color={T.textMuted} />
                   <Text style={s.camionEmptyTitle}>Aucun camion actif</Text>
-                  <Text style={s.camionEmptyText}>Le back-office doit d abord creer et activer les camions physiques.</Text>
+                  <Text style={s.camionEmptyText}>Le back-office doit d’abord créer et activer les camions physiques.</Text>
                 </View>
               ) : (
                 activeCamions.map((camion) => {
@@ -477,11 +479,11 @@ export default function RouteSessionScreen() {
                       <View style={{ flex: 1 }}>
                         <Text style={[s.camionOptionTitle, selected && { color: '#fff' }]}>{camion.name}</Text>
                         <Text style={[s.camionOptionMeta, selected && { color: 'rgba(255,255,255,0.82)' }]}>
-                          {camion.plate || 'Immatriculation non renseignee'}
+                          {camion.plate || 'Immatriculation non renseignée'}
                         </Text>
                         <Text style={[s.camionOptionMeta, selected && { color: 'rgba(255,255,255,0.82)' }]}>
                           {disabled
-                            ? `Occupe par ${camion.current_route_session?.rep?.name || 'une autre session'}`
+                            ? `Occupé par ${camion.current_route_session?.rep?.name || 'une autre session'}`
                             : camion.workflow_status_label || 'Disponible'}
                         </Text>
                         <View style={s.camionOptionBadges}>
@@ -513,10 +515,10 @@ export default function RouteSessionScreen() {
       <Modal visible={closeVisible} transparent animationType="fade" onRequestClose={() => setCloseVisible(false)}>
         <View style={s.overlay}>
           <View style={s.dialog}>
-            <Text style={s.dialogTitle}>Cloturer la session</Text>
-            <Text style={s.dialogText}>Enregistrez les montants collectes avant la fermeture de la session.</Text>
+            <Text style={s.dialogTitle}>Clôturer la session</Text>
+            <Text style={s.dialogText}>Enregistrez les montants collectés avant la fermeture de la session.</Text>
 
-            <Text style={s.fieldLabel}>Cash collecte</Text>
+            <Text style={s.fieldLabel}>Cash collecté</Text>
             <TextInput
               style={s.fieldInput}
               keyboardType="decimal-pad"
@@ -526,7 +528,7 @@ export default function RouteSessionScreen() {
               onChangeText={(value) => setCashCollected(numericInput(value))}
             />
 
-            <Text style={s.fieldLabel}>Credit collecte</Text>
+            <Text style={s.fieldLabel}>Crédit collecté</Text>
             <TextInput
               style={s.fieldInput}
               keyboardType="decimal-pad"
@@ -541,7 +543,7 @@ export default function RouteSessionScreen() {
                 <Text style={s.dialogSecondaryText}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[s.dialogPrimary, busy && s.buttonDisabled]} onPress={submitClose} disabled={busy}>
-                {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.dialogPrimaryText}>Cloturer</Text>}
+                {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.dialogPrimaryText}>Clôturer</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -627,12 +629,6 @@ const s = StyleSheet.create({
     fontWeight: '800',
     color: T.text,
   },
-  bannerRow: {
-    flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap',
-    marginTop: 14,
-  },
   camionCard: {
     marginTop: 14,
     padding: 14,
@@ -641,25 +637,17 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#cbd5e1',
   },
-  locationBox: {
-    marginTop: 14,
-    padding: 14,
-    borderRadius: 18,
-    backgroundColor: '#eff6ff',
-    borderWidth: 1,
-    borderColor: '#bfdbfe',
-  },
-  locationLabel: {
+  boxLabel: {
     fontSize: 12,
     color: T.textMuted,
   },
-  locationValue: {
+  boxValue: {
     marginTop: 6,
     fontSize: 16,
     fontWeight: '800',
     color: T.info,
   },
-  locationMeta: {
+  boxMeta: {
     marginTop: 4,
     fontSize: 12,
     color: T.textSecondary,
@@ -721,12 +709,24 @@ const s = StyleSheet.create({
     padding: 18,
     borderWidth: 1,
     borderColor: T.border,
+    marginBottom: 14,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '800',
     color: T.text,
     marginBottom: 8,
+  },
+  sectionHint: {
+    fontSize: 12,
+    color: T.textMuted,
   },
   searchInput: {
     marginTop: 12,
@@ -852,6 +852,24 @@ const s = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: T.primaryDark,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: T.border,
+  },
+  historyTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: T.text,
+  },
+  historyMeta: {
+    marginTop: 4,
+    fontSize: 12,
+    color: T.textSecondary,
   },
   overlay: {
     flex: 1,
@@ -1000,22 +1018,6 @@ const s = StyleSheet.create({
     textAlign: 'center',
     color: T.textSecondary,
   },
-  noticeWarning: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 14,
-    padding: 12,
-    borderRadius: 14,
-    backgroundColor: '#fffbeb',
-    borderWidth: 1,
-    borderColor: '#fde68a',
-  },
-  noticeWarningText: {
-    flex: 1,
-    fontSize: 13,
-    color: T.warning,
-  },
   noticeDanger: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1033,11 +1035,3 @@ const s = StyleSheet.create({
     color: T.danger,
   },
 })
-
-
-
-
-
-
-
-
