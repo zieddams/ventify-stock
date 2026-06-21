@@ -1,11 +1,16 @@
+import Constants from 'expo-constants'
 import { Platform } from 'react-native'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as IntentLauncher from 'expo-intent-launcher'
 
+const ANDROID_PACKAGE_NAME = Constants.expoConfig?.android?.package || 'com.ventify.stock'
+const ACTION_INSTALL_PACKAGE = 'android.intent.action.INSTALL_PACKAGE'
+const ACTION_VIEW = 'android.intent.action.VIEW'
 const APK_PREFIX = 'el-irtiwaa-update-'
 const APK_MIME_TYPE = 'application/vnd.android.package-archive'
 const FLAG_GRANT_READ_URI_PERMISSION = 1
 const FLAG_ACTIVITY_NEW_TASK = 268435456
+const INSTALL_FLAGS = FLAG_GRANT_READ_URI_PERMISSION | FLAG_ACTIVITY_NEW_TASK
 
 function sanitizeVersion(value) {
   return String(value || Date.now())
@@ -29,6 +34,45 @@ async function cleanupDownloadedApks(directory) {
     )
   } catch {
     // Best-effort cleanup only.
+  }
+}
+
+async function openUnknownAppSourcesSettings() {
+  await IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.MANAGE_UNKNOWN_APP_SOURCES, {
+    data: `package:${ANDROID_PACKAGE_NAME}`,
+    flags: FLAG_ACTIVITY_NEW_TASK,
+  })
+}
+
+async function launchApkInstaller(contentUri) {
+  const intentParams = {
+    data: contentUri,
+    type: APK_MIME_TYPE,
+    flags: INSTALL_FLAGS,
+  }
+
+  try {
+    await IntentLauncher.startActivityAsync(ACTION_INSTALL_PACKAGE, intentParams)
+    return
+  } catch (installError) {
+    try {
+      await IntentLauncher.startActivityAsync(ACTION_VIEW, intentParams)
+      return
+    } catch (viewError) {
+      try {
+        await openUnknownAppSourcesSettings()
+      } catch {
+        // Best-effort fallback only.
+      }
+
+      const rootMessage = viewError?.message || installError?.message || ''
+      const suffix = rootMessage ? ` Detail: ${rootMessage}` : ''
+
+      throw new Error(
+        "Autorisez d'abord l'installation des applications inconnues pour El Irtiwaa, puis relancez la mise a jour." +
+          suffix,
+      )
+    }
   }
 }
 
@@ -96,11 +140,7 @@ export async function downloadAndLaunchApkUpdate({ url, version, expectedBytes, 
 
   const contentUri = await FileSystem.getContentUriAsync(result.uri)
 
-  await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-    data: contentUri,
-    type: APK_MIME_TYPE,
-    flags: FLAG_GRANT_READ_URI_PERMISSION | FLAG_ACTIVITY_NEW_TASK,
-  })
+  await launchApkInstaller(contentUri)
 
   return result.uri
 }

@@ -1,7 +1,7 @@
 module.exports = {
   name: 'El Irtiwaa',
   slug: 'ventify-stock',
-  version: '1.3.8',
+  version: '1.3.9',
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
@@ -21,7 +21,7 @@ module.exports = {
   },
   android: {
     package: 'com.ventify.stock',
-    versionCode: 15,
+    versionCode: 16,
     adaptiveIcon: {
       backgroundColor: '#0f172a',
       foregroundImage: './assets/android-icon-foreground.png',
@@ -43,6 +43,7 @@ module.exports = {
     'expo-secure-store',
     'expo-font',
     'expo-sharing',
+    './plugins/withApkInstallerSupport',
   ],
   extra: {
     apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL || 'https://irtiwaa.ziedtech.com/api/v1',
