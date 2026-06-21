@@ -55,7 +55,7 @@ export default function ProfileScreen() {
   const [installingUpdate, setInstallingUpdate] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState(null)
 
-  const currentVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || '1.3.7'
+  const currentVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || '1.3.8'
   const buildVersion = Constants.nativeBuildVersion || String(Constants.expoConfig?.android?.versionCode ?? '')
 
   useEffect(() => {
@@ -304,7 +304,7 @@ export default function ProfileScreen() {
         </View>
 
         <View style={s.infoRow}>
-          <Text style={s.infoLabel}>Version installee</Text>
+          <Text style={s.infoLabel}>Version installée</Text>
           <Text style={s.infoValue}>{currentVersion}{buildVersion ? ` (${buildVersion})` : ''}</Text>
         </View>
         <View style={s.infoRow}>

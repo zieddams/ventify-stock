@@ -147,7 +147,7 @@ export function getLocationValidationMessage(location) {
     && Math.abs(coords.longitude - ANDROID_EMULATOR_DEFAULT.longitude) < 0.01
 
   if (emulatorDefaultMatch) {
-    return 'L emulateur utilise encore la position Android par defaut. Definissez une position en Tunisie.'
+    return 'L’émulateur utilise encore la position Android par défaut. Définissez une position en Tunisie.'
   }
 
   return 'Position reçue hors Tunisie. Vérifiez les coordonnées GPS ou la position de l’émulateur.'

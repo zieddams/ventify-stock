@@ -97,7 +97,7 @@ export default function AdminDashboardScreen() {
                   color={T.success}
                 />
                 <MetricCard
-                  label="Impayes"
+          label="Impayés"
                   value={formatCurrency(stats.unpaid_total)}
                   icon="credit-card-clock-outline"
                   color={T.danger}
@@ -121,7 +121,7 @@ export default function AdminDashboardScreen() {
 
               <View style={[s.sectionCard, cardShadow]}>
                 <View style={s.sectionTop}>
-                  <Text style={s.sectionTitle}>Stock depot surveille</Text>
+                  <Text style={s.sectionTitle}>Stock dépôt surveillé</Text>
                   <StatusChip
                     label={(stats.low_depot_stock ?? []).length > 0 ? 'Alerte stock' : 'Stable'}
                     tone={(stats.low_depot_stock ?? []).length > 0 ? 'warning' : 'success'}
@@ -129,7 +129,7 @@ export default function AdminDashboardScreen() {
                 </View>
 
                 {(stats.low_depot_stock ?? []).length === 0 ? (
-                  <Text style={s.emptyText}>Aucun produit depot en alerte pour le moment.</Text>
+                  <Text style={s.emptyText}>Aucun produit dépôt en alerte pour le moment.</Text>
                 ) : (
                   stats.low_depot_stock.slice(0, 8).map((item) => (
                     <View key={item.product?.id || item.product_id} style={s.stockRow}>
@@ -266,4 +266,3 @@ const s = StyleSheet.create({
     color: T.danger,
   },
 })
-

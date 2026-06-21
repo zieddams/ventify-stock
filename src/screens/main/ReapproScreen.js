@@ -122,7 +122,7 @@ export default function ReapproScreen({ route }) {
 
     if (payload.length === 0) {
       Alert.alert(
-        mode === 'returns' ? 'Retours' : 'Reappro',
+        mode === 'returns' ? 'Retours' : 'Réappro',
         mode === 'returns' ? 'Ajoutez au moins une quantité de retour.' : 'Ajoutez au moins une quantité à charger.',
       )
       return
@@ -152,7 +152,7 @@ export default function ReapproScreen({ route }) {
 
       if (blocked) {
         const product = products.find((entry) => entry.id === blocked.product_id)
-        Alert.alert('Retour impossible', `${product?.name || 'Produit'} depasse le stock camion restant ou le maximum retournable.`)
+        Alert.alert('Retour impossible', `${product?.name || 'Produit'} dépasse le stock camion restant ou le maximum retournable.`)
         return
       }
     }
@@ -335,7 +335,7 @@ export default function ReapproScreen({ route }) {
                         <Text style={s.rowStats}>
                           {mode === 'returns'
                             ? `Camion ${formatNumber(camionQty)} | Retour max ${formatNumber(maxReturnable)} | Vendu ${formatNumber(line?.qty_sold)}`
-                            : `Depot ${formatNumber(depotQty)} | Camion ${formatNumber(camionQty)} | Charge ${formatNumber(line?.qty_loaded)}`}
+                            : `Dépôt ${formatNumber(depotQty)} | Camion ${formatNumber(camionQty)} | Charge ${formatNumber(line?.qty_loaded)}`}
                         </Text>
                       </View>
                       <TextInput
