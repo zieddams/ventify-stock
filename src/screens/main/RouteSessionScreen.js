@@ -14,6 +14,7 @@ import {
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
+import CompanyBrandCard from '../../components/CompanyBrandCard'
 import PageHeader from '../../components/PageHeader'
 import QuantityStepperField from '../../components/QuantityStepperField'
 import StatusChip from '../../components/StatusChip'
@@ -68,7 +69,7 @@ function buildCloseDefaults(session) {
 export default function RouteSessionScreen() {
   const navigation = useNavigation()
   const insets = useSafeAreaInsets()
-  const { isRep } = useAuth()
+  const { user, isRep } = useAuth()
   const {
     session,
     loading,
@@ -250,6 +251,8 @@ export default function RouteSessionScreen() {
           subtitle="Camion, chargement et clôture de la journée."
         />
 
+        <CompanyBrandCard user={user} style={s.brandCard} />
+
         <View style={[s.emptyCard, cardShadow]}>
           <MaterialCommunityIcons name="account-lock-outline" size={34} color={T.primary} />
           <Text style={s.emptyTitle}>Compte commercial requis</Text>
@@ -277,6 +280,8 @@ export default function RouteSessionScreen() {
           actionLabel="Stock"
           onActionPress={() => navigation.navigate('Stock')}
         />
+
+        <CompanyBrandCard user={user} style={s.brandCard} />
 
         {!!error && (
           <View style={s.noticeDanger}>
@@ -537,6 +542,9 @@ const s = StyleSheet.create({
   content: {
     padding: 20,
     paddingBottom: 40,
+  },
+  brandCard: {
+    marginBottom: 14,
   },
   emptyCard: {
     backgroundColor: T.surface,

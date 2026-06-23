@@ -2,6 +2,7 @@ import Constants from 'expo-constants'
 import { useState } from 'react'
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -14,6 +15,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useAuth } from '../../contexts/AuthContext'
 import { T, cardShadow } from '../../theme'
+import { DEFAULT_BRAND_SOURCE } from '../../utils/branding'
 
 function CapabilityChip({ icon, label }) {
   return (
@@ -57,7 +59,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const version = Constants.expoConfig?.version || '1.3.14'
+  const version = Constants.expoConfig?.version || '1.3.15'
 
   const handleLogin = async () => {
     if (!email.trim() || !password) return
@@ -86,7 +88,7 @@ export default function LoginScreen() {
       <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
         <View style={s.hero}>
           <View style={s.logo}>
-            <MaterialCommunityIcons name="water-outline" size={36} color="#fff" />
+            <Image source={DEFAULT_BRAND_SOURCE} style={s.logoImage} resizeMode="contain" />
           </View>
           <Text style={s.title}>El Irtiwaa Mobile</Text>
           <Text style={s.subtitle}>Session. Stock camion. Facturation.</Text>
@@ -196,6 +198,10 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: T.primary,
     marginBottom: 16,
+  },
+  logoImage: {
+    width: 44,
+    height: 44,
   },
   title: {
     fontSize: 28,

@@ -11,6 +11,7 @@ import {
 } from 'react-native'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
+import CompanyBrandCard from '../../components/CompanyBrandCard'
 import PageHeader from '../../components/PageHeader'
 import MetricCard from '../../components/MetricCard'
 import StatusChip from '../../components/StatusChip'
@@ -140,6 +141,8 @@ export default function DashboardScreen() {
         actionLabel="Compte"
         onActionPress={() => navigation.navigate('Profile')}
       />
+
+      <CompanyBrandCard user={user} style={s.brandCard} />
 
       {!!error && (
         <View style={s.noticeDanger}>
@@ -346,6 +349,9 @@ const s = StyleSheet.create({
   content: {
     padding: 20,
     paddingBottom: 44,
+  },
+  brandCard: {
+    marginBottom: 14,
   },
   heroCard: {
     backgroundColor: T.surface,
