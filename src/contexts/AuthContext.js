@@ -8,6 +8,7 @@ import api, {
   saveStoredUser,
   saveToken,
 } from '../services/api'
+import { buildMobileCommercialAccessMessage } from '../utils/companyFeatures'
 
 const AuthContext = createContext(null)
 const MOBILE_PRESENCE_ENABLED = false
@@ -24,9 +25,25 @@ function initialSessionStatus() {
   }
 }
 
+function createMobileRoleError(user) {
+  const error = new Error(buildMobileCommercialAccessMessage(user))
+  error.code = 'mobile_role_not_allowed'
+  error.user = user
+  return error
+}
+
+function ensureMobileCommercialAccess(user) {
+  if (user?.mobile_access?.allowed === false || (user?.role && user.role !== 'rep')) {
+    throw createMobileRoleError(user)
+  }
+
+  return user
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [authError, setAuthError] = useState('')
   const [sessionStatus, setSessionStatus] = useState(initialSessionStatus)
   const appStateRef = useRef(AppState.currentState)
   const presenceRef = useRef({
@@ -37,9 +54,10 @@ export function AuthProvider({ children }) {
 
   const refreshUser = useCallback(async () => {
     const response = await api.get('/auth/me')
-    setUser(response.data)
-    await saveStoredUser(response.data)
-    return response.data
+    const nextUser = ensureMobileCommercialAccess(response.data)
+    setUser(nextUser)
+    await saveStoredUser(nextUser)
+    return nextUser
   }, [])
 
   const sendSessionReport = useCallback(async (reason = 'active') => {
@@ -124,16 +142,22 @@ export function AuthProvider({ children }) {
         }
 
         const cachedUser = await getStoredUser()
-        if (cachedUser && mounted) {
+        if (cachedUser?.role === 'rep' && mounted) {
           setUser(cachedUser)
           setLoading(false)
         }
 
         try {
           await refreshUser()
-        } catch {
+          if (mounted) {
+            setAuthError('')
+          }
+        } catch (error) {
           await Promise.allSettled([clearToken(), clearStoredUser()])
           if (mounted) setUser(null)
+          if (mounted && error?.code === 'mobile_role_not_allowed') {
+            setAuthError(error.message)
+          }
         }
       } catch {
         await Promise.allSettled([clearToken(), clearStoredUser()])
@@ -188,11 +212,13 @@ export function AuthProvider({ children }) {
   }, [user?.id, sendSessionOffline, sendSessionPing, sendSessionReport])
 
   const login = async (email, password) => {
+    setAuthError('')
     const response = await api.post('/auth/login', { email, password })
+    const nextUser = ensureMobileCommercialAccess(response.data.user)
     await saveToken(response.data.token)
-    await saveStoredUser(response.data.user)
-    setUser(response.data.user)
-    return response.data.user
+    await saveStoredUser(nextUser)
+    setUser(nextUser)
+    return nextUser
   }
 
   const logout = async () => {
@@ -206,21 +232,28 @@ export function AuthProvider({ children }) {
 
     await Promise.allSettled([clearToken(), clearStoredUser()])
     setUser(null)
+    setAuthError('')
   }
+
+  const clearAuthError = useCallback(() => {
+    setAuthError('')
+  }, [])
 
   const value = useMemo(() => ({
     user,
     loading,
+    authError,
     sessionStatus,
     login,
     logout,
     refreshUser,
+    clearAuthError,
     touchSession,
     isAdmin: () => ['admin', 'developer'].includes(user?.role),
     isRep: () => user?.role === 'rep',
     isStaff: () => ['admin', 'developer', 'comptable'].includes(user?.role),
     canManageAllCustomers: () => ['admin', 'developer', 'comptable'].includes(user?.role),
-  }), [user, loading, sessionStatus, refreshUser, touchSession])
+  }), [user, loading, authError, sessionStatus, refreshUser, clearAuthError, touchSession])
 
   return (
     <AuthContext.Provider value={value}>

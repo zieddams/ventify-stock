@@ -1,9 +1,17 @@
 import { BASE_URL } from '../services/api'
 
-export const DEFAULT_BRAND_SOURCE = require('../../assets/irtiwaa-mark.png')
+export const DEFAULT_BRAND_SOURCE = require('../../assets/icon.png')
 
 function cleanString(value) {
   return String(value ?? '').trim()
+}
+
+function isDeveloperUser(user) {
+  return user?.role === 'developer'
+}
+
+function shouldUseCompanyBrand(user) {
+  return Boolean(user?.company?.id) && !isDeveloperUser(user)
 }
 
 function resolveApiOrigin() {
@@ -15,6 +23,10 @@ function resolveApiOrigin() {
 }
 
 export function resolveCompanyLogoUrl(user) {
+  if (!shouldUseCompanyBrand(user)) {
+    return ''
+  }
+
   const rawLogo = cleanString(user?.company?.logo_url)
 
   if (!rawLogo) {
@@ -48,23 +60,27 @@ export function resolveBrandImageSource(user, fallbackToDefault = true) {
 }
 
 export function resolveBrandName(user) {
+  if (!shouldUseCompanyBrand(user)) {
+    return 'Gestion de vente'
+  }
+
   return cleanString(user?.company?.name) || 'Gestion de vente'
 }
 
 export function resolveBrandCaption(user) {
-  if (user?.company?.id) {
-    return 'Societe connectee'
+  if (isDeveloperUser(user)) {
+    return 'Compte developpeur'
   }
 
-  if (user?.role === 'developer') {
-    return 'Compte developpeur'
+  if (shouldUseCompanyBrand(user)) {
+    return 'Societe connectee'
   }
 
   return 'Plateforme'
 }
 
 export function resolveBrandHint(user) {
-  if (user?.company?.id) {
+  if (shouldUseCompanyBrand(user)) {
     return 'Logo actif du compte connecte.'
   }
 

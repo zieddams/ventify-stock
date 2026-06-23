@@ -54,18 +54,19 @@ function describeApiError(err) {
 }
 
 export default function LoginScreen() {
-  const { login } = useAuth()
+  const { login, authError, clearAuthError } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const version = Constants.expoConfig?.version || '1.3.15'
+  const version = Constants.expoConfig?.version || '1.3.17'
 
   const handleLogin = async () => {
     if (!email.trim() || !password) return
 
     setBusy(true)
     setError('')
+    clearAuthError?.()
 
     try {
       await login(email.trim(), password)
@@ -90,8 +91,8 @@ export default function LoginScreen() {
           <View style={s.logo}>
             <Image source={DEFAULT_BRAND_SOURCE} style={s.logoImage} resizeMode="contain" />
           </View>
-          <Text style={s.title}>El Irtiwaa Mobile</Text>
-          <Text style={s.subtitle}>Session. Stock camion. Facturation.</Text>
+          <Text style={s.title}>Gestion de vente mobile</Text>
+          <Text style={s.subtitle}>Connexion commerciale. Stock camion. Facturation.</Text>
         </View>
 
         <View style={s.capabilities}>
@@ -104,10 +105,10 @@ export default function LoginScreen() {
           <Text style={s.cardTitle}>Connexion</Text>
           <Text style={s.cardSubtitle}>Connectez-vous avec votre compte mobile.</Text>
 
-          {!!error && (
+          {!!(error || authError) && (
             <View style={s.errorBox}>
               <MaterialCommunityIcons name="alert-circle-outline" size={18} color={T.danger} />
-              <Text style={s.errorText}>{error}</Text>
+              <Text style={s.errorText}>{error || authError}</Text>
             </View>
           )}
 
@@ -115,7 +116,11 @@ export default function LoginScreen() {
           <TextInput
             style={s.input}
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(value) => {
+              setEmail(value)
+              if (error) setError('')
+              clearAuthError?.()
+            }}
             placeholder="votre@email.com"
             placeholderTextColor={T.textMuted}
             autoCapitalize="none"
@@ -127,7 +132,11 @@ export default function LoginScreen() {
           <TextInput
             style={s.input}
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(value) => {
+              setPassword(value)
+              if (error) setError('')
+              clearAuthError?.()
+            }}
             placeholder="Votre mot de passe"
             placeholderTextColor={T.textMuted}
             secureTextEntry

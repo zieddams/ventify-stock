@@ -10,7 +10,11 @@ const USER_KEY = 'irtiwaa_user'
 export const api = axios.create({
   baseURL: BASE_URL,
   timeout: 15000,
-  headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+  headers: {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    'X-App-Client': 'mobile',
+  },
 })
 
 api.interceptors.request.use(async (config) => {
