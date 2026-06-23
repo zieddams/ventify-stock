@@ -257,15 +257,22 @@ export default function ReapproScreen() {
                     const line = lineByProductId[product.id] ?? null
                     const draftQty = loadDraft[product.id] ?? ''
                     const currentLoaded = toNumber(line?.qty_loaded)
+                    const unitLabel = product.unit || 'u'
+                    const subtitleParts = [product.reference, unitLabel].filter(Boolean)
+                    const detailParts = [
+                      `Depot ${formatNumber(toNumber(product.depot_qty))} ${unitLabel}`,
+                      `Camion ${formatNumber(currentLoaded)} ${unitLabel}`,
+                    ]
 
                     return (
                       <QuantityStepperField
                         key={product.id}
                         title={product.name}
-                        subtitle={product.reference || product.unit || 'Produit'}
-                        helper={currentLoaded > 0 ? `Charge actuel ${formatNumber(currentLoaded)}` : 'Disponible pour la recharge.'}
+                        subtitle={subtitleParts.join(' - ') || 'Produit'}
+                        helper={detailParts.join(' - ')}
                         icon="truck-delivery-outline"
                         value={draftQty}
+                        layout="stacked"
                         onChangeText={(value) => setLoadDraft((current) => ({ ...current, [product.id]: numericInput(value) }))}
                       />
                     )

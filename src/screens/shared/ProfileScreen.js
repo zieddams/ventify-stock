@@ -60,7 +60,7 @@ export default function ProfileScreen() {
   const [bugSeverity, setBugSeverity] = useState('medium')
   const [bugDescription, setBugDescription] = useState('')
 
-  const currentVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || '1.3.17'
+  const currentVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || '1.3.18'
   const buildVersion = Constants.nativeBuildVersion || String(Constants.expoConfig?.android?.versionCode ?? '')
 
   const loadLatestRelease = useCallback(async ({ silent = false } = {}) => {
