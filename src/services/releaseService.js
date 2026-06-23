@@ -68,7 +68,7 @@ export async function getLatestMobileReleases(limit = 5) {
   })
 
   if (!response.ok) {
-    throw new Error('Impossible de verifier les releases GitHub pour le moment.')
+    throw new Error('Impossible de vérifier les releases GitHub pour le moment.')
   }
 
   const payload = await response.json()

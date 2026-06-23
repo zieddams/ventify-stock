@@ -41,11 +41,11 @@ function describeApiError(err) {
   }
 
   if (err.code === 'ECONNABORTED') {
-    return 'Connexion API expiree. Verifiez votre reseau.'
+    return 'Connexion API expirée. Vérifiez votre réseau.'
   }
 
   if (err.message === 'Network Error') {
-    return 'Connexion impossible. Verifiez Internet et la configuration mobile.'
+    return 'Connexion impossible. Vérifiez Internet et la configuration mobile.'
   }
 
   return err.message || 'Connexion impossible.'
@@ -57,7 +57,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const version = Constants.expoConfig?.version || '1.3.12'
+  const version = Constants.expoConfig?.version || '1.3.14'
 
   const handleLogin = async () => {
     if (!email.trim() || !password) return
@@ -139,7 +139,7 @@ export default function LoginScreen() {
 
         <View style={s.footerCard}>
           <Text style={s.footerTitle}>Version {version}</Text>
-          <Text style={s.footerText}>Connexion simple pour la session, le stock embarque et les ventes.</Text>
+          <Text style={s.footerText}>Connexion simple pour la session, le stock embarqué et les ventes.</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

@@ -106,7 +106,7 @@ export default function RouteSessionScreen() {
       setCamions(parseItems(camionsResponse.data))
       setError('')
     } catch (err) {
-      setError(err.response?.data?.message || 'Le module session n a pas pu etre charge.')
+      setError(err.response?.data?.message || 'Le module session n’a pas pu être chargé.')
     } finally {
       setRefreshing(false)
     }
@@ -202,8 +202,8 @@ export default function RouteSessionScreen() {
     if (blocked) {
       const product = products.find((entry) => entry.id === blocked.product_id)
       Alert.alert(
-        'Stock depot insuffisant',
-        `${product?.name || 'Produit'} depasse le stock depot disponible.`,
+        'Stock dépôt insuffisant',
+        `${product?.name || 'Produit'} dépasse le stock dépôt disponible.`,
       )
       return
     }
@@ -218,7 +218,7 @@ export default function RouteSessionScreen() {
       setSearch('')
       await load()
     } catch (err) {
-      Alert.alert('Session impossible', err.response?.data?.message || err.message || 'Veuillez reessayer.')
+      Alert.alert('Session impossible', err.response?.data?.message || err.message || 'Veuillez réessayer.')
     }
   }
 
@@ -234,11 +234,11 @@ export default function RouteSessionScreen() {
       setCreditCollected('')
 
       Alert.alert(
-        'Session cloturee',
-        `Ventes ${formatCurrency(closedSession?.total_sold || 0)}\nCredit ${formatCurrency(closedSession?.credit_given || 0)}\nCash ${formatCurrency(closedSession?.cash_collected || 0)}`,
+        'Session clôturée',
+        `Ventes ${formatCurrency(closedSession?.total_sold || 0)}\nCrédit ${formatCurrency(closedSession?.credit_given || 0)}\nCash ${formatCurrency(closedSession?.cash_collected || 0)}`,
       )
     } catch (err) {
-      Alert.alert('Cloture impossible', err.response?.data?.message || err.message || 'Veuillez reessayer.')
+      Alert.alert('Clôture impossible', err.response?.data?.message || err.message || 'Veuillez réessayer.')
     }
   }
 
@@ -247,14 +247,14 @@ export default function RouteSessionScreen() {
       <ScrollView style={s.root} contentContainerStyle={s.content}>
         <PageHeader
           title="Session"
-          subtitle="Camion, chargement et cloture de la journee."
+          subtitle="Camion, chargement et clôture de la journée."
         />
 
         <View style={[s.emptyCard, cardShadow]}>
           <MaterialCommunityIcons name="account-lock-outline" size={34} color={T.primary} />
           <Text style={s.emptyTitle}>Compte commercial requis</Text>
           <Text style={s.emptyText}>
-            L ouverture et la gestion d une session mobile restent reservees au compte commercial.
+            L’ouverture et la gestion d’une session mobile restent réservées au compte commercial.
           </Text>
         </View>
       </ScrollView>
@@ -272,7 +272,7 @@ export default function RouteSessionScreen() {
       >
         <PageHeader
           title="Session"
-          subtitle={session ? 'Votre session commerciale du jour.' : 'Choisissez un camion puis preparez le chargement initial.'}
+          subtitle={session ? 'Votre session commerciale du jour.' : 'Choisissez un camion puis préparez le chargement initial.'}
           actionIcon="truck-cargo-container"
           actionLabel="Stock"
           onActionPress={() => navigation.navigate('Stock')}
@@ -292,7 +292,7 @@ export default function RouteSessionScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={s.summaryTitle}>Nouvelle session</Text>
                   <Text style={s.summarySub}>
-                    Si une session vous est affectee depuis le web, elle apparaitra ici automatiquement.
+                    Si une session vous est affectée depuis le web, elle apparaîtra ici automatiquement.
                   </Text>
                 </View>
                 <StatusChip label="A ouvrir" tone="warning" />
@@ -304,7 +304,7 @@ export default function RouteSessionScreen() {
                 <Text style={s.boxMeta}>
                   {selectedCamion?.plate
                     ? `Immatriculation ${selectedCamion.plate}`
-                    : 'Choisissez le camion avant d ouvrir la session.'}
+                    : 'Choisissez le camion avant d’ouvrir la session.'}
                 </Text>
                 <TouchableOpacity style={s.secondaryButton} onPress={() => setCamionPickerVisible(true)}>
                   <Text style={s.secondaryButtonText}>Choisir le camion</Text>
@@ -316,7 +316,7 @@ export default function RouteSessionScreen() {
               <Text style={s.sectionTitle}>Chargement initial</Text>
               <TextInput
                 style={s.searchInput}
-                placeholder="Rechercher un produit du depot"
+                placeholder="Rechercher un produit du dépôt"
                 placeholderTextColor={T.textMuted}
                 value={search}
                 onChangeText={setSearch}
@@ -329,7 +329,7 @@ export default function RouteSessionScreen() {
                   <MaterialCommunityIcons name="package-variant-closed" size={28} color={T.textMuted} />
                   <Text style={s.inlineEmptyTitle}>Aucun produit disponible</Text>
                   <Text style={s.inlineEmptyText}>
-                    Les produits sans stock depot restent masques tant qu aucune quantite n est saisie.
+                    Les produits sans stock dépôt restent masqués tant qu’aucune quantité n’est saisie.
                   </Text>
                 </View>
               ) : (
@@ -343,7 +343,7 @@ export default function RouteSessionScreen() {
                         key={product.id}
                         title={product.name}
                         subtitle={product.reference || product.unit || 'Produit'}
-                        helper={isSelected ? 'Selectionne pour le chargement initial.' : 'Disponible pour le chargement.'}
+                        helper={isSelected ? 'Sélectionné pour le chargement initial.' : 'Disponible pour le chargement.'}
                         icon="truck-delivery-outline"
                         value={draftQty}
                         onChangeText={(value) => setStartLoadDraft((current) => ({ ...current, [product.id]: numericInput(value) }))}
@@ -359,7 +359,7 @@ export default function RouteSessionScreen() {
             <View style={s.summaryTop}>
               <View style={{ flex: 1 }}>
                 <Text style={s.summaryTitle}>Session du jour</Text>
-                <Text style={s.summarySub}>Suivez votre vente, rechargez le camion puis cloturez en fin de tournee.</Text>
+                <Text style={s.summarySub}>Suivez votre vente, rechargez le camion puis clôturez en fin de tournée.</Text>
               </View>
               <StatusChip label={routeStatusLabel(session.status)} tone="success" />
             </View>
@@ -370,7 +370,7 @@ export default function RouteSessionScreen() {
                 <Text style={s.factValue}>{formatTime(session.opened_at)}</Text>
               </View>
               <View style={s.factItem}>
-                <Text style={s.factLabel}>Duree</Text>
+                <Text style={s.factLabel}>Durée</Text>
                 <Text style={s.factValue}>{formatElapsedSince(session.opened_at)}</Text>
               </View>
               <View style={s.factItem}>
@@ -385,7 +385,7 @@ export default function RouteSessionScreen() {
                 <Text style={s.metricValue}>{formatCurrency(session.total_sold || 0)}</Text>
               </View>
               <View style={s.metricCard}>
-                <Text style={s.metricLabel}>Credit</Text>
+                <Text style={s.metricLabel}>Crédit</Text>
                 <Text style={s.metricValue}>{formatCurrency(session.credit_given || 0)}</Text>
               </View>
               <View style={s.metricCard}>
@@ -402,7 +402,7 @@ export default function RouteSessionScreen() {
                 <Text style={s.secondaryButtonText}>Voir mon stock</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.secondaryButton} onPress={() => setCloseVisible(true)}>
-                <Text style={s.secondaryButtonText}>Cloturer la session</Text>
+                <Text style={s.secondaryButtonText}>Clôturer la session</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -412,10 +412,10 @@ export default function RouteSessionScreen() {
       {!session && (
         <View style={[s.footerCard, { bottom: footerBottom }]}>
           <Text style={s.footerText}>
-            {selectedLines.length} ligne(s) · {formatNumber(selectedTotalQty)} unite(s)
+            {selectedLines.length} ligne(s) · {formatNumber(selectedTotalQty)} unité(s)
           </Text>
           <TouchableOpacity style={[s.footerButton, busy && s.buttonDisabled]} onPress={submitStartSession} disabled={busy}>
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.footerButtonText}>Demarrer la session</Text>}
+            {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.footerButtonText}>Démarrer la session</Text>}
           </TouchableOpacity>
         </View>
       )}
@@ -425,7 +425,7 @@ export default function RouteSessionScreen() {
           <View style={s.dialogLarge}>
             <Text style={s.dialogTitle}>Choisir le camion</Text>
             <Text style={s.dialogText}>
-              Un camion deja occupe ne peut pas etre reutilise sur une autre session ouverte.
+              Un camion déjà occupé ne peut pas être réutilisé sur une autre session ouverte.
             </Text>
 
             <ScrollView style={s.camionList} contentContainerStyle={{ gap: 10 }}>
@@ -433,7 +433,7 @@ export default function RouteSessionScreen() {
                 <View style={s.camionEmptyCard}>
                   <MaterialCommunityIcons name="truck-outline" size={22} color={T.textMuted} />
                   <Text style={s.camionEmptyTitle}>Aucun camion actif</Text>
-                  <Text style={s.camionEmptyText}>Le back-office doit d abord creer et activer les camions physiques.</Text>
+                  <Text style={s.camionEmptyText}>Le back-office doit d’abord créer et activer les camions physiques.</Text>
                 </View>
               ) : (
                 activeCamions.map((camion) => {
@@ -457,7 +457,7 @@ export default function RouteSessionScreen() {
                       <View style={{ flex: 1 }}>
                         <Text style={[s.camionOptionTitle, selected && { color: '#fff' }]}>{camion.name}</Text>
                         <Text style={[s.camionOptionMeta, selected && { color: 'rgba(255,255,255,0.82)' }]}>
-                          {camion.plate || 'Immatriculation non renseignee'}
+                          {camion.plate || 'Immatriculation non renseignée'}
                         </Text>
                         <Text style={[s.camionOptionMeta, selected && { color: 'rgba(255,255,255,0.82)' }]}>
                           {disabled
@@ -484,17 +484,17 @@ export default function RouteSessionScreen() {
       <Modal visible={closeVisible} transparent animationType="fade" onRequestClose={() => setCloseVisible(false)}>
         <View style={s.overlay}>
           <View style={s.dialog}>
-            <Text style={s.dialogTitle}>Cloturer la session</Text>
-            <Text style={s.dialogText}>Validez les montants proposes a partir des factures de la session.</Text>
+            <Text style={s.dialogTitle}>Clôturer la session</Text>
+            <Text style={s.dialogText}>Validez les montants proposés à partir des factures de la session.</Text>
 
             <View style={s.infoCard}>
               <MaterialCommunityIcons name="cash-register" size={18} color={T.info} />
               <Text style={s.infoCardText}>
-                {`${closeDefaults.invoiceCount} facture(s) · Ventes ${formatCurrency(closeDefaults.totalSold)} · Cash ${formatCurrency(closeDefaults.cashCollected)} · Credit ${formatCurrency(closeDefaults.creditTotal)}`}
+                {`${closeDefaults.invoiceCount} facture(s) · Ventes ${formatCurrency(closeDefaults.totalSold)} · Cash ${formatCurrency(closeDefaults.cashCollected)} · Crédit ${formatCurrency(closeDefaults.creditTotal)}`}
               </Text>
             </View>
 
-            <Text style={s.fieldLabel}>Cash collecte a valider</Text>
+            <Text style={s.fieldLabel}>Cash collecté à valider</Text>
             <TextInput
               style={s.fieldInput}
               keyboardType="decimal-pad"
@@ -504,7 +504,7 @@ export default function RouteSessionScreen() {
               onChangeText={(value) => setCashCollected(numericInput(value))}
             />
 
-            <Text style={s.fieldLabel}>Credit session a valider</Text>
+            <Text style={s.fieldLabel}>Crédit session à valider</Text>
             <TextInput
               style={s.fieldInput}
               keyboardType="decimal-pad"
@@ -519,7 +519,7 @@ export default function RouteSessionScreen() {
                 <Text style={s.dialogSecondaryText}>Annuler</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[s.dialogPrimary, busy && s.buttonDisabled]} onPress={submitClose} disabled={busy}>
-                {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.dialogPrimaryText}>Cloturer</Text>}
+                {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.dialogPrimaryText}>Clôturer</Text>}
               </TouchableOpacity>
             </View>
           </View>

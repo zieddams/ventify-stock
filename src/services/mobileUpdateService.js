@@ -66,10 +66,10 @@ async function launchApkInstaller(contentUri) {
       }
 
       const rootMessage = viewError?.message || installError?.message || ''
-      const suffix = rootMessage ? ` Detail: ${rootMessage}` : ''
+      const suffix = rootMessage ? ` Détail: ${rootMessage}` : ''
 
       throw new Error(
-        "Autorisez d'abord l'installation des applications inconnues pour El Irtiwaa, puis relancez la mise a jour." +
+        "Autorisez d'abord l'installation des applications inconnues pour El Irtiwaa, puis relancez la mise à jour." +
           suffix,
       )
     }

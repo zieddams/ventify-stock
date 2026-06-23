@@ -46,7 +46,7 @@ function sessionHint(session, configuredCamion) {
     return 'Aucune session active'
   }
 
-  return session.camion?.name || configuredCamion?.name || 'Camion a definir'
+  return session.camion?.name || configuredCamion?.name || 'Camion à définir'
 }
 
 export default function DashboardScreen() {
@@ -83,7 +83,7 @@ export default function DashboardScreen() {
       setConfiguredCamion(camionResponse.data?.configured_camion ?? null)
       setError('')
     } catch (err) {
-      setError(err.response?.data?.message || 'Le tableau de bord mobile n a pas pu etre charge.')
+      setError(err.response?.data?.message || 'Le tableau de bord mobile n’a pas pu être chargé.')
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -151,11 +151,11 @@ export default function DashboardScreen() {
       <View style={[s.heroCard, cardShadow]}>
         <View style={s.heroTop}>
           <View style={{ flex: 1 }}>
-            <Text style={s.heroTitle}>Ma journee</Text>
+            <Text style={s.heroTitle}>Ma journée</Text>
             <Text style={s.heroSubtitle}>
               {session
                 ? 'Votre session et vos ventes du jour.'
-                : 'Demarrez une session pour commencer la journee.'}
+                : 'Démarrez une session pour commencer la journée.'}
             </Text>
           </View>
           <StatusChip
@@ -168,13 +168,13 @@ export default function DashboardScreen() {
           <View style={s.infoBlock}>
             <Text style={s.infoBlockTitle}>Compte commercial requis</Text>
             <Text style={s.infoBlockText}>
-              Ce mobile reste optimise pour le commercial qui ouvre une session, gere son camion et facture ses clients.
+              Ce mobile reste optimisé pour le commercial qui ouvre une session, gère son camion et facture ses clients.
             </Text>
           </View>
         ) : !session ? (
           <>
             <Text style={s.heroText}>
-              Aucune session n est active aujourd hui. Choisissez un camion puis preparez le chargement initial avant de facturer.
+              Aucune session n’est active aujourd’hui. Choisissez un camion puis préparez le chargement initial avant de facturer.
             </Text>
             <View style={s.heroActions}>
               <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Session')} activeOpacity={0.85}>
@@ -194,7 +194,7 @@ export default function DashboardScreen() {
                 <Text style={s.factValue}>{formatTime(session.opened_at)}</Text>
               </View>
               <View style={s.factItem}>
-                <Text style={s.factLabel}>Duree</Text>
+                <Text style={s.factLabel}>Durée</Text>
                 <Text style={s.factValue}>{formatElapsedSince(session.opened_at)}</Text>
               </View>
               <View style={s.factItem}>
@@ -209,7 +209,7 @@ export default function DashboardScreen() {
                 <Text style={s.sessionMetricValue}>{formatCurrency(session.total_sold || 0)}</Text>
               </View>
               <View style={s.sessionMetric}>
-                <Text style={s.sessionMetricLabel}>Credit</Text>
+                <Text style={s.sessionMetricLabel}>Crédit</Text>
                 <Text style={s.sessionMetricValue}>{formatCurrency(session.credit_given || 0)}</Text>
               </View>
               <View style={s.sessionMetric}>
@@ -221,7 +221,7 @@ export default function DashboardScreen() {
             <View style={s.heroActions}>
               <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Session')}>
                 <MaterialCommunityIcons name="clipboard-list-outline" size={18} color="#fff" />
-                <Text style={s.primaryButtonText}>Gerer la session</Text>
+                <Text style={s.primaryButtonText}>Gérer la session</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Reappro')}>
                 <Text style={s.secondaryButtonText}>Recharger le camion</Text>
@@ -272,7 +272,7 @@ export default function DashboardScreen() {
             style={s.quickAction}
             onPress={() => {
               if (session?.status !== 'open') {
-                Alert.alert('Session requise', 'Ouvrez d abord une session commerciale avant de creer une facture.')
+                Alert.alert('Session requise', 'Ouvrez d’abord une session commerciale avant de créer une facture.')
                 return
               }
 
@@ -301,7 +301,7 @@ export default function DashboardScreen() {
 
       <View style={[s.sectionCard, cardShadow]}>
         <View style={s.sectionHeaderRow}>
-          <Text style={s.sectionTitle}>Dernieres factures</Text>
+          <Text style={s.sectionTitle}>Dernières factures</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Factures')}>
             <Text style={s.linkText}>Tout voir</Text>
           </TouchableOpacity>
@@ -310,7 +310,7 @@ export default function DashboardScreen() {
         {loading && invoices.length === 0 ? (
           <ActivityIndicator color={T.primary} style={{ marginVertical: 24 }} />
         ) : invoices.length === 0 ? (
-          <Text style={s.emptyText}>Aucune facture enregistree pour ce compte.</Text>
+          <Text style={s.emptyText}>Aucune facture enregistrée pour ce compte.</Text>
         ) : (
           invoices.slice(0, 5).map((item) => (
             <TouchableOpacity
@@ -326,7 +326,7 @@ export default function DashboardScreen() {
               <View style={{ alignItems: 'flex-end', gap: 6 }}>
                 <Text style={s.invoiceTotal}>{formatCurrency(item.total)}</Text>
                 <StatusChip
-                  label={item.payment_status === 'paid' ? 'Reglee' : 'A suivre'}
+                  label={item.payment_status === 'paid' ? 'Réglée' : 'À suivre'}
                   tone={item.payment_status === 'paid' ? 'success' : 'warning'}
                 />
               </View>

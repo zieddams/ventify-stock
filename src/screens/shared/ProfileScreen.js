@@ -60,7 +60,7 @@ export default function ProfileScreen() {
   const [bugSeverity, setBugSeverity] = useState('medium')
   const [bugDescription, setBugDescription] = useState('')
 
-  const currentVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || '1.3.12'
+  const currentVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || '1.3.14'
   const buildVersion = Constants.nativeBuildVersion || String(Constants.expoConfig?.android?.versionCode ?? '')
 
   const loadLatestRelease = useCallback(async ({ silent = false } = {}) => {
@@ -74,7 +74,7 @@ export default function ProfileScreen() {
       setReleaseError('')
       return release || null
     } catch (error) {
-      setReleaseError(describeApiError(error, 'Verification des mises a jour indisponible.'))
+      setReleaseError(describeApiError(error, 'Vérification des mises à jour indisponible.'))
       return null
     } finally {
       if (!silent) {
@@ -93,9 +93,9 @@ export default function ProfileScreen() {
   }, [currentVersion, latestRelease?.version])
 
   const confirmLogout = () => {
-    Alert.alert('Deconnexion', 'Voulez-vous fermer la session mobile ?', [
+    Alert.alert('Déconnexion', 'Voulez-vous fermer la session mobile ?', [
       { text: 'Annuler', style: 'cancel' },
-      { text: 'Se deconnecter', style: 'destructive', onPress: () => logout() },
+      { text: 'Se déconnecter', style: 'destructive', onPress: () => logout() },
     ])
   }
 
@@ -108,7 +108,7 @@ export default function ProfileScreen() {
 
     const comparison = compareReleaseVersions(release.version, currentVersion)
     if (comparison <= 0) {
-      Alert.alert('Application', 'Cette version est deja a jour.')
+      Alert.alert('Application', 'Cette version est déjà à jour.')
       return
     }
 
@@ -123,7 +123,7 @@ export default function ProfileScreen() {
         onProgress: setDownloadProgress,
       })
     } catch (error) {
-      Alert.alert('Mise a jour', describeApiError(error, 'Installation impossible.'))
+      Alert.alert('Mise à jour', describeApiError(error, 'Installation impossible.'))
     } finally {
       setInstallingUpdate(false)
     }
@@ -144,7 +144,7 @@ export default function ProfileScreen() {
     }
 
     if (!bugDescription.trim()) {
-      Alert.alert('Signalement', 'Ajoutez une description du probleme.')
+      Alert.alert('Signalement', 'Ajoutez une description du problème.')
       return
     }
 
@@ -166,10 +166,10 @@ export default function ProfileScreen() {
       })
 
       resetBugForm()
-      Alert.alert('Signalement envoye', 'Votre signalement a ete transmis a l equipe support.')
+      Alert.alert('Signalement envoyé', 'Votre signalement a été transmis à l’équipe support.')
     } catch (error) {
       setSendingBug(false)
-      Alert.alert('Signalement impossible', describeApiError(error, 'Veuillez reessayer.'))
+      Alert.alert('Signalement impossible', describeApiError(error, 'Veuillez réessayer.'))
     }
   }
 
@@ -178,7 +178,7 @@ export default function ProfileScreen() {
       <ScrollView style={s.root} contentContainerStyle={s.content}>
         <PageHeader
           title="Compte"
-          subtitle="Application, support et deconnexion."
+          subtitle="Application, support et déconnexion."
         />
 
         <View style={[s.heroCard, cardShadow]}>
@@ -188,13 +188,13 @@ export default function ProfileScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.heroTitle}>{user?.name || 'Compte mobile'}</Text>
-              <Text style={s.heroSubtitle}>{user?.email || 'Email non renseigne'}</Text>
+              <Text style={s.heroSubtitle}>{user?.email || 'Email non renseigné'}</Text>
             </View>
             <StatusChip label={user?.role || 'mobile'} tone="info" />
           </View>
 
           <Text style={s.heroInfo}>
-            Vous etes connecte avec le compte {user?.name || 'mobile'}.
+            Vous êtes connecté avec le compte {user?.name || 'mobile'}.
           </Text>
           <Text style={s.heroMeta}>
             Version {currentVersion}{buildVersion ? ` (${buildVersion})` : ''}
@@ -203,23 +203,23 @@ export default function ProfileScreen() {
 
         <View style={[s.sectionCard, cardShadow]}>
           <View style={s.sectionHeaderRow}>
-            <Text style={s.sectionTitle}>Mise a jour</Text>
+            <Text style={s.sectionTitle}>Mise à jour</Text>
             <TouchableOpacity style={s.inlineButton} onPress={() => loadLatestRelease()}>
-              {checkingRelease ? <ActivityIndicator size="small" color={T.primary} /> : <Text style={s.inlineButtonText}>Verifier</Text>}
+              {checkingRelease ? <ActivityIndicator size="small" color={T.primary} /> : <Text style={s.inlineButtonText}>Vérifier</Text>}
             </TouchableOpacity>
           </View>
 
           <View style={s.infoRow}>
-            <Text style={s.infoLabel}>Version installee</Text>
+            <Text style={s.infoLabel}>Version installée</Text>
             <Text style={s.infoValue}>{currentVersion}{buildVersion ? ` (${buildVersion})` : ''}</Text>
           </View>
           <View style={s.infoRow}>
-            <Text style={s.infoLabel}>Derniere release</Text>
+            <Text style={s.infoLabel}>Dernière release</Text>
             <Text style={s.infoValue}>{latestRelease?.version || '--'}</Text>
           </View>
           <View style={s.infoRow}>
-            <Text style={s.infoLabel}>Etat</Text>
-            <Text style={s.infoValue}>{hasUpdate ? 'Mise a jour disponible' : 'Application a jour'}</Text>
+            <Text style={s.infoLabel}>État</Text>
+            <Text style={s.infoValue}>{hasUpdate ? 'Mise à jour disponible' : 'Application à jour'}</Text>
           </View>
           {latestRelease?.publishedAt ? (
             <View style={s.infoRow}>
@@ -249,19 +249,19 @@ export default function ProfileScreen() {
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={s.primaryButtonText}>
-                  {hasUpdate ? 'Telecharger et installer' : 'Application a jour'}
+                  {hasUpdate ? 'Télécharger et installer' : 'Application à jour'}
                 </Text>
               )}
             </TouchableOpacity>
           ) : (
-            <Text style={s.inlineHint}>L installation integree est disponible uniquement sur Android.</Text>
+            <Text style={s.inlineHint}>L’installation intégrée est disponible uniquement sur Android.</Text>
           )}
         </View>
 
         <View style={[s.sectionCard, cardShadow]}>
           <Text style={s.sectionTitle}>Support</Text>
           <Text style={s.sectionText}>
-            Un signalement mobile est envoye au meme centre support que la plateforme web.
+            Un signalement mobile est envoyé au même centre support que la plateforme web.
           </Text>
 
           <TouchableOpacity style={s.secondaryButton} onPress={() => setBugModalVisible(true)}>
@@ -271,19 +271,19 @@ export default function ProfileScreen() {
 
           <TouchableOpacity style={s.secondaryButton} onPress={() => setAboutVisible(true)}>
             <MaterialCommunityIcons name="information-outline" size={18} color={T.primary} />
-            <Text style={s.secondaryButtonText}>A propos</Text>
+            <Text style={s.secondaryButtonText}>À propos</Text>
           </TouchableOpacity>
         </View>
 
         <View style={[s.sectionCard, cardShadow]}>
           <Text style={s.sectionTitle}>Session mobile</Text>
           <Text style={s.sectionText}>
-            Vous etes connecte avec le compte {user?.email || 'mobile'}.
+            Vous êtes connecté avec le compte {user?.email || 'mobile'}.
           </Text>
 
           <TouchableOpacity style={s.logoutButton} onPress={confirmLogout}>
             <MaterialCommunityIcons name="logout" size={18} color="#fff" />
-            <Text style={s.logoutButtonText}>Se deconnecter</Text>
+            <Text style={s.logoutButtonText}>Se déconnecter</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -292,18 +292,18 @@ export default function ProfileScreen() {
         <View style={s.overlay}>
           <View style={s.dialog}>
             <Text style={s.dialogTitle}>Signaler un bug</Text>
-            <Text style={s.dialogText}>Decrivez simplement le probleme rencontre sur le mobile.</Text>
+            <Text style={s.dialogText}>Décrivez simplement le problème rencontré sur le mobile.</Text>
 
             <Text style={s.fieldLabel}>Sujet</Text>
             <TextInput
               style={s.input}
-              placeholder="Exemple: facture bloquee"
+              placeholder="Exemple : facture bloquée"
               placeholderTextColor={T.textMuted}
               value={bugSubject}
               onChangeText={setBugSubject}
             />
 
-            <Text style={s.fieldLabel}>Priorite</Text>
+            <Text style={s.fieldLabel}>Priorité</Text>
             <View style={s.severityRow}>
               {BUG_SEVERITIES.map((item) => {
                 const active = bugSeverity === item.value
@@ -322,7 +322,7 @@ export default function ProfileScreen() {
             <Text style={s.fieldLabel}>Description</Text>
             <TextInput
               style={[s.input, s.textarea]}
-              placeholder="Que s est-il passe ?"
+              placeholder="Que s’est-il passé ?"
               placeholderTextColor={T.textMuted}
               multiline
               textAlignVertical="top"
@@ -345,7 +345,7 @@ export default function ProfileScreen() {
       <Modal visible={aboutVisible} transparent animationType="fade" onRequestClose={() => setAboutVisible(false)}>
         <View style={s.overlay}>
           <View style={s.dialog}>
-            <Text style={s.dialogTitle}>A propos</Text>
+            <Text style={s.dialogTitle}>À propos</Text>
             <Text style={s.dialogText}>
               El Irtiwaa Mobile accompagne la session commerciale, le stock camion et la facturation terrain.
             </Text>
