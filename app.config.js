@@ -1,7 +1,7 @@
 module.exports = {
   name: 'El Irtiwaa',
   slug: 'ventify-stock',
-  version: '1.3.18',
+  version: '1.3.19',
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
@@ -21,7 +21,7 @@ module.exports = {
   },
   android: {
     package: 'com.ventify.stock',
-    versionCode: 25,
+    versionCode: 26,
     adaptiveIcon: {
       backgroundColor: '#f8fafc',
       foregroundImage: './assets/android-icon-foreground.png',

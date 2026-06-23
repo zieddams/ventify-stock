@@ -152,6 +152,11 @@ export default function InvoiceCreateScreen({ navigation, route }) {
 
   const subtotal = useMemo(() => lines.reduce((sum, item) => sum + lineTotal(item), 0), [lines])
   const paidValue = toNumber(paidAmount)
+  const customerCreditBalance = toNumber(selectedCustomer?.credit_balance)
+  const customerCreditLimit = toNumber(selectedCustomer?.credit_limit)
+  const surplusPayment = Math.max(paidValue - subtotal, 0)
+  const creditReduction = Math.min(surplusPayment, customerCreditBalance)
+  const projectedCustomerBalance = Math.max(customerCreditBalance + subtotal - paidValue, 0)
 
   const hasStockMap = Object.keys(camionStock).length > 0
 
@@ -298,7 +303,8 @@ export default function InvoiceCreateScreen({ navigation, route }) {
         initialInvoice: response.data,
       })
     } catch (error) {
-      Alert.alert('Enregistrement impossible', error.response?.data?.message || 'Veuillez réessayer.')
+      const firstFieldError = Object.values(error.response?.data?.errors ?? {})[0]?.[0]
+      Alert.alert('Enregistrement impossible', firstFieldError || error.response?.data?.message || 'Veuillez réessayer.')
     } finally {
       if (shouldResetSaving) {
         setSaving(false)
@@ -347,6 +353,15 @@ export default function InvoiceCreateScreen({ navigation, route }) {
                 {selectedCustomer.owner?.name && (
                   <Text style={s.customerMeta}>Affecté : {selectedCustomer.owner.name}</Text>
                 )}
+                <View style={s.customerCreditRow}>
+                  <StatusChip
+                    label={`Credit ${formatCurrency(customerCreditBalance)}`}
+                    tone={customerCreditBalance > 0 ? 'danger' : 'success'}
+                  />
+                  {customerCreditLimit > 0 ? (
+                    <StatusChip label={`Plafond ${formatCurrency(customerCreditLimit)}`} tone="neutral" />
+                  ) : null}
+                </View>
               </View>
             )}
           </View>
@@ -433,6 +448,13 @@ export default function InvoiceCreateScreen({ navigation, route }) {
               value={paidAmount}
               onChangeText={(value) => setPaidAmount(sanitizeNumber(value))}
             />
+            {selectedCustomer ? (
+              <Text style={s.helperText}>
+                {surplusPayment > 0
+                  ? `Surplus affecte a l'ancien credit: ${formatCurrency(creditReduction)}.`
+                  : 'Le montant saisi regle la facture en cours puis, si besoin, les credits plus anciens.'}
+              </Text>
+            ) : null}
 
             <Text style={s.fieldLabel}>Notes</Text>
             <TextInput
@@ -454,10 +476,28 @@ export default function InvoiceCreateScreen({ navigation, route }) {
               <Text style={s.totalLabel}>Payé maintenant</Text>
               <Text style={s.totalValue}>{formatCurrency(paidValue)}</Text>
             </View>
+            {selectedCustomer ? (
+              <>
+                <View style={s.totalRow}>
+                  <Text style={s.totalLabel}>Credit actuel client</Text>
+                  <Text style={s.totalValue}>{formatCurrency(customerCreditBalance)}</Text>
+                </View>
+                <View style={s.totalRow}>
+                  <Text style={s.totalLabel}>Reduction ancien credit</Text>
+                  <Text style={s.totalValue}>{formatCurrency(creditReduction)}</Text>
+                </View>
+              </>
+            ) : null}
             <View style={s.totalRow}>
               <Text style={s.totalLabelStrong}>Reste à régler</Text>
               <Text style={s.totalValueStrong}>{formatCurrency(Math.max(subtotal - paidValue, 0))}</Text>
             </View>
+            {selectedCustomer ? (
+              <View style={s.totalRow}>
+                <Text style={s.totalLabel}>Solde client apres facture</Text>
+                <Text style={s.totalValue}>{formatCurrency(projectedCustomerBalance)}</Text>
+              </View>
+            ) : null}
           </View>
 
           {!session || session.status !== 'open' ? (
@@ -747,6 +787,12 @@ const s = StyleSheet.create({
     fontSize: 13,
     color: T.textSecondary,
   },
+  customerCreditRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
   smallButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -839,6 +885,12 @@ const s = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 14,
     color: T.text,
+  },
+  helperText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: T.textMuted,
+    lineHeight: 18,
   },
   notesInput: {
     minHeight: 92,
