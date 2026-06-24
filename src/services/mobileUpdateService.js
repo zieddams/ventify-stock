@@ -1,5 +1,7 @@
 import Constants from 'expo-constants'
 import { Platform } from 'react-native'
+import * as Crypto from 'expo-crypto'
+import { File as ExpoFile } from 'expo-file-system'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as IntentLauncher from 'expo-intent-launcher'
 
@@ -22,6 +24,21 @@ function getDownloadDirectory() {
   return FileSystem.cacheDirectory || FileSystem.documentDirectory || null
 }
 
+function normalizeSha256Digest(value) {
+  const digest = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^sha256:/, '')
+
+  return /^[a-f0-9]{64}$/.test(digest) ? digest : null
+}
+
+function arrayBufferToHex(buffer) {
+  return Array.from(new Uint8Array(buffer))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
+}
+
 async function cleanupDownloadedApks(directory) {
   if (!directory) return
 
@@ -34,6 +51,24 @@ async function cleanupDownloadedApks(directory) {
     )
   } catch {
     // Best-effort cleanup only.
+  }
+}
+
+async function verifyDownloadedApkSha256(fileUri, expectedSha256) {
+  const normalizedExpectedSha256 = normalizeSha256Digest(expectedSha256)
+
+  if (!normalizedExpectedSha256) {
+    return
+  }
+
+  const file = new ExpoFile(fileUri)
+  const bytes = await file.bytes()
+  const digestBuffer = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, bytes)
+  const actualSha256 = arrayBufferToHex(digestBuffer)
+
+  if (actualSha256 !== normalizedExpectedSha256) {
+    await FileSystem.deleteAsync(fileUri, { idempotent: true })
+    throw new Error("L'intégrité du fichier APK n'a pas pu être vérifiée. Relancez la mise à jour.")
   }
 }
 
@@ -80,7 +115,7 @@ export function isInAppUpdateSupported() {
   return Platform.OS === 'android'
 }
 
-export async function downloadAndLaunchApkUpdate({ url, version, expectedBytes, onProgress }) {
+export async function downloadAndLaunchApkUpdate({ url, version, expectedBytes, expectedSha256, onProgress }) {
   if (!isInAppUpdateSupported()) {
     throw new Error("L'installation intégrée de mise à jour est disponible uniquement sur Android.")
   }
@@ -137,6 +172,8 @@ export async function downloadAndLaunchApkUpdate({ url, version, expectedBytes, 
       throw new Error('Le fichier APK semble incomplet. Relancez le téléchargement.')
     }
   }
+
+  await verifyDownloadedApkSha256(result.uri, expectedSha256)
 
   const contentUri = await FileSystem.getContentUriAsync(result.uri)
 

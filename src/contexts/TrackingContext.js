@@ -17,9 +17,11 @@ import {
   openRouteSession,
   recordRouteSessionReturns,
 } from '../services/routeSessionService'
+import { pingSession, reportSession } from '../services/sessionService'
 
 const TrackingContext = createContext(null)
 const REMOTE_SESSION_SYNC_MS = 5000
+const REMOTE_PRESENCE_SYNC_MS = 30000
 
 function initialTrackingState() {
   return {
@@ -38,6 +40,7 @@ export function TrackingProvider({ children }) {
   const [trackingState, setTrackingState] = useState(initialTrackingState)
   const sessionRef = useRef(null)
   const refreshInFlightRef = useRef(false)
+  const presenceInFlightRef = useRef(false)
 
   useEffect(() => {
     sessionRef.current = session
@@ -123,6 +126,37 @@ export function TrackingProvider({ children }) {
     }
   }, [markSynced, refreshSession])
 
+  const syncRemotePresence = useCallback(async (reason = 'presence-ping', mode = 'ping') => {
+    if (!user || !isRep()) {
+      return null
+    }
+
+    if (presenceInFlightRef.current) {
+      return null
+    }
+
+    presenceInFlightRef.current = true
+
+    try {
+      if (mode === 'report') {
+        await reportSession()
+      } else {
+        await pingSession()
+      }
+
+      markSynced(reason, null, Boolean(sessionRef.current?.id && sessionRef.current?.status === 'open'))
+      return null
+    } catch (error) {
+      setTrackingState((prev) => ({
+        ...prev,
+        error: error.response?.data?.message || error.message || 'Présence indisponible.',
+      }))
+      return null
+    } finally {
+      presenceInFlightRef.current = false
+    }
+  }, [isRep, markSynced, user])
+
   const startSession = useCallback(async (payload = {}) => {
     setBusy(true)
     try {
@@ -198,7 +232,10 @@ export function TrackingProvider({ children }) {
     markSynced(reason, null, Boolean(sessionRef.current?.id && sessionRef.current?.status === 'open'))
   }, [markSynced, refreshSessionDetails])
 
-  const captureCurrentLocation = useCallback(async () => null, [])
+  const captureCurrentLocation = useCallback(async () => {
+    await syncRemotePresence('presence-manual', 'report')
+    return null
+  }, [syncRemotePresence])
 
   useEffect(() => {
     if (!user || !isRep()) {
@@ -208,7 +245,8 @@ export function TrackingProvider({ children }) {
     }
 
     refreshSession()
-  }, [clearSessionState, isRep, refreshSession, user])
+    void syncRemotePresence('presence-report', 'report')
+  }, [clearSessionState, isRep, refreshSession, syncRemotePresence, user])
 
   useEffect(() => {
     if (!user || !isRep()) {
@@ -219,15 +257,16 @@ export function TrackingProvider({ children }) {
       if (nextState === 'active') {
         if (sessionRef.current?.id) {
           refreshSessionDetails()
-          return
+        } else {
+          refreshSession()
         }
 
-        refreshSession()
+        void syncRemotePresence('presence-resume', 'report')
       }
     })
 
     return () => sub.remove()
-  }, [isRep, refreshSession, refreshSessionDetails, user])
+  }, [isRep, refreshSession, refreshSessionDetails, syncRemotePresence, user])
 
   useEffect(() => {
     if (!user || !isRep()) {
@@ -249,6 +288,22 @@ export function TrackingProvider({ children }) {
 
     return () => clearInterval(interval)
   }, [isRep, refreshSession, refreshSessionDetails, user])
+
+  useEffect(() => {
+    if (!user || !isRep()) {
+      return undefined
+    }
+
+    const interval = setInterval(() => {
+      if (AppState.currentState !== 'active') {
+        return
+      }
+
+      void syncRemotePresence('presence-heartbeat')
+    }, REMOTE_PRESENCE_SYNC_MS)
+
+    return () => clearInterval(interval)
+  }, [isRep, syncRemotePresence, user])
 
   const value = useMemo(() => ({
     session,

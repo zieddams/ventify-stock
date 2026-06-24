@@ -62,7 +62,7 @@ export default function ProfileScreen() {
     { value: 'high', label: t('profile.severityHigh') },
   ]), [t])
 
-  const currentVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || '1.3.20'
+  const currentVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || '1.3.21'
   const buildVersion = Constants.nativeBuildVersion || String(Constants.expoConfig?.android?.versionCode ?? '')
 
   const loadLatestRelease = useCallback(async ({ silent = false } = {}) => {
@@ -122,6 +122,7 @@ export default function ProfileScreen() {
         url: release.apkUrl,
         version: release.version,
         expectedBytes: release.apkSize || 0,
+        expectedSha256: release.apkSha256 || null,
         onProgress: setDownloadProgress,
       })
     } catch (error) {
