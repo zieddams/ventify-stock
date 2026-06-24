@@ -25,6 +25,11 @@
     "react-native-screens": "4.25.2"
   },
   "scripts": {
+    "test": "npm run test:unit",
+    "test:unit": "node --test tests/**/*.test.cjs",
+    "sync:mobile-version": "node scripts/sync-mobile-version.cjs",
+    "check:mobile-version": "node scripts/check-mobile-version-sync.cjs",
+    "check:android-version": "node scripts/check-android-version-sync.cjs",
     "start": "expo start",
     "sync:android-version": "node scripts/sync-android-version.cjs",
     "android": "npm run sync:android-version && expo run:android",

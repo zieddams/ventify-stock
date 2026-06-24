@@ -1,38 +1,90 @@
 const fs = require('fs')
 const path = require('path')
 
-const packageJson = require('../package.json')
-const appConfig = require('../app.config.js')
-
 const projectRoot = path.resolve(__dirname, '..')
 const buildGradlePath = path.join(projectRoot, 'android', 'app', 'build.gradle')
 
-if (!fs.existsSync(buildGradlePath)) {
-  console.log('[sync-android-version] android/app/build.gradle not found, skipping.')
-  process.exit(0)
+function resolveVersionMetadata(packageJson, appConfig) {
+  const versionName = String(appConfig.version || packageJson.version || '').trim()
+  const versionCode = Number(appConfig.android?.versionCode || 0)
+
+  if (!versionName) {
+    throw new Error('[sync-android-version] Missing app version in app.config.js or package.json.')
+  }
+
+  if (!Number.isInteger(versionCode) || versionCode <= 0) {
+    throw new Error('[sync-android-version] android.versionCode must be a positive integer in app.config.js.')
+  }
+
+  return { versionName, versionCode }
 }
 
-const versionName = String(appConfig.version || packageJson.version || '').trim()
-const versionCode = Number(appConfig.android?.versionCode || 0)
+function buildUpdatedGradleContent(content, versionName, versionCode) {
+  const nextContent = content
+    .replace(/versionCode\s+\d+/, `versionCode ${versionCode}`)
+    .replace(/versionName\s+"[^"]+"/, `versionName "${versionName}"`)
 
-if (!versionName) {
-  throw new Error('[sync-android-version] Missing app version in app.config.js or package.json.')
+  return {
+    changed: nextContent !== content,
+    content: nextContent,
+  }
 }
 
-if (!Number.isInteger(versionCode) || versionCode <= 0) {
-  throw new Error('[sync-android-version] android.versionCode must be a positive integer in app.config.js.')
+function syncAndroidVersionFile({
+  fsImpl = fs,
+  targetPath = buildGradlePath,
+  packageJson = require('../package.json'),
+  appConfig = require('../app.config.js'),
+} = {}) {
+  if (!fsImpl.existsSync(targetPath)) {
+    return {
+      skipped: true,
+      changed: false,
+      message: '[sync-android-version] android/app/build.gradle not found, skipping.',
+    }
+  }
+
+  const { versionName, versionCode } = resolveVersionMetadata(packageJson, appConfig)
+  const content = fsImpl.readFileSync(targetPath, 'utf8')
+  const result = buildUpdatedGradleContent(content, versionName, versionCode)
+
+  if (!result.changed) {
+    return {
+      skipped: false,
+      changed: false,
+      versionName,
+      versionCode,
+      message: `[sync-android-version] android build.gradle already matches ${versionName} (${versionCode}).`,
+    }
+  }
+
+  fsImpl.writeFileSync(targetPath, result.content, 'utf8')
+
+  return {
+    skipped: false,
+    changed: true,
+    versionName,
+    versionCode,
+    message: `[sync-android-version] Updated android build.gradle to ${versionName} (${versionCode}).`,
+  }
 }
 
-const content = fs.readFileSync(buildGradlePath, 'utf8')
-
-const nextContent = content
-  .replace(/versionCode\s+\d+/, `versionCode ${versionCode}`)
-  .replace(/versionName\s+"[^"]+"/, `versionName "${versionName}"`)
-
-if (nextContent === content) {
-  console.log(`[sync-android-version] android build.gradle already matches ${versionName} (${versionCode}).`)
-  process.exit(0)
+function runCli() {
+  const result = syncAndroidVersionFile()
+  console.log(result.message)
 }
 
-fs.writeFileSync(buildGradlePath, nextContent, 'utf8')
-console.log(`[sync-android-version] Updated android build.gradle to ${versionName} (${versionCode}).`)
+if (require.main === module) {
+  try {
+    runCli()
+  } catch (error) {
+    console.error(error.message)
+    process.exit(1)
+  }
+}
+
+module.exports = {
+  buildUpdatedGradleContent,
+  resolveVersionMetadata,
+  syncAndroidVersionFile,
+}
