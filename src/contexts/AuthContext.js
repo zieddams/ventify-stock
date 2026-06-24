@@ -55,8 +55,14 @@ export function AuthProvider({ children }) {
   const refreshUser = useCallback(async () => {
     const response = await api.get('/auth/me')
     const nextUser = ensureMobileCommercialAccess(response.data)
-    setUser(nextUser)
     await saveStoredUser(nextUser)
+    setUser(nextUser)
+    return nextUser
+  }, [])
+
+  const setCurrentUser = useCallback(async (nextUser) => {
+    await saveStoredUser(nextUser)
+    setUser(nextUser)
     return nextUser
   }, [])
 
@@ -216,9 +222,7 @@ export function AuthProvider({ children }) {
     const response = await api.post('/auth/login', { email, password })
     const nextUser = ensureMobileCommercialAccess(response.data.user)
     await saveToken(response.data.token)
-    await saveStoredUser(nextUser)
-    setUser(nextUser)
-    return nextUser
+    return setCurrentUser(nextUser)
   }
 
   const logout = async () => {
@@ -247,13 +251,14 @@ export function AuthProvider({ children }) {
     login,
     logout,
     refreshUser,
+    setCurrentUser,
     clearAuthError,
     touchSession,
     isAdmin: () => ['admin', 'developer'].includes(user?.role),
     isRep: () => user?.role === 'rep',
     isStaff: () => ['admin', 'developer', 'comptable'].includes(user?.role),
     canManageAllCustomers: () => ['admin', 'developer', 'comptable'].includes(user?.role),
-  }), [user, loading, authError, sessionStatus, refreshUser, clearAuthError, touchSession])
+  }), [user, loading, authError, sessionStatus, refreshUser, setCurrentUser, clearAuthError, touchSession])
 
   return (
     <AuthContext.Provider value={value}>

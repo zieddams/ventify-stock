@@ -17,6 +17,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import PageHeader from '../../components/PageHeader'
 import StatusChip from '../../components/StatusChip'
 import { useAuth } from '../../contexts/AuthContext'
+import { useI18n } from '../../contexts/I18nContext'
 import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
@@ -29,24 +30,18 @@ import {
   unwrapStatus,
 } from '../../utils/format'
 
-const PERIOD_OPTIONS = [
-  { value: 'today', label: 'Jour' },
-  { value: 'week', label: 'Semaine' },
-  { value: 'month', label: 'Mois' },
-  { value: 'all', label: 'Tout' },
-]
-
 function parseItems(data) {
   return Array.isArray(data) ? data : data?.data ?? []
 }
 
-function periodLabel(period) {
-  return PERIOD_OPTIONS.find((item) => item.value === period)?.label || 'Tout'
+function periodLabel(period, options) {
+  return options.find((item) => item.value === period)?.label || options[options.length - 1]?.label || ''
 }
 
 export default function InvoicesScreen() {
   const navigation = useNavigation()
   const { user, canManageAllCustomers } = useAuth()
+  const { t } = useI18n()
   const { session, syncInteraction } = useTracking()
   const [invoices, setInvoices] = useState([])
   const [users, setUsers] = useState([])
@@ -59,6 +54,12 @@ export default function InvoicesScreen() {
   const [printing, setPrinting] = useState(false)
   const [sharing, setSharing] = useState(false)
   const hasGlobalInvoiceAccess = canManageAllCustomers()
+  const periodOptions = [
+    { value: 'today', label: t('invoices.periods.today') },
+    { value: 'week', label: t('invoices.periods.week') },
+    { value: 'month', label: t('invoices.periods.month') },
+    { value: 'all', label: t('invoices.periods.all') },
+  ]
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
@@ -115,28 +116,28 @@ export default function InvoicesScreen() {
   ), [assignableUsers, selectedRepId])
 
   const filterSummary = useMemo(() => {
-    const parts = [`Periode: ${periodLabel(period)}`]
+    const parts = [t('invoices.filterPeriod', { period: periodLabel(period, periodOptions) })]
 
     if (hasGlobalInvoiceAccess) {
       if (selectedRepId && selectedRep) {
-        parts.push(`Compte: ${selectedRep.name}`)
+        parts.push(t('invoices.filterAccount', { account: selectedRep.name }))
       } else {
-        parts.push('Compte : Toute l’équipe')
+        parts.push(t('invoices.filterAllAccounts'))
       }
     } else if (user?.name) {
-      parts.push(`Compte: ${user.name}`)
+      parts.push(t('invoices.filterAccount', { account: user.name }))
     }
 
     if (search.trim()) {
-      parts.push(`Recherche: ${search.trim()}`)
+      parts.push(t('invoices.filterSearch', { value: search.trim() }))
     }
 
     return parts.join(' | ')
-  }, [hasGlobalInvoiceAccess, period, search, selectedRep, selectedRepId, user?.name])
+  }, [hasGlobalInvoiceAccess, period, periodOptions, search, selectedRep, selectedRepId, t, user?.name])
 
   const handlePrintList = async () => {
     if (filtered.length === 0) {
-      Alert.alert('Aucune facture', 'Aucune facture ne correspond au filtre courant.')
+      Alert.alert(t('invoices.noneTitle'), t('invoices.noneText'))
       return
     }
 
@@ -144,12 +145,12 @@ export default function InvoicesScreen() {
     try {
       await printInvoiceListDocument({
         invoices: filtered,
-        title: 'Liste factures mobile',
+        title: t('invoices.listDocumentTitle'),
         subtitle: filterSummary,
       })
       await syncInteraction('invoice-list-thermal', { includeLocation: false, refreshSession: false })
     } catch (error) {
-      Alert.alert('Transfert thermique impossible', error.message || 'Veuillez réessayer.')
+      Alert.alert(t('invoices.thermalErrorTitle'), error.message || t('invoices.retry'))
     } finally {
       setPrinting(false)
     }
@@ -157,7 +158,7 @@ export default function InvoicesScreen() {
 
   const handleShareList = async () => {
     if (filtered.length === 0) {
-      Alert.alert('Aucune facture', 'Aucune facture ne correspond au filtre courant.')
+      Alert.alert(t('invoices.noneTitle'), t('invoices.noneText'))
       return
     }
 
@@ -165,12 +166,12 @@ export default function InvoicesScreen() {
     try {
       await shareInvoiceListDocument({
         invoices: filtered,
-        title: 'Liste factures mobile',
+        title: t('invoices.listDocumentTitle'),
         subtitle: filterSummary,
       })
       await syncInteraction('invoice-list-pdf', { includeLocation: false, refreshSession: false })
     } catch (error) {
-      Alert.alert('Partage impossible', error.message || 'Veuillez réessayer.')
+      Alert.alert(t('invoices.shareErrorTitle'), error.message || t('invoices.retry'))
     } finally {
       setSharing(false)
     }
@@ -195,7 +196,7 @@ export default function InvoicesScreen() {
                 <Text style={s.rowCustomer}>{item.customer_name}</Text>
                 <Text style={s.rowDate}>{formatDateTime(item.created_at)}</Text>
                 {hasGlobalInvoiceAccess && !!item.rep_name && (
-                  <Text style={s.rowRep}>Commercial: {item.rep_name}</Text>
+                  <Text style={s.rowRep}>{t('invoices.repLabel', { name: item.rep_name })}</Text>
                 )}
                 <View style={s.pills}>
                   <StatusChip
@@ -218,13 +219,13 @@ export default function InvoicesScreen() {
         ListHeaderComponent={(
           <View style={s.headerWrap}>
             <PageHeader
-              title="Factures"
-              subtitle={session?.status === 'open' ? 'Session du jour active' : 'Ouvrez une session avant de facturer'}
+              title={t('invoices.title')}
+              subtitle={session?.status === 'open' ? t('invoices.sessionOpenSubtitle') : t('invoices.sessionClosedSubtitle')}
               actionIcon="file-document-plus-outline"
-              actionLabel="Nouvelle"
+              actionLabel={t('invoices.newAction')}
               onActionPress={() => {
                 if (session?.status !== 'open') {
-                  Alert.alert('Session requise', 'Ouvrez d’abord une session commerciale avant de créer une facture.')
+                  Alert.alert(t('invoices.sessionRequiredTitle'), t('invoices.sessionRequiredText'))
                   return
                 }
 
@@ -233,7 +234,7 @@ export default function InvoicesScreen() {
             />
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.periodRow}>
-              {PERIOD_OPTIONS.map((item) => {
+              {periodOptions.map((item) => {
                 const active = period === item.value
                 return (
                   <TouchableOpacity
@@ -251,7 +252,7 @@ export default function InvoicesScreen() {
                 <TouchableOpacity style={s.toolButtonWide} onPress={() => setRepFilterVisible(true)}>
                   <MaterialCommunityIcons name="account-filter-outline" size={16} color={T.primary} />
                   <Text style={s.toolButtonLabel} numberOfLines={1}>
-                    {selectedRep ? selectedRep.name : 'Toute l’équipe'}
+                    {selectedRep ? selectedRep.name : t('invoices.allAccounts')}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -262,7 +263,7 @@ export default function InvoicesScreen() {
                 ) : (
                   <>
                     <MaterialCommunityIcons name="printer-outline" size={16} color={T.primary} />
-                    <Text style={s.toolButtonLabel}>Thermique</Text>
+                    <Text style={s.toolButtonLabel}>{t('invoices.thermalAction')}</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -273,7 +274,7 @@ export default function InvoicesScreen() {
                 ) : (
                   <>
                     <MaterialCommunityIcons name="file-pdf-box" size={16} color={T.primary} />
-                    <Text style={s.toolButtonLabel}>PDF</Text>
+                    <Text style={s.toolButtonLabel}>{t('invoices.pdfAction')}</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -283,7 +284,7 @@ export default function InvoicesScreen() {
               <MaterialCommunityIcons name="magnify" size={18} color={T.textMuted} />
               <TextInput
                 style={s.searchInput}
-                placeholder="Rechercher une facture, un client, un commercial"
+                placeholder={t('invoices.searchPlaceholder')}
                 placeholderTextColor={T.textMuted}
                 value={search}
                 onChangeText={setSearch}
@@ -291,7 +292,7 @@ export default function InvoicesScreen() {
             </View>
 
             <Text style={s.filterHint}>{filterSummary}</Text>
-            <Text style={s.printHint}>Thermique ouvre votre application Bluetooth externe. PDF garde une copie à partager.</Text>
+            <Text style={s.printHint}>{t('invoices.printHint')}</Text>
           </View>
         )}
         ListEmptyComponent={(
@@ -301,7 +302,7 @@ export default function InvoicesScreen() {
             ) : (
               <>
                 <MaterialCommunityIcons name="file-document-outline" size={34} color={T.textMuted} />
-                <Text style={s.emptyText}>Aucune facture sur ce filtre.</Text>
+                <Text style={s.emptyText}>{t('invoices.empty')}</Text>
               </>
             )}
           </View>
@@ -313,20 +314,20 @@ export default function InvoicesScreen() {
       <Modal visible={repFilterVisible} animationType="slide" onRequestClose={() => setRepFilterVisible(false)}>
         <View style={s.modalRoot}>
           <PageHeader
-            title="Filtre commercial"
-            subtitle="Roles globaux"
+            title={t('invoices.filterModalTitle')}
+            subtitle={t('invoices.filterModalSubtitle')}
             actionIcon="close"
             onActionPress={() => setRepFilterVisible(false)}
           />
 
           <TouchableOpacity
             style={s.filterOption}
-            onPress={() => {
-              setSelectedRepId('')
-              setRepFilterVisible(false)
-            }}>
-            <Text style={s.filterOptionTitle}>Toute l’équipe</Text>
-            <Text style={s.filterOptionMeta}>Afficher toutes les factures disponibles</Text>
+              onPress={() => {
+                setSelectedRepId('')
+                setRepFilterVisible(false)
+              }}>
+            <Text style={s.filterOptionTitle}>{t('invoices.allAccounts')}</Text>
+            <Text style={s.filterOptionMeta}>{t('invoices.showAllInvoices')}</Text>
           </TouchableOpacity>
 
           {!!user?.id && (
@@ -336,7 +337,7 @@ export default function InvoicesScreen() {
                 setSelectedRepId(String(user.id))
                 setRepFilterVisible(false)
               }}>
-              <Text style={s.filterOptionTitle}>Mon compte</Text>
+              <Text style={s.filterOptionTitle}>{t('invoices.myAccount')}</Text>
               <Text style={s.filterOptionMeta}>{user.name}</Text>
             </TouchableOpacity>
           )}

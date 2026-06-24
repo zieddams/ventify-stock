@@ -13,18 +13,20 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import PageHeader from '../../components/PageHeader'
 import MetricCard from '../../components/MetricCard'
 import StatusChip from '../../components/StatusChip'
+import { useI18n } from '../../contexts/I18nContext'
 import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
 import { formatCount, formatCurrency, formatDateTime, formatNumber, toNumber } from '../../utils/format'
 
-function sessionLabel(routeSession) {
-  if (!routeSession) return 'Sans session'
-  return routeSession.status === 'open' ? 'Session ouverte' : 'Session cloturee'
+function sessionLabel(routeSession, t) {
+  if (!routeSession) return t('camion.assignment.noSession')
+  return routeSession.status === 'open' ? t('camion.assignment.sessionOpen') : t('camion.assignment.sessionClosed')
 }
 
 export default function CamionScreen() {
   const navigation = useNavigation()
+  const { t } = useI18n()
   const { session } = useTracking()
   const [stock, setStock] = useState([])
   const [loading, setLoading] = useState(true)
@@ -63,7 +65,7 @@ export default function CamionScreen() {
         return rightLow - leftLow
       }
 
-      return String(left.product?.name || '').localeCompare(String(right.product?.name || ''), 'fr')
+      return String(left.product?.name || '').localeCompare(String(right.product?.name || ''))
     })
   }, [stock])
 
@@ -96,17 +98,17 @@ export default function CamionScreen() {
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={s.rowName}>{item.product?.name || 'Produit'}</Text>
+                <Text style={s.rowName}>{item.product?.name || t('camion.productFallback')}</Text>
                 <Text style={s.rowMeta}>
-                  {item.product?.reference || item.product?.unit || 'Stock camion'}
-                  {` · min ${formatNumber(minStock)}`}
+                  {item.product?.reference || item.product?.unit || t('camion.rowStockFallback')}
+                  {` · ${t('camion.minLabel', { value: formatNumber(minStock) })}`}
                 </Text>
               </View>
               <View style={{ alignItems: 'flex-end', gap: 6 }}>
                 <Text style={[s.rowQty, { color: isLow ? T.warning : T.primaryDark }]}>
                   {formatNumber(item.qty)}
                 </Text>
-                <StatusChip label={isLow ? 'Stock bas' : 'OK'} tone={isLow ? 'warning' : 'success'} />
+                <StatusChip label={isLow ? t('camion.lowStatus') : t('camion.okStatus')} tone={isLow ? 'warning' : 'success'} />
               </View>
             </View>
           )
@@ -114,10 +116,10 @@ export default function CamionScreen() {
         ListHeaderComponent={(
           <View style={s.headerWrap}>
             <PageHeader
-              title="Stock camion"
-              subtitle={session?.status === 'open' ? 'Votre stock embarque en cours de vente.' : 'Votre stock embarque du jour.'}
+              title={t('camion.title')}
+              subtitle={session?.status === 'open' ? t('camion.subtitleOpen') : t('camion.subtitleClosed')}
               actionIcon="clipboard-list-outline"
-              actionLabel="Session"
+              actionLabel={t('navigation.session')}
               onActionPress={() => navigation.navigate('Session')}
             />
 
@@ -127,48 +129,48 @@ export default function CamionScreen() {
                   <MaterialCommunityIcons name="truck-fast-outline" size={22} color={T.primary} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.assignmentLabel}>Camion actif</Text>
-                  <Text style={s.assignmentTitle}>{configuredCamion?.name || 'Aucun camion assigne'}</Text>
+                  <Text style={s.assignmentLabel}>{t('camion.assignment.title')}</Text>
+                  <Text style={s.assignmentTitle}>{configuredCamion?.name || t('camion.assignment.none')}</Text>
                   <Text style={s.assignmentMeta}>
                     {configuredCamion?.plate
-                      ? `Immatriculation ${configuredCamion.plate}`
-                      : 'Affectez un camion depuis la session du jour.'}
+                      ? t('camion.assignment.plate', { plate: configuredCamion.plate })
+                      : t('camion.assignment.hint')}
                   </Text>
                 </View>
                 <StatusChip
-                  label={sessionLabel(routeSession)}
+                  label={sessionLabel(routeSession, t)}
                   tone={routeSession?.status === 'open' ? 'success' : 'warning'}
                 />
               </View>
 
               <View style={s.assignmentFacts}>
                 <View style={s.assignmentFact}>
-                  <Text style={s.assignmentFactLabel}>Session</Text>
-                  <Text style={s.assignmentFactValue}>{routeSession?.id ? `#${routeSession.id}` : 'Aucune'}</Text>
+                  <Text style={s.assignmentFactLabel}>{t('camion.assignment.sessionLabel')}</Text>
+                  <Text style={s.assignmentFactValue}>{routeSession?.id ? `#${routeSession.id}` : t('camion.assignment.noSession')}</Text>
                 </View>
                 <View style={s.assignmentFact}>
-                  <Text style={s.assignmentFactLabel}>Ouverture</Text>
-                  <Text style={s.assignmentFactValue}>{routeSession?.opened_at ? formatDateTime(routeSession.opened_at) : 'Non demarree'}</Text>
+                  <Text style={s.assignmentFactLabel}>{t('camion.assignment.openedAt')}</Text>
+                  <Text style={s.assignmentFactValue}>{routeSession?.opened_at ? formatDateTime(routeSession.opened_at) : t('camion.assignment.notStarted')}</Text>
                 </View>
                 <View style={s.assignmentFact}>
-                  <Text style={s.assignmentFactLabel}>Zone</Text>
-                  <Text style={s.assignmentFactValue}>{routeSession?.zone?.name || 'Non definie'}</Text>
+                  <Text style={s.assignmentFactLabel}>{t('camion.assignment.zone')}</Text>
+                  <Text style={s.assignmentFactValue}>{routeSession?.zone?.name || t('camion.assignment.noZone')}</Text>
                 </View>
               </View>
             </View>
 
             <View style={s.summaryGrid}>
               <MetricCard
-                label="Produits"
+                label={t('camion.metrics.products')}
                 value={formatCount(sortedStock.length)}
-                hint="References presentes"
+                hint={t('camion.metrics.productsHint')}
                 icon="package-variant-closed"
                 color={T.primary}
               />
               <MetricCard
-                label="Stock bas"
+                label={t('camion.metrics.lowStock')}
                 value={formatCount(lowStockCount)}
-                hint="Sur seuil minimum"
+                hint={t('camion.metrics.lowStockHint')}
                 icon="alert-circle-outline"
                 color={lowStockCount > 0 ? T.warning : T.success}
               />
@@ -176,23 +178,21 @@ export default function CamionScreen() {
 
             <View style={s.summaryGrid}>
               <MetricCard
-                label="Valeur estimee"
+                label={t('camion.metrics.estimatedValue')}
                 value={formatCurrency(totalValue)}
-                hint="Base prix mobile"
+                hint={t('camion.metrics.estimatedValueHint')}
                 icon="cash-register"
                 color={T.info}
               />
               <View style={[s.banner, cardShadow]}>
                 <StatusChip
-                  label={session?.status === 'open' ? 'Session active' : 'Session fermee'}
+                  label={session?.status === 'open' ? t('camion.banner.activeSession') : t('camion.banner.closedSession')}
                   tone={session?.status === 'open' ? 'success' : 'warning'}
                 />
-                <Text style={s.bannerTitle}>Recharger le camion</Text>
-                <Text style={s.bannerText}>
-                  Utilisez la recharge pour ajouter du stock pendant la journee, puis revenez ici pour verifier l embarque.
-                </Text>
+                <Text style={s.bannerTitle}>{t('camion.banner.title')}</Text>
+                <Text style={s.bannerText}>{t('camion.banner.text')}</Text>
                 <TouchableOpacity style={s.bannerButton} onPress={() => navigation.navigate('Reappro')}>
-                  <Text style={s.bannerButtonText}>Ouvrir la recharge</Text>
+                  <Text style={s.bannerButtonText}>{t('camion.banner.action')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -205,7 +205,7 @@ export default function CamionScreen() {
             ) : (
               <>
                 <MaterialCommunityIcons name="truck-outline" size={36} color={T.textMuted} />
-                <Text style={s.emptyText}>Aucun stock camion disponible.</Text>
+                <Text style={s.emptyText}>{t('camion.empty')}</Text>
               </>
             )}
           </View>

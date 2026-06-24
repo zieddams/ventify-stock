@@ -12,6 +12,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import StatusChip from '../../components/StatusChip'
+import { useI18n } from '../../contexts/I18nContext'
 import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
@@ -26,6 +27,7 @@ import {
 
 export default function InvoiceDetailScreen({ route }) {
   const { id, initialInvoice } = route.params ?? {}
+  const { t } = useI18n()
   const { syncInteraction } = useTracking()
   const [invoice, setInvoice] = useState(initialInvoice ?? null)
   const [loading, setLoading] = useState(!initialInvoice)
@@ -71,7 +73,7 @@ export default function InvoiceDetailScreen({ route }) {
       await printInvoiceDocument(invoice)
       await syncInteraction('invoice-thermal', { includeLocation: false, refreshSession: false })
     } catch (error) {
-      Alert.alert('Transfert thermique impossible', error.message || 'Veuillez reessayer.')
+      Alert.alert(t('invoiceDetail.thermalErrorTitle'), error.message || t('invoiceDetail.retry'))
     } finally {
       setPrinting(false)
     }
@@ -85,7 +87,7 @@ export default function InvoiceDetailScreen({ route }) {
       await shareInvoiceDocument(invoice)
       await syncInteraction('invoice-pdf', { includeLocation: false, refreshSession: false })
     } catch (error) {
-      Alert.alert('Partage impossible', error.message || 'Veuillez reessayer.')
+      Alert.alert(t('invoiceDetail.shareErrorTitle'), error.message || t('invoiceDetail.retry'))
     } finally {
       setSharing(false)
     }
@@ -98,7 +100,7 @@ export default function InvoiceDetailScreen({ route }) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.primary} />}
     >
       <View style={[s.hero, cardShadow]}>
-        <Text style={s.heroNumber}>{invoice?.number || 'Facture'}</Text>
+        <Text style={s.heroNumber}>{invoice?.number || t('invoiceDetail.fallbackNumber')}</Text>
         <Text style={s.heroCustomer}>{invoice?.customer_name}</Text>
         <Text style={s.heroMeta}>{formatDateTime(invoice?.created_at)}</Text>
         <View style={s.heroPills}>
@@ -118,7 +120,7 @@ export default function InvoiceDetailScreen({ route }) {
             ) : (
               <>
                 <MaterialCommunityIcons name="printer-outline" size={16} color={T.primary} />
-                <Text style={s.heroActionLabel}>Thermique</Text>
+                <Text style={s.heroActionLabel}>{t('invoiceDetail.thermalAction')}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -128,61 +130,61 @@ export default function InvoiceDetailScreen({ route }) {
             ) : (
               <>
                 <MaterialCommunityIcons name="share-variant-outline" size={16} color={T.primary} />
-                <Text style={s.heroActionLabel}>PDF</Text>
+                <Text style={s.heroActionLabel}>{t('invoiceDetail.pdfAction')}</Text>
               </>
             )}
           </TouchableOpacity>
         </View>
-        <Text style={s.heroHint}>Le bouton Thermique envoie la facture vers votre application Bluetooth externe.</Text>
+        <Text style={s.heroHint}>{t('invoiceDetail.heroHint')}</Text>
       </View>
 
       <View style={[s.sectionCard, cardShadow]}>
-        <Text style={s.sectionTitle}>Montants</Text>
+        <Text style={s.sectionTitle}>{t('invoiceDetail.amountsTitle')}</Text>
         <View style={s.amountRow}>
-          <Text style={s.amountLabel}>Sous-total</Text>
+          <Text style={s.amountLabel}>{t('invoiceDetail.amounts.subtotal')}</Text>
           <Text style={s.amountValue}>{formatCurrency(invoice?.subtotal)}</Text>
         </View>
         <View style={s.amountRow}>
-          <Text style={s.amountLabel}>TVA</Text>
+          <Text style={s.amountLabel}>{t('invoiceDetail.amounts.tax')}</Text>
           <Text style={s.amountValue}>{formatCurrency(invoice?.tax_amount)}</Text>
         </View>
         <View style={s.amountRow}>
-          <Text style={s.amountLabel}>Total</Text>
+          <Text style={s.amountLabel}>{t('invoiceDetail.amounts.total')}</Text>
           <Text style={s.amountTotal}>{formatCurrency(invoice?.total)}</Text>
         </View>
         <View style={s.amountRow}>
-          <Text style={s.amountLabel}>Paye</Text>
+          <Text style={s.amountLabel}>{t('invoiceDetail.amounts.paid')}</Text>
           <Text style={s.amountValue}>{formatCurrency(invoice?.paid_amount)}</Text>
         </View>
       </View>
 
       <View style={[s.sectionCard, cardShadow]}>
-        <Text style={s.sectionTitle}>Client</Text>
+        <Text style={s.sectionTitle}>{t('invoiceDetail.customerTitle')}</Text>
         <View style={s.infoRow}>
           <MaterialCommunityIcons name="account-outline" size={18} color={T.primary} />
           <Text style={s.infoText}>{invoice?.customer_name || '--'}</Text>
         </View>
         <View style={s.infoRow}>
           <MaterialCommunityIcons name="phone-outline" size={18} color={T.primary} />
-          <Text style={s.infoText}>{invoice?.customer_phone || 'Aucun numero'}</Text>
+          <Text style={s.infoText}>{invoice?.customer_phone || t('invoiceDetail.noPhone')}</Text>
         </View>
         <View style={s.infoRow}>
           <MaterialCommunityIcons name="map-marker-outline" size={18} color={T.primary} />
-          <Text style={s.infoText}>{invoice?.customer_address || 'Adresse non renseignee'}</Text>
+          <Text style={s.infoText}>{invoice?.customer_address || t('invoiceDetail.noAddress')}</Text>
         </View>
       </View>
 
       <View style={[s.sectionCard, cardShadow]}>
-        <Text style={s.sectionTitle}>Lignes facture</Text>
+        <Text style={s.sectionTitle}>{t('invoiceDetail.linesTitle')}</Text>
         {(invoice?.lines ?? []).length === 0 ? (
-          <Text style={s.emptyText}>Aucune ligne sur cette facture.</Text>
+          <Text style={s.emptyText}>{t('invoiceDetail.noLines')}</Text>
         ) : (
           invoice.lines.map((line) => (
             <View key={line.id || `${line.product_id}-${line.product_name}`} style={s.lineRow}>
               <View style={{ flex: 1 }}>
                 <Text style={s.lineName}>{line.product_name}</Text>
                 <Text style={s.lineMeta}>
-                  {line.qty} {line.unit || 'u'} x {formatCurrency(line.price)}
+                  {line.qty} {line.unit || t('invoiceDetail.unitFallback')} x {formatCurrency(line.price)}
                 </Text>
               </View>
               <Text style={s.lineTotal}>{formatCurrency(line.total)}</Text>
@@ -192,11 +194,11 @@ export default function InvoiceDetailScreen({ route }) {
       </View>
 
       <View style={[s.sectionCard, cardShadow]}>
-        <Text style={s.sectionTitle}>Contexte</Text>
+        <Text style={s.sectionTitle}>{t('invoiceDetail.contextTitle')}</Text>
         <View style={s.infoRow}>
           <MaterialCommunityIcons name="truck-outline" size={18} color={T.info} />
           <Text style={s.infoText}>
-            {invoice?.route_session_id ? `Session #${invoice.route_session_id}` : 'Aucune session associee'}
+            {invoice?.route_session_id ? t('invoiceDetail.sessionLabel', { id: invoice.route_session_id }) : t('invoiceDetail.noSession')}
           </Text>
         </View>
       </View>

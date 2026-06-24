@@ -1,6 +1,7 @@
 import axios from 'axios'
 import Constants from 'expo-constants'
 import * as SecureStore from 'expo-secure-store'
+import { getStoredLocale } from '../i18n/locales'
 
 const extra = Constants.expoConfig?.extra ?? {}
 export const BASE_URL = extra.apiBaseUrl || process.env.EXPO_PUBLIC_API_BASE_URL || 'https://irtiwaa.ziedtech.com/api/v1'
@@ -22,6 +23,11 @@ api.interceptors.request.use(async (config) => {
     const token = await SecureStore.getItemAsync(TOKEN_KEY)
     if (token) config.headers.Authorization = `Bearer ${token}`
   } catch {}
+
+  try {
+    config.headers['X-App-Locale'] = await getStoredLocale()
+  } catch {}
+
   return config
 })
 

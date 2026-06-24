@@ -5,6 +5,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuth } from '../contexts/AuthContext'
+import { useI18n } from '../contexts/I18nContext'
 import { T } from '../theme'
 
 const Stack = createNativeStackNavigator()
@@ -33,6 +34,7 @@ function useTabLayout() {
 
 function MobileTabs() {
   const { bottomInset, tabBarHeight } = useTabLayout()
+  const { t } = useI18n()
 
   return (
     <Tab.Navigator
@@ -60,22 +62,22 @@ function MobileTabs() {
         },
         tabBarIcon: ({ color, focused }) => {
           const icons = {
-            Accueil: focused ? 'view-dashboard' : 'view-dashboard-outline',
-            Clients: focused ? 'account-group' : 'account-group-outline',
-            Factures: focused ? 'file-document-multiple' : 'file-document-multiple-outline',
-            Session: focused ? 'truck-fast' : 'truck-fast-outline',
-            Stock: focused ? 'truck-cargo-container' : 'truck-cargo-container',
+            [t('navigation.home')]: focused ? 'view-dashboard' : 'view-dashboard-outline',
+            [t('navigation.customers')]: focused ? 'account-group' : 'account-group-outline',
+            [t('navigation.invoices')]: focused ? 'file-document-multiple' : 'file-document-multiple-outline',
+            [t('navigation.session')]: focused ? 'truck-fast' : 'truck-fast-outline',
+            [t('navigation.stock')]: focused ? 'truck-cargo-container' : 'truck-cargo-container',
           }
 
           return <MaterialCommunityIcons name={icons[route.name]} size={21} color={color} />
         },
       })}
     >
-      <Tab.Screen name="Accueil" getComponent={getDashboardScreen} options={{ title: 'Accueil' }} />
-      <Tab.Screen name="Clients" getComponent={getCustomersScreen} options={{ title: 'Clients' }} />
-      <Tab.Screen name="Factures" getComponent={getInvoicesScreen} options={{ title: 'Factures' }} />
-      <Tab.Screen name="Session" getComponent={getRouteSessionScreen} options={{ title: 'Session' }} />
-      <Tab.Screen name="Stock" getComponent={getCamionScreen} options={{ title: 'Stock' }} />
+      <Tab.Screen name={t('navigation.home')} getComponent={getDashboardScreen} options={{ title: t('navigation.home') }} />
+      <Tab.Screen name={t('navigation.customers')} getComponent={getCustomersScreen} options={{ title: t('navigation.customers') }} />
+      <Tab.Screen name={t('navigation.invoices')} getComponent={getInvoicesScreen} options={{ title: t('navigation.invoices') }} />
+      <Tab.Screen name={t('navigation.session')} getComponent={getRouteSessionScreen} options={{ title: t('navigation.session') }} />
+      <Tab.Screen name={t('navigation.stock')} getComponent={getCamionScreen} options={{ title: t('navigation.stock') }} />
     </Tab.Navigator>
   )
 }
@@ -89,6 +91,8 @@ function AuthStack() {
 }
 
 function AppStack() {
+  const { t } = useI18n()
+
   return (
     <Stack.Navigator
       screenOptions={{
@@ -103,22 +107,23 @@ function AppStack() {
         component={MobileTabs}
         options={{ headerShown: false }}
       />
-      <Stack.Screen name="InvoiceCreate" getComponent={getInvoiceCreateScreen} options={{ title: 'Nouvelle facture' }} />
-      <Stack.Screen name="InvoiceDetail" getComponent={getInvoiceDetailScreen} options={{ title: 'Detail facture' }} />
-      <Stack.Screen name="Reappro" getComponent={getReapproScreen} options={{ title: 'Reappro camion' }} />
-      <Stack.Screen name="Profile" getComponent={getProfileScreen} options={{ title: 'Compte mobile' }} />
+      <Stack.Screen name="InvoiceCreate" getComponent={getInvoiceCreateScreen} options={{ title: t('navigation.createInvoice') }} />
+      <Stack.Screen name="InvoiceDetail" getComponent={getInvoiceDetailScreen} options={{ title: t('navigation.invoiceDetail') }} />
+      <Stack.Screen name="Reappro" getComponent={getReapproScreen} options={{ title: t('navigation.reappro') }} />
+      <Stack.Screen name="Profile" getComponent={getProfileScreen} options={{ title: t('navigation.profile') }} />
     </Stack.Navigator>
   )
 }
 
 export default function AppNavigator() {
   const { user, loading, isRep } = useAuth()
+  const { t } = useI18n()
 
   if (loading) {
     return (
       <View style={s.loadingWrap}>
         <ActivityIndicator size="large" color={T.primary} />
-        <Text style={s.loadingText}>Initialisation mobile...</Text>
+        <Text style={s.loadingText}>{t('navigation.initializing')}</Text>
       </View>
     )
   }

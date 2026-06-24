@@ -16,6 +16,7 @@ import PageHeader from '../../components/PageHeader'
 import MetricCard from '../../components/MetricCard'
 import StatusChip from '../../components/StatusChip'
 import { useAuth } from '../../contexts/AuthContext'
+import { useI18n } from '../../contexts/I18nContext'
 import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
@@ -42,17 +43,18 @@ function sameCalendarDate(left, right = new Date()) {
     && leftDate.getFullYear() === right.getFullYear()
 }
 
-function sessionHint(session, configuredCamion) {
+function sessionHint(session, configuredCamion, t) {
   if (!session) {
-    return 'Aucune session active'
+    return t('dashboard.sessionHintNoSession')
   }
 
-  return session.camion?.name || configuredCamion?.name || 'Camion à définir'
+  return session.camion?.name || configuredCamion?.name || t('dashboard.sessionHintCamionFallback')
 }
 
 export default function DashboardScreen() {
   const navigation = useNavigation()
   const { user, isRep } = useAuth()
+  const { t } = useI18n()
   const { session, refreshSession } = useTracking()
 
   const [invoices, setInvoices] = useState([])
@@ -84,12 +86,12 @@ export default function DashboardScreen() {
       setConfiguredCamion(camionResponse.data?.configured_camion ?? null)
       setError('')
     } catch (err) {
-      setError(err.response?.data?.message || 'Le tableau de bord mobile n’a pas pu être chargé.')
+      setError(err.response?.data?.message || t('dashboard.loadError'))
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [refreshSession, user?.id])
+  }, [refreshSession, t, user?.id])
 
   useFocusEffect(useCallback(() => {
     load()
@@ -135,10 +137,10 @@ export default function DashboardScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.primary} />}
     >
       <PageHeader
-        title={`Bonjour ${firstName(user?.name)}`}
-        subtitle="Votre espace mobile"
+        title={t('dashboard.headerTitle', { name: firstName(user?.name) })}
+        subtitle={t('dashboard.headerSubtitle')}
         actionIcon="account-circle-outline"
-        actionLabel="Compte"
+        actionLabel={t('common.account')}
         onActionPress={() => navigation.navigate('Profile')}
       />
 
@@ -154,38 +156,38 @@ export default function DashboardScreen() {
       <View style={[s.heroCard, cardShadow]}>
         <View style={s.heroTop}>
           <View style={{ flex: 1 }}>
-            <Text style={s.heroTitle}>Ma journée</Text>
+            <Text style={s.heroTitle}>{t('dashboard.heroTitle')}</Text>
             <Text style={s.heroSubtitle}>
               {session
-                ? 'Votre session et vos ventes du jour.'
-                : 'Démarrez une session pour commencer la journée.'}
+                ? t('dashboard.heroSubtitleWithSession')
+                : t('dashboard.heroSubtitleWithoutSession')}
             </Text>
           </View>
           <StatusChip
-            label={session ? routeStatusLabel(session.status) : 'Sans session'}
+            label={session ? routeStatusLabel(session.status) : t('dashboard.noSessionStatus')}
             tone={sessionTone}
           />
         </View>
 
         {!isRep() ? (
           <View style={s.infoBlock}>
-            <Text style={s.infoBlockTitle}>Compte commercial requis</Text>
+            <Text style={s.infoBlockTitle}>{t('dashboard.repRequiredTitle')}</Text>
             <Text style={s.infoBlockText}>
-              Ce mobile reste optimisé pour le commercial qui ouvre une session, gère son camion et facture ses clients.
+              {t('dashboard.repRequiredText')}
             </Text>
           </View>
         ) : !session ? (
           <>
             <Text style={s.heroText}>
-              Aucune session n’est active aujourd’hui. Choisissez un camion puis préparez le chargement initial avant de facturer.
+              {t('dashboard.noSessionText')}
             </Text>
             <View style={s.heroActions}>
               <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Session')} activeOpacity={0.85}>
                 <MaterialCommunityIcons name="truck-fast-outline" size={18} color="#fff" />
-                <Text style={s.primaryButtonText}>Nouvelle session</Text>
+                <Text style={s.primaryButtonText}>{t('dashboard.newSession')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Stock')}>
-                <Text style={s.secondaryButtonText}>Voir mon stock</Text>
+                <Text style={s.secondaryButtonText}>{t('dashboard.viewStock')}</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -193,30 +195,30 @@ export default function DashboardScreen() {
           <>
             <View style={s.factGrid}>
               <View style={s.factItem}>
-                <Text style={s.factLabel}>Ouverture</Text>
+                <Text style={s.factLabel}>{t('dashboard.metrics.openedAt')}</Text>
                 <Text style={s.factValue}>{formatTime(session.opened_at)}</Text>
               </View>
               <View style={s.factItem}>
-                <Text style={s.factLabel}>Durée</Text>
+                <Text style={s.factLabel}>{t('dashboard.metrics.duration')}</Text>
                 <Text style={s.factValue}>{formatElapsedSince(session.opened_at)}</Text>
               </View>
               <View style={s.factItem}>
-                <Text style={s.factLabel}>Camion</Text>
-                <Text style={s.factValue}>{sessionHint(session, configuredCamion)}</Text>
+                <Text style={s.factLabel}>{t('dashboard.metrics.camion')}</Text>
+                <Text style={s.factValue}>{sessionHint(session, configuredCamion, t)}</Text>
               </View>
             </View>
 
             <View style={s.sessionGrid}>
               <View style={s.sessionMetric}>
-                <Text style={s.sessionMetricLabel}>Ventes</Text>
+                <Text style={s.sessionMetricLabel}>{t('dashboard.metrics.sales')}</Text>
                 <Text style={s.sessionMetricValue}>{formatCurrency(session.total_sold || 0)}</Text>
               </View>
               <View style={s.sessionMetric}>
-                <Text style={s.sessionMetricLabel}>Crédit</Text>
+                <Text style={s.sessionMetricLabel}>{t('dashboard.metrics.credit')}</Text>
                 <Text style={s.sessionMetricValue}>{formatCurrency(session.credit_given || 0)}</Text>
               </View>
               <View style={s.sessionMetric}>
-                <Text style={s.sessionMetricLabel}>Factures</Text>
+                <Text style={s.sessionMetricLabel}>{t('dashboard.metrics.invoices')}</Text>
                 <Text style={s.sessionMetricValue}>{formatCount(sessionInvoiceCount)}</Text>
               </View>
             </View>
@@ -224,10 +226,10 @@ export default function DashboardScreen() {
             <View style={s.heroActions}>
               <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Session')}>
                 <MaterialCommunityIcons name="clipboard-list-outline" size={18} color="#fff" />
-                <Text style={s.primaryButtonText}>Gérer la session</Text>
+                <Text style={s.primaryButtonText}>{t('dashboard.manageSession')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Reappro')}>
-                <Text style={s.secondaryButtonText}>Recharger le camion</Text>
+                <Text style={s.secondaryButtonText}>{t('dashboard.restockCamion')}</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -236,14 +238,14 @@ export default function DashboardScreen() {
 
       <View style={s.grid}>
         <MetricCard
-          label="Factures du jour"
+          label={t('dashboard.cards.todayInvoices')}
           value={formatCount(todayInvoices.length)}
           hint={formatCurrency(todayRevenue)}
           icon="file-document-outline"
           color={T.primary}
         />
         <MetricCard
-          label="Factures du mois"
+          label={t('dashboard.cards.monthInvoices')}
           value={formatCount(invoices.length)}
           hint={formatCurrency(monthRevenue)}
           icon="calendar-month-outline"
@@ -253,29 +255,29 @@ export default function DashboardScreen() {
 
       <View style={s.grid}>
         <MetricCard
-          label="Stock camion"
+          label={t('dashboard.cards.camionStock')}
           value={formatCount(stock.length)}
-          hint={`${formatCount(lowStockCount)} alerte(s)`}
+          hint={t('dashboard.cards.lowStockHint', { count: formatCount(lowStockCount) })}
           icon="truck-outline"
           color={lowStockCount > 0 ? T.warning : T.primaryDark}
         />
         <MetricCard
-          label="Session du jour"
+          label={t('dashboard.cards.sessionToday')}
           value={session ? routeStatusLabel(session.status) : '--'}
-          hint={session ? formatDateTime(session.updated_at || session.opened_at) : 'Aucune session'}
+          hint={session ? formatDateTime(session.updated_at || session.opened_at) : t('dashboard.sessionHintNoSession')}
           icon="clock-outline"
           color={session ? T.success : T.textMuted}
         />
       </View>
 
       <View style={[s.sectionCard, cardShadow]}>
-        <Text style={s.sectionTitle}>Actions rapides</Text>
+        <Text style={s.sectionTitle}>{t('dashboard.quickActionsTitle')}</Text>
         <View style={s.quickGrid}>
           <TouchableOpacity
             style={s.quickAction}
             onPress={() => {
               if (session?.status !== 'open') {
-                Alert.alert('Session requise', 'Ouvrez d’abord une session commerciale avant de créer une facture.')
+                Alert.alert(t('dashboard.sessionRequiredTitle'), t('dashboard.sessionRequiredText'))
                 return
               }
 
@@ -283,37 +285,37 @@ export default function DashboardScreen() {
             }}
           >
             <MaterialCommunityIcons name="file-document-plus-outline" size={20} color={T.primary} />
-            <Text style={s.quickLabel}>Nouvelle facture</Text>
+            <Text style={s.quickLabel}>{t('dashboard.newInvoice')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate('Factures')}>
             <MaterialCommunityIcons name="clipboard-text-outline" size={20} color={T.info} />
-            <Text style={s.quickLabel}>Mes factures</Text>
+            <Text style={s.quickLabel}>{t('dashboard.myInvoices')}</Text>
           </TouchableOpacity>
         </View>
         <View style={s.quickGrid}>
           <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate('Clients')}>
             <MaterialCommunityIcons name="account-group-outline" size={20} color={T.warning} />
-            <Text style={s.quickLabel}>Mes clients</Text>
+            <Text style={s.quickLabel}>{t('dashboard.myCustomers')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate('Stock')}>
             <MaterialCommunityIcons name="truck-cargo-container" size={20} color={T.success} />
-            <Text style={s.quickLabel}>Stock camion</Text>
+            <Text style={s.quickLabel}>{t('dashboard.camionStock')}</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       <View style={[s.sectionCard, cardShadow]}>
         <View style={s.sectionHeaderRow}>
-          <Text style={s.sectionTitle}>Dernières factures</Text>
+          <Text style={s.sectionTitle}>{t('dashboard.latestInvoicesTitle')}</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Factures')}>
-            <Text style={s.linkText}>Tout voir</Text>
+            <Text style={s.linkText}>{t('dashboard.viewAll')}</Text>
           </TouchableOpacity>
         </View>
 
         {loading && invoices.length === 0 ? (
           <ActivityIndicator color={T.primary} style={{ marginVertical: 24 }} />
         ) : invoices.length === 0 ? (
-          <Text style={s.emptyText}>Aucune facture enregistrée pour ce compte.</Text>
+          <Text style={s.emptyText}>{t('dashboard.noInvoices')}</Text>
         ) : (
           invoices.slice(0, 5).map((item) => (
             <TouchableOpacity
@@ -329,7 +331,7 @@ export default function DashboardScreen() {
               <View style={{ alignItems: 'flex-end', gap: 6 }}>
                 <Text style={s.invoiceTotal}>{formatCurrency(item.total)}</Text>
                 <StatusChip
-                  label={item.payment_status === 'paid' ? 'Réglée' : 'À suivre'}
+                  label={item.payment_status === 'paid' ? t('dashboard.paidStatus') : t('dashboard.followUpStatus')}
                   tone={item.payment_status === 'paid' ? 'success' : 'warning'}
                 />
               </View>

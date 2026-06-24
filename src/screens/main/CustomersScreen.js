@@ -15,6 +15,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import PageHeader from '../../components/PageHeader'
 import { useAuth } from '../../contexts/AuthContext'
+import { useI18n } from '../../contexts/I18nContext'
 import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
@@ -27,6 +28,7 @@ function sortByName(items) {
 export default function CustomersScreen() {
   const navigation = useNavigation()
   const { canManageAllCustomers } = useAuth()
+  const { t } = useI18n()
   const { syncInteraction } = useTracking()
   const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -86,7 +88,7 @@ export default function CustomersScreen() {
 
   const createCustomer = async () => {
     if (!newCustomerName.trim()) {
-      Alert.alert('Client requis', 'Le nom du client est obligatoire.')
+      Alert.alert(t('customers.requiredTitle'), t('customers.requiredText'))
       return
     }
 
@@ -102,10 +104,10 @@ export default function CustomersScreen() {
       setCustomers((current) => sortByName([...current, response.data]))
       await syncInteraction('customer-create', { includeLocation: false, refreshSession: false })
       resetCreateForm()
-      Alert.alert('Client cree', 'Le client est maintenant disponible sur le mobile et sur le web.')
+      Alert.alert(t('customers.createdTitle'), t('customers.createdText'))
     } catch (error) {
       setCreating(false)
-      Alert.alert('Creation impossible', error.response?.data?.message || 'Veuillez reessayer.')
+      Alert.alert(t('customers.createFailedTitle'), error.response?.data?.message || t('customers.retry'))
     }
   }
 
@@ -129,11 +131,11 @@ export default function CustomersScreen() {
 
               <View style={{ flex: 1 }}>
                 <Text style={s.rowName}>{item.name}</Text>
-                <Text style={s.rowMeta}>{item.phone || 'Sans numero'}</Text>
-                <Text style={s.rowMeta}>{item.address || 'Adresse non renseignee'}</Text>
+                <Text style={s.rowMeta}>{item.phone || t('customers.noPhone')}</Text>
+                <Text style={s.rowMeta}>{item.address || t('customers.noAddress')}</Text>
                 {hasGlobalCustomerAccess && (
                   <Text style={s.rowOwner}>
-                    Affecte: {item.owner?.name || 'Compte non remonte'}
+                    {t('customers.assignedTo', { name: item.owner?.name || t('customers.ownerUnknown') })}
                   </Text>
                 )}
                 {hasCredit && (
@@ -141,7 +143,7 @@ export default function CustomersScreen() {
                     <View style={[s.badge, s.badgeDanger]}>
                       <MaterialCommunityIcons name="credit-card-outline" size={14} color="#b91c1c" />
                       <Text style={[s.badgeText, s.badgeTextDanger]}>
-                        Credit {formatCurrency(item.credit_balance)}
+                        {t('customers.creditLabel', { value: formatCurrency(item.credit_balance) })}
                       </Text>
                     </View>
                   </View>
@@ -160,10 +162,10 @@ export default function CustomersScreen() {
         ListHeaderComponent={(
           <View style={s.headerWrap}>
             <PageHeader
-              title="Clients"
-              subtitle={hasGlobalCustomerAccess ? 'Base clients globale et portefeuilles commerciaux' : 'Votre liste client mobile'}
+              title={t('customers.title')}
+              subtitle={hasGlobalCustomerAccess ? t('customers.globalSubtitle') : t('customers.personalSubtitle')}
               actionIcon="account-plus-outline"
-              actionLabel="Nouveau"
+              actionLabel={t('customers.newAction')}
               onActionPress={() => setCreateVisible(true)}
             />
 
@@ -171,7 +173,7 @@ export default function CustomersScreen() {
               <MaterialCommunityIcons name="magnify" size={18} color={T.textMuted} />
               <TextInput
                 style={s.searchInput}
-                placeholder="Rechercher un client ou un proprietaire"
+                placeholder={t('customers.searchPlaceholder')}
                 placeholderTextColor={T.textMuted}
                 value={search}
                 onChangeText={setSearch}
@@ -179,7 +181,7 @@ export default function CustomersScreen() {
             </View>
 
             <Text style={s.scopeHint}>
-              Les commerciaux voient seulement leur liste. Les comptes globaux voient tous les clients et leur proprietaire.
+              {t('customers.scopeHint')}
             </Text>
           </View>
         )}
@@ -190,7 +192,7 @@ export default function CustomersScreen() {
             ) : (
               <>
                 <MaterialCommunityIcons name="account-group-outline" size={34} color={T.textMuted} />
-                <Text style={s.emptyText}>Aucun client sur ce filtre.</Text>
+                <Text style={s.emptyText}>{t('customers.empty')}</Text>
               </>
             )}
           </View>
@@ -202,33 +204,33 @@ export default function CustomersScreen() {
       <Modal visible={createVisible} transparent animationType="fade" onRequestClose={resetCreateForm}>
         <View style={s.overlay}>
           <View style={s.dialog}>
-            <Text style={s.dialogTitle}>Nouveau client</Text>
+            <Text style={s.dialogTitle}>{t('customers.dialogTitle')}</Text>
             <Text style={s.dialogText}>
-              Le client sera affecte a votre compte mobile. Les roles globaux le verront automatiquement.
+              {t('customers.dialogText')}
             </Text>
 
-            <Text style={s.fieldLabel}>Nom</Text>
+            <Text style={s.fieldLabel}>{t('customers.fields.name')}</Text>
             <TextInput
               style={s.input}
-              placeholder="Nom du client"
+              placeholder={t('customers.placeholders.name')}
               placeholderTextColor={T.textMuted}
               value={newCustomerName}
               onChangeText={setNewCustomerName}
             />
 
-            <Text style={s.fieldLabel}>Telephone</Text>
+            <Text style={s.fieldLabel}>{t('customers.fields.phone')}</Text>
             <TextInput
               style={s.input}
-              placeholder="+216 ..."
+              placeholder={t('customers.placeholders.phone')}
               placeholderTextColor={T.textMuted}
               value={newCustomerPhone}
               onChangeText={setNewCustomerPhone}
             />
 
-            <Text style={s.fieldLabel}>Adresse</Text>
+            <Text style={s.fieldLabel}>{t('customers.fields.address')}</Text>
             <TextInput
               style={s.input}
-              placeholder="Adresse de livraison"
+              placeholder={t('customers.placeholders.address')}
               placeholderTextColor={T.textMuted}
               value={newCustomerAddress}
               onChangeText={setNewCustomerAddress}
@@ -236,13 +238,13 @@ export default function CustomersScreen() {
 
             <View style={s.dialogActions}>
               <TouchableOpacity style={s.dialogSecondary} onPress={resetCreateForm}>
-                <Text style={s.dialogSecondaryText}>Annuler</Text>
+                <Text style={s.dialogSecondaryText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.dialogPrimary} onPress={createCustomer} disabled={creating}>
                 {creating ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Text style={s.dialogPrimaryText}>Creer</Text>
+                  <Text style={s.dialogPrimaryText}>{t('customers.createAction')}</Text>
                 )}
               </TouchableOpacity>
             </View>

@@ -14,6 +14,7 @@ import PageHeader from '../../components/PageHeader'
 import MetricCard from '../../components/MetricCard'
 import StatusChip from '../../components/StatusChip'
 import { useAuth } from '../../contexts/AuthContext'
+import { useI18n } from '../../contexts/I18nContext'
 import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
@@ -22,6 +23,7 @@ import {
   formatCount,
   formatCurrency,
   formatDateTime,
+  formatLongDate,
   formatTime,
   routeStatusLabel,
   toNumber,
@@ -34,15 +36,19 @@ function sameCalendarDate(left, right = new Date()) {
     && leftDate.getFullYear() === right.getFullYear()
 }
 
-function locationText(location) {
+function locationText(location, t) {
   const source = location?.coords ?? location
-  if (!Number.isFinite(source?.latitude) || !Number.isFinite(source?.longitude)) return 'Aucune position capturée.'
+  if (!Number.isFinite(source?.latitude) || !Number.isFinite(source?.longitude)) {
+    return t('repDashboard.location.none')
+  }
+
   return `${source.latitude.toFixed(5)}, ${source.longitude.toFixed(5)}`
 }
 
 export default function RepDashboardScreen() {
   const navigation = useNavigation()
   const { user } = useAuth()
+  const { t } = useI18n()
   const {
     session,
     currentLocation,
@@ -72,12 +78,12 @@ export default function RepDashboardScreen() {
       setStock(Array.isArray(stockResponse.data?.stock) ? stockResponse.data.stock : [])
       setError('')
     } catch (err) {
-      setError(err.response?.data?.message || 'Le tableau de bord mobile n’a pas pu être chargé.')
+      setError(err.response?.data?.message || t('repDashboard.loadError'))
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [refreshSession])
+  }, [refreshSession, t])
 
   useFocusEffect(useCallback(() => {
     load()
@@ -124,10 +130,10 @@ export default function RepDashboardScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.primary} />}
     >
       <PageHeader
-        title={`Bonjour ${firstName(user?.name)}`}
-        subtitle={new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+        title={t('repDashboard.headerTitle', { name: firstName(user?.name) })}
+        subtitle={formatLongDate(new Date())}
         actionIcon="account-circle-outline"
-        actionLabel="Compte"
+        actionLabel={t('common.account')}
         onActionPress={() => navigation.navigate('Profile')}
       />
 
@@ -141,29 +147,25 @@ export default function RepDashboardScreen() {
       <View style={[s.heroCard, cardShadow]}>
         <View style={s.heroTop}>
           <View style={{ flex: 1 }}>
-            <Text style={s.heroTitle}>Session du jour</Text>
-            <Text style={s.heroSubtitle}>
-              Présence mobile, GPS et camion réel reliés à la tournée active.
-            </Text>
+            <Text style={s.heroTitle}>{t('repDashboard.hero.title')}</Text>
+            <Text style={s.heroSubtitle}>{t('repDashboard.hero.subtitle')}</Text>
           </View>
           <StatusChip
-            label={session ? routeStatusLabel(session.status) : 'A ouvrir'}
+            label={session ? routeStatusLabel(session.status) : t('repDashboard.hero.toOpen')}
             tone={sessionTone}
           />
         </View>
 
         {!session ? (
           <>
-            <Text style={s.heroText}>
-              Aucune session ouverte pour aujourd'hui. Ouvrez le module session pour choisir le camion physique avant le chargement et les livraisons.
-            </Text>
+            <Text style={s.heroText}>{t('repDashboard.hero.noSessionText')}</Text>
             <View style={s.heroActions}>
               <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Session')} activeOpacity={0.85}>
                 <MaterialCommunityIcons name="truck-fast-outline" size={18} color="#fff" />
-                <Text style={s.primaryButtonText}>Choisir le camion</Text>
+                <Text style={s.primaryButtonText}>{t('repDashboard.hero.chooseCamion')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Session')}>
-                <Text style={s.secondaryButtonText}>Voir le module session</Text>
+                <Text style={s.secondaryButtonText}>{t('repDashboard.hero.viewSessionModule')}</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -171,57 +173,57 @@ export default function RepDashboardScreen() {
           <>
             <View style={s.factGrid}>
               <View style={s.factItem}>
-                <Text style={s.factLabel}>Ouverte</Text>
+                <Text style={s.factLabel}>{t('repDashboard.hero.openedAt')}</Text>
                 <Text style={s.factValue}>{formatTime(session.opened_at)}</Text>
               </View>
               <View style={s.factItem}>
-                <Text style={s.factLabel}>Points GPS</Text>
+                <Text style={s.factLabel}>{t('repDashboard.hero.gpsPoints')}</Text>
                 <Text style={s.factValue}>{formatCount(session.locations_count || 0)}</Text>
               </View>
               <View style={s.factItem}>
-                <Text style={s.factLabel}>Permission GPS</Text>
-                <Text style={s.factValue}>{locationPermission === 'granted' ? 'OK' : 'A valider'}</Text>
+                <Text style={s.factLabel}>{t('repDashboard.hero.gpsPermission')}</Text>
+                <Text style={s.factValue}>{locationPermission === 'granted' ? t('repDashboard.hero.permissionGranted') : t('repDashboard.hero.permissionPending')}</Text>
               </View>
             </View>
 
             <View style={s.bannerRow}>
               <StatusChip
-                label={trackingState.active ? 'Tracking actif' : 'Tracking en attente'}
+                label={trackingState.active ? t('repDashboard.hero.trackingActive') : t('repDashboard.hero.trackingPending')}
                 tone={trackingState.active ? 'success' : 'warning'}
               />
               <StatusChip
-                label={trackingState.lastSyncAt ? `Sync ${formatTime(trackingState.lastSyncAt)}` : 'Sync auto'}
+                label={trackingState.lastSyncAt ? t('repDashboard.hero.syncAt', { time: formatTime(trackingState.lastSyncAt) }) : t('repDashboard.hero.syncAuto')}
                 tone={trackingState.lastSyncAt ? 'info' : 'neutral'}
               />
             </View>
 
             <View style={s.locationCard}>
-              <Text style={s.locationLabel}>Dernière position</Text>
-              <Text style={s.locationValue}>{locationText(latestLocation)}</Text>
+              <Text style={s.locationLabel}>{t('repDashboard.location.title')}</Text>
+              <Text style={s.locationValue}>{locationText(latestLocation, t)}</Text>
               <Text style={s.locationMeta}>
                 {session.latestLocation?.recorded_at
-                  ? `Dernière remontée ${formatDateTime(session.latestLocation.recorded_at)}`
-                  : 'La prochaine position sera envoyee au prochain releve.'}
+                  ? t('repDashboard.location.lastReported', { date: formatDateTime(session.latestLocation.recorded_at) })
+                  : t('repDashboard.location.nextReport')}
               </Text>
             </View>
 
             <View style={s.camionCard}>
-              <Text style={s.locationLabel}>Camion assigné</Text>
-              <Text style={s.camionValue}>{session.camion?.name || 'Aucun camion assigné'}</Text>
+              <Text style={s.locationLabel}>{t('repDashboard.camion.title')}</Text>
+              <Text style={s.camionValue}>{session.camion?.name || t('repDashboard.camion.none')}</Text>
               <Text style={s.locationMeta}>
                 {session.camion?.plate
-                  ? `Immatriculation ${session.camion.plate}`
-                  : 'Ouvrez le module Session & GPS pour affecter le camion réel.'}
+                  ? t('repDashboard.camion.plate', { plate: session.camion.plate })
+                  : t('repDashboard.camion.hint')}
               </Text>
             </View>
 
             <View style={s.heroActions}>
               <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Session')}>
                 <MaterialCommunityIcons name="map-marker-path" size={18} color="#fff" />
-                <Text style={s.primaryButtonText}>Gérer la session</Text>
+                <Text style={s.primaryButtonText}>{t('repDashboard.hero.manageSession')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.secondaryButton} onPress={() => captureCurrentLocation('manual')}>
-                <Text style={s.secondaryButtonText}>Envoyer ma position</Text>
+                <Text style={s.secondaryButtonText}>{t('repDashboard.hero.sendPosition')}</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -230,16 +232,16 @@ export default function RepDashboardScreen() {
 
       <View style={s.grid}>
         <MetricCard
-          label="CA du jour"
+          label={t('repDashboard.metrics.todayRevenue')}
           value={formatCurrency(todayRevenue)}
-          hint={`${formatCount(todayInvoices.length)} facture(s)`}
+          hint={t('repDashboard.metrics.invoiceCount', { count: formatCount(todayInvoices.length) })}
           icon="cash-fast"
           color={T.primary}
         />
         <MetricCard
-          label="CA du mois"
+          label={t('repDashboard.metrics.monthRevenue')}
           value={formatCurrency(monthRevenue)}
-          hint={`${formatCount(invoices.length)} facture(s)`}
+          hint={t('repDashboard.metrics.invoiceCount', { count: formatCount(invoices.length) })}
           icon="calendar-month-outline"
           color={T.info}
         />
@@ -247,57 +249,57 @@ export default function RepDashboardScreen() {
 
       <View style={s.grid}>
         <MetricCard
-          label="Stock camion"
+          label={t('repDashboard.metrics.camionStock')}
           value={formatCount(stock.length)}
-          hint={`${formatCount(lowStockCount)} alerte(s)`}
+          hint={t('repDashboard.metrics.alertCount', { count: formatCount(lowStockCount) })}
           icon="truck-outline"
           color={T.primaryDark}
         />
         <MetricCard
-          label="GPS mobile"
+          label={t('repDashboard.metrics.mobileGps')}
           value={trackingState.lastSyncAt ? formatTime(trackingState.lastSyncAt) : '--'}
-          hint={trackingState.error || 'Mode live: polling + GPS auto'}
+          hint={trackingState.error || t('repDashboard.metrics.liveMode')}
           icon="crosshairs-gps"
           color={trackingState.error ? T.warning : T.success}
         />
       </View>
 
       <View style={[s.sectionCard, cardShadow]}>
-        <Text style={s.sectionTitle}>Actions rapides</Text>
+        <Text style={s.sectionTitle}>{t('repDashboard.quickActions.title')}</Text>
         <View style={s.quickGrid}>
           <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate('InvoiceCreate')}>
             <MaterialCommunityIcons name="file-document-plus-outline" size={20} color={T.primary} />
-            <Text style={s.quickLabel}>Nouvelle facture</Text>
+            <Text style={s.quickLabel}>{t('navigation.createInvoice')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate('Factures')}>
             <MaterialCommunityIcons name="clipboard-text-outline" size={20} color={T.info} />
-            <Text style={s.quickLabel}>Historique</Text>
+            <Text style={s.quickLabel}>{t('repDashboard.quickActions.history')}</Text>
           </TouchableOpacity>
         </View>
         <View style={s.quickGrid}>
           <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate('Camion')}>
             <MaterialCommunityIcons name="truck-cargo-container" size={20} color={T.warning} />
-            <Text style={s.quickLabel}>Mon camion</Text>
+            <Text style={s.quickLabel}>{t('repDashboard.quickActions.myCamion')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate('Reappro')}>
             <MaterialCommunityIcons name="truck-delivery-outline" size={20} color={T.success} />
-            <Text style={s.quickLabel}>Réappro camion</Text>
+            <Text style={s.quickLabel}>{t('navigation.reappro')}</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       <View style={[s.sectionCard, cardShadow]}>
         <View style={s.sectionHeaderRow}>
-          <Text style={s.sectionTitle}>Dernières factures</Text>
+          <Text style={s.sectionTitle}>{t('repDashboard.latestInvoices.title')}</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Factures')}>
-            <Text style={s.linkText}>Tout voir</Text>
+            <Text style={s.linkText}>{t('dashboard.viewAll')}</Text>
           </TouchableOpacity>
         </View>
 
         {loading && invoices.length === 0 ? (
           <ActivityIndicator color={T.primary} style={{ marginVertical: 24 }} />
         ) : invoices.length === 0 ? (
-          <Text style={s.emptyText}>Aucune facture encore enregistrée sur ce mois.</Text>
+          <Text style={s.emptyText}>{t('repDashboard.latestInvoices.empty')}</Text>
         ) : (
           invoices.slice(0, 5).map((item) => (
             <TouchableOpacity
@@ -313,7 +315,7 @@ export default function RepDashboardScreen() {
               <View style={{ alignItems: 'flex-end', gap: 6 }}>
                 <Text style={s.invoiceTotal}>{formatCurrency(item.total)}</Text>
                 <StatusChip
-                  label={item.payment_status === 'paid' ? 'Reglee' : 'A suivre'}
+                  label={item.payment_status === 'paid' ? t('dashboard.paidStatus') : t('dashboard.followUpStatus')}
                   tone={item.payment_status === 'paid' ? 'success' : 'warning'}
                 />
               </View>

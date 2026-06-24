@@ -16,6 +16,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import PageHeader from '../../components/PageHeader'
 import StatusChip from '../../components/StatusChip'
 import { useAuth } from '../../contexts/AuthContext'
+import { useI18n } from '../../contexts/I18nContext'
 import api from '../../services/api'
 import { downloadAndLaunchApkUpdate, isInAppUpdateSupported } from '../../services/mobileUpdateService'
 import { compareReleaseVersions, getLatestMobileReleases } from '../../services/releaseService'
@@ -40,14 +41,9 @@ function progressPercent(progress) {
   return Math.max(0, Math.min(100, Math.round(ratio * 100)))
 }
 
-const BUG_SEVERITIES = [
-  { value: 'low', label: 'Faible' },
-  { value: 'medium', label: 'Moyenne' },
-  { value: 'high', label: 'Haute' },
-]
-
 export default function ProfileScreen() {
   const { user, logout } = useAuth()
+  const { locale, savingLocale, setLocale, supportedLocales, t } = useI18n()
   const [checkingRelease, setCheckingRelease] = useState(false)
   const [releaseError, setReleaseError] = useState('')
   const [latestRelease, setLatestRelease] = useState(null)
@@ -60,7 +56,13 @@ export default function ProfileScreen() {
   const [bugSeverity, setBugSeverity] = useState('medium')
   const [bugDescription, setBugDescription] = useState('')
 
-  const currentVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || '1.3.19'
+  const bugSeverities = useMemo(() => ([
+    { value: 'low', label: t('profile.severityLow') },
+    { value: 'medium', label: t('profile.severityMedium') },
+    { value: 'high', label: t('profile.severityHigh') },
+  ]), [t])
+
+  const currentVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || '1.3.20'
   const buildVersion = Constants.nativeBuildVersion || String(Constants.expoConfig?.android?.versionCode ?? '')
 
   const loadLatestRelease = useCallback(async ({ silent = false } = {}) => {
@@ -74,14 +76,14 @@ export default function ProfileScreen() {
       setReleaseError('')
       return release || null
     } catch (error) {
-      setReleaseError(describeApiError(error, 'Vérification des mises à jour indisponible.'))
+      setReleaseError(describeApiError(error, t('profile.verifyUnavailable')))
       return null
     } finally {
       if (!silent) {
         setCheckingRelease(false)
       }
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     loadLatestRelease({ silent: true })
@@ -93,9 +95,9 @@ export default function ProfileScreen() {
   }, [currentVersion, latestRelease?.version])
 
   const confirmLogout = () => {
-    Alert.alert('Déconnexion', 'Voulez-vous fermer la session mobile ?', [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Se déconnecter', style: 'destructive', onPress: () => logout() },
+    Alert.alert(t('profile.logoutTitle'), t('profile.logoutPrompt'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('common.logout'), style: 'destructive', onPress: () => logout() },
     ])
   }
 
@@ -108,7 +110,7 @@ export default function ProfileScreen() {
 
     const comparison = compareReleaseVersions(release.version, currentVersion)
     if (comparison <= 0) {
-      Alert.alert('Application', 'Cette version est déjà à jour.')
+      Alert.alert(t('common.update'), t('profile.alreadyUpdated'))
       return
     }
 
@@ -123,7 +125,7 @@ export default function ProfileScreen() {
         onProgress: setDownloadProgress,
       })
     } catch (error) {
-      Alert.alert('Mise à jour', describeApiError(error, 'Installation impossible.'))
+      Alert.alert(t('common.update'), describeApiError(error, t('profile.updateFailed')))
     } finally {
       setInstallingUpdate(false)
     }
@@ -139,12 +141,12 @@ export default function ProfileScreen() {
 
   const submitBugReport = async () => {
     if (!bugSubject.trim()) {
-      Alert.alert('Signalement', 'Le sujet est obligatoire.')
+      Alert.alert(t('profile.bugTitle'), t('profile.bugSubjectRequired'))
       return
     }
 
     if (!bugDescription.trim()) {
-      Alert.alert('Signalement', 'Ajoutez une description du problème.')
+      Alert.alert(t('profile.bugTitle'), t('profile.bugDescriptionRequired'))
       return
     }
 
@@ -162,14 +164,15 @@ export default function ProfileScreen() {
           app_version: currentVersion,
           build_version: buildVersion || null,
           user_role: user?.role || null,
+          locale,
         },
       })
 
       resetBugForm()
-      Alert.alert('Signalement envoyé', 'Votre signalement a été transmis à l’équipe support.')
+      Alert.alert(t('profile.bugSentTitle'), t('profile.bugSentText'))
     } catch (error) {
       setSendingBug(false)
-      Alert.alert('Signalement impossible', describeApiError(error, 'Veuillez réessayer.'))
+      Alert.alert(t('profile.bugFailedTitle'), describeApiError(error, t('profile.retry')))
     }
   }
 
@@ -177,8 +180,8 @@ export default function ProfileScreen() {
     <>
       <ScrollView style={s.root} contentContainerStyle={s.content}>
         <PageHeader
-          title="Compte"
-          subtitle="Application, support et déconnexion."
+          title={t('profile.title')}
+          subtitle={t('profile.subtitle')}
         />
 
         <View style={[s.heroCard, cardShadow]}>
@@ -187,43 +190,66 @@ export default function ProfileScreen() {
               <Text style={s.avatarText}>{user?.name?.[0]?.toUpperCase() ?? 'U'}</Text>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={s.heroTitle}>{user?.name || 'Compte mobile'}</Text>
-              <Text style={s.heroSubtitle}>{user?.email || 'Email non renseigné'}</Text>
+              <Text style={s.heroTitle}>{user?.name || t('common.account')}</Text>
+              <Text style={s.heroSubtitle}>{user?.email || t('profile.noEmail')}</Text>
             </View>
-            <StatusChip label={user?.role || 'mobile'} tone="info" />
+            <StatusChip label={user?.role || t('profile.roleFallback')} tone="info" />
           </View>
 
           <Text style={s.heroInfo}>
-            Vous êtes connecté avec le compte {user?.name || 'mobile'}.
+            {t('profile.connectedWith', { name: user?.name || t('common.account') })}
           </Text>
           <Text style={s.heroMeta}>
-            Version {currentVersion}{buildVersion ? ` (${buildVersion})` : ''}
+            {t('common.version')} {currentVersion}{buildVersion ? ` (${buildVersion})` : ''}
           </Text>
         </View>
 
         <View style={[s.sectionCard, cardShadow]}>
+          <Text style={s.sectionTitle}>{t('profile.languageTitle')}</Text>
+          <Text style={s.sectionText}>{t('profile.languageText')}</Text>
+          <View style={s.chipRow}>
+            {supportedLocales.map((item) => {
+              const active = item.code === locale
+
+              return (
+                <TouchableOpacity
+                  key={item.code}
+                  style={[s.choiceChip, active && s.choiceChipActive]}
+                  onPress={() => { void setLocale(item.code) }}
+                  disabled={savingLocale}
+                >
+                  <Text style={[s.choiceChipText, active && s.choiceChipTextActive]}>
+                    {item.short} · {item.label}
+                  </Text>
+                </TouchableOpacity>
+              )
+            })}
+          </View>
+        </View>
+
+        <View style={[s.sectionCard, cardShadow]}>
           <View style={s.sectionHeaderRow}>
-            <Text style={s.sectionTitle}>Mise à jour</Text>
+            <Text style={s.sectionTitle}>{t('profile.updatesTitle')}</Text>
             <TouchableOpacity style={s.inlineButton} onPress={() => loadLatestRelease()}>
-              {checkingRelease ? <ActivityIndicator size="small" color={T.primary} /> : <Text style={s.inlineButtonText}>Vérifier</Text>}
+              {checkingRelease ? <ActivityIndicator size="small" color={T.primary} /> : <Text style={s.inlineButtonText}>{t('common.check')}</Text>}
             </TouchableOpacity>
           </View>
 
           <View style={s.infoRow}>
-            <Text style={s.infoLabel}>Version installée</Text>
+            <Text style={s.infoLabel}>{t('profile.installedVersion')}</Text>
             <Text style={s.infoValue}>{currentVersion}{buildVersion ? ` (${buildVersion})` : ''}</Text>
           </View>
           <View style={s.infoRow}>
-            <Text style={s.infoLabel}>Dernière release</Text>
+            <Text style={s.infoLabel}>{t('profile.latestRelease')}</Text>
             <Text style={s.infoValue}>{latestRelease?.version || '--'}</Text>
           </View>
           <View style={s.infoRow}>
-            <Text style={s.infoLabel}>État</Text>
-            <Text style={s.infoValue}>{hasUpdate ? 'Mise à jour disponible' : 'Application à jour'}</Text>
+            <Text style={s.infoLabel}>{t('profile.status')}</Text>
+            <Text style={s.infoValue}>{hasUpdate ? t('profile.updateAvailable') : t('profile.upToDate')}</Text>
           </View>
           {latestRelease?.publishedAt ? (
             <View style={s.infoRow}>
-              <Text style={s.infoLabel}>Publication</Text>
+              <Text style={s.infoLabel}>{t('profile.publishedAt')}</Text>
               <Text style={s.infoValue}>{formatDateTime(latestRelease.publishedAt)}</Text>
             </View>
           ) : null}
@@ -249,41 +275,39 @@ export default function ProfileScreen() {
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={s.primaryButtonText}>
-                  {hasUpdate ? 'Télécharger et installer' : 'Application à jour'}
+                  {hasUpdate ? t('profile.installNow') : t('profile.upToDate')}
                 </Text>
               )}
             </TouchableOpacity>
           ) : (
-            <Text style={s.inlineHint}>L’installation intégrée est disponible uniquement sur Android.</Text>
+            <Text style={s.inlineHint}>{t('profile.androidOnly')}</Text>
           )}
         </View>
 
         <View style={[s.sectionCard, cardShadow]}>
-          <Text style={s.sectionTitle}>Support</Text>
-          <Text style={s.sectionText}>
-            Un signalement mobile est envoyé au même centre support que la plateforme web.
-          </Text>
+          <Text style={s.sectionTitle}>{t('profile.supportTitle')}</Text>
+          <Text style={s.sectionText}>{t('profile.supportText')}</Text>
 
           <TouchableOpacity style={s.secondaryButton} onPress={() => setBugModalVisible(true)}>
             <MaterialCommunityIcons name="bug-outline" size={18} color={T.primary} />
-            <Text style={s.secondaryButtonText}>Signaler un bug</Text>
+            <Text style={s.secondaryButtonText}>{t('profile.reportBug')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={s.secondaryButton} onPress={() => setAboutVisible(true)}>
             <MaterialCommunityIcons name="information-outline" size={18} color={T.primary} />
-            <Text style={s.secondaryButtonText}>À propos</Text>
+            <Text style={s.secondaryButtonText}>{t('profile.about')}</Text>
           </TouchableOpacity>
         </View>
 
         <View style={[s.sectionCard, cardShadow]}>
-          <Text style={s.sectionTitle}>Session mobile</Text>
+          <Text style={s.sectionTitle}>{t('profile.sessionTitle')}</Text>
           <Text style={s.sectionText}>
-            Vous êtes connecté avec le compte {user?.email || 'mobile'}.
+            {t('profile.sessionText', { email: user?.email || '--' })}
           </Text>
 
           <TouchableOpacity style={s.logoutButton} onPress={confirmLogout}>
             <MaterialCommunityIcons name="logout" size={18} color="#fff" />
-            <Text style={s.logoutButtonText}>Se déconnecter</Text>
+            <Text style={s.logoutButtonText}>{t('common.logout')}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -291,38 +315,38 @@ export default function ProfileScreen() {
       <Modal visible={bugModalVisible} transparent animationType="fade" onRequestClose={resetBugForm}>
         <View style={s.overlay}>
           <View style={s.dialog}>
-            <Text style={s.dialogTitle}>Signaler un bug</Text>
-            <Text style={s.dialogText}>Décrivez simplement le problème rencontré sur le mobile.</Text>
+            <Text style={s.dialogTitle}>{t('profile.bugTitle')}</Text>
+            <Text style={s.dialogText}>{t('profile.bugText')}</Text>
 
-            <Text style={s.fieldLabel}>Sujet</Text>
+            <Text style={s.fieldLabel}>{t('common.subject')}</Text>
             <TextInput
               style={s.input}
-              placeholder="Exemple : facture bloquée"
+              placeholder={t('profile.bugSubjectPlaceholder')}
               placeholderTextColor={T.textMuted}
               value={bugSubject}
               onChangeText={setBugSubject}
             />
 
-            <Text style={s.fieldLabel}>Priorité</Text>
-            <View style={s.severityRow}>
-              {BUG_SEVERITIES.map((item) => {
+            <Text style={s.fieldLabel}>{t('common.priority')}</Text>
+            <View style={s.chipRow}>
+              {bugSeverities.map((item) => {
                 const active = bugSeverity === item.value
                 return (
                   <TouchableOpacity
                     key={item.value}
-                    style={[s.severityChip, active && s.severityChipActive]}
+                    style={[s.choiceChip, active && s.choiceChipActive]}
                     onPress={() => setBugSeverity(item.value)}
                   >
-                    <Text style={[s.severityChipText, active && s.severityChipTextActive]}>{item.label}</Text>
+                    <Text style={[s.choiceChipText, active && s.choiceChipTextActive]}>{item.label}</Text>
                   </TouchableOpacity>
                 )
               })}
             </View>
 
-            <Text style={s.fieldLabel}>Description</Text>
+            <Text style={s.fieldLabel}>{t('common.description')}</Text>
             <TextInput
               style={[s.input, s.textarea]}
-              placeholder="Que s’est-il passé ?"
+              placeholder={t('profile.bugDescriptionPlaceholder')}
               placeholderTextColor={T.textMuted}
               multiline
               textAlignVertical="top"
@@ -332,10 +356,10 @@ export default function ProfileScreen() {
 
             <View style={s.dialogActions}>
               <TouchableOpacity style={s.dialogSecondary} onPress={resetBugForm}>
-                <Text style={s.dialogSecondaryText}>Annuler</Text>
+                <Text style={s.dialogSecondaryText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[s.dialogPrimary, sendingBug && s.buttonDisabled]} onPress={submitBugReport} disabled={sendingBug}>
-                {sendingBug ? <ActivityIndicator color="#fff" /> : <Text style={s.dialogPrimaryText}>Envoyer</Text>}
+                {sendingBug ? <ActivityIndicator color="#fff" /> : <Text style={s.dialogPrimaryText}>{t('common.send')}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -345,22 +369,20 @@ export default function ProfileScreen() {
       <Modal visible={aboutVisible} transparent animationType="fade" onRequestClose={() => setAboutVisible(false)}>
         <View style={s.overlay}>
           <View style={s.dialog}>
-            <Text style={s.dialogTitle}>À propos</Text>
-            <Text style={s.dialogText}>
-              El Irtiwaa Mobile accompagne la session commerciale, le stock camion et la facturation terrain.
-            </Text>
+            <Text style={s.dialogTitle}>{t('profile.about')}</Text>
+            <Text style={s.dialogText}>{t('profile.aboutText')}</Text>
 
             <View style={s.infoRow}>
-              <Text style={s.infoLabel}>Version</Text>
+              <Text style={s.infoLabel}>{t('common.version')}</Text>
               <Text style={s.infoValue}>{currentVersion}{buildVersion ? ` (${buildVersion})` : ''}</Text>
             </View>
             <View style={s.infoRow}>
-              <Text style={s.infoLabel}>Compte</Text>
+              <Text style={s.infoLabel}>{t('profile.accountLabel')}</Text>
               <Text style={s.infoValue}>{user?.email || '--'}</Text>
             </View>
 
             <TouchableOpacity style={s.dialogSecondary} onPress={() => setAboutVisible(false)}>
-              <Text style={s.dialogSecondaryText}>Fermer</Text>
+              <Text style={s.dialogSecondaryText}>{t('common.close')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -601,30 +623,32 @@ const s = StyleSheet.create({
   textarea: {
     minHeight: 120,
   },
-  severityRow: {
+  chipRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
+    marginTop: 12,
   },
-  severityChip: {
-    flex: 1,
+  choiceChip: {
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 14,
     paddingVertical: 12,
+    paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: T.border,
     backgroundColor: T.surfaceAlt,
   },
-  severityChipActive: {
+  choiceChipActive: {
     borderColor: T.primary,
     backgroundColor: T.primary,
   },
-  severityChipText: {
+  choiceChipText: {
     fontSize: 13,
     fontWeight: '700',
     color: T.textSecondary,
   },
-  severityChipTextActive: {
+  choiceChipTextActive: {
     color: '#fff',
   },
   dialogActions: {

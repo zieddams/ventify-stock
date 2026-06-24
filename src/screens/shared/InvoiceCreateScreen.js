@@ -14,8 +14,9 @@ import {
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import PageHeader from '../../components/PageHeader'
-import { useAuth } from '../../contexts/AuthContext'
 import StatusChip from '../../components/StatusChip'
+import { useAuth } from '../../contexts/AuthContext'
+import { useI18n } from '../../contexts/I18nContext'
 import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
@@ -41,10 +42,8 @@ function sanitizeNumber(value) {
 export default function InvoiceCreateScreen({ navigation, route }) {
   const { initialCustomer = null } = route?.params ?? {}
   const { canManageAllCustomers } = useAuth()
-  const {
-    session,
-    syncInteraction,
-  } = useTracking()
+  const { t } = useI18n()
+  const { session, syncInteraction } = useTracking()
   const initialCustomerAppliedRef = useRef(false)
   const hasGlobalCustomerAccess = canManageAllCustomers()
 
@@ -87,7 +86,7 @@ export default function InvoiceCreateScreen({ navigation, route }) {
       const paymentItems = filterPaymentMethodsByScope(parseArray(paymentMethodsResponse.data), 'customer')
       const availablePaymentMethods = paymentItems.length > 0
         ? paymentItems
-        : [{ value: 'cash', display_label: 'Espèces' }]
+        : [{ value: 'cash', display_label: t('invoiceCreate.defaultCashLabel') }]
 
       setCustomers(customerItems)
       setProducts(productItems)
@@ -95,11 +94,14 @@ export default function InvoiceCreateScreen({ navigation, route }) {
       setPaymentMethod(availablePaymentMethods.find((item) => item.is_default)?.value || availablePaymentMethods[0]?.value || 'cash')
       setCamionStock(camionResponse.data?.by_product_id ?? {})
     } catch (error) {
-      Alert.alert('Chargement impossible', error.response?.data?.message || 'Les données mobiles ne sont pas accessibles.')
+      Alert.alert(
+        t('invoiceCreate.loadErrorTitle'),
+        error.response?.data?.message || t('invoiceCreate.loadErrorText'),
+      )
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     loadData()
@@ -157,10 +159,9 @@ export default function InvoiceCreateScreen({ navigation, route }) {
   const surplusPayment = Math.max(paidValue - subtotal, 0)
   const creditReduction = Math.min(surplusPayment, customerCreditBalance)
   const projectedCustomerBalance = Math.max(customerCreditBalance + subtotal - paidValue, 0)
-
   const hasStockMap = Object.keys(camionStock).length > 0
 
-  const openProductEditor = (product, index = null) => {
+  const openProductEditor = useCallback((product, index = null) => {
     setPendingProduct(product)
     setPendingIndex(index)
     const line = index !== null ? lines[index] : null
@@ -168,22 +169,31 @@ export default function InvoiceCreateScreen({ navigation, route }) {
     setQtyInput(line ? String(line.qty) : '1')
     setPriceInput(line ? String(line.price) : String(toNumber(product.sale_price ?? product.depot_price ?? product.price)))
     setLineEditorVisible(true)
-  }
+  }, [lines])
 
-  const saveLine = () => {
+  const closeLineEditor = useCallback(() => {
+    setLineEditorVisible(false)
+    setPendingProduct(null)
+    setPendingIndex(null)
+  }, [])
+
+  const saveLine = useCallback(() => {
     const qty = toNumber(qtyInput)
     const price = toNumber(priceInput)
 
     if (!pendingProduct || qty <= 0 || price < 0) {
-      Alert.alert('Ligne invalide', 'Vérifiez la quantité et le prix.')
+      Alert.alert(t('invoiceCreate.invalidLineTitle'), t('invoiceCreate.invalidLineText'))
       return
     }
 
     const availableQty = toNumber(camionStock[pendingProduct.id])
     if (hasStockMap && qty > availableQty) {
       Alert.alert(
-        'Stock insuffisant',
-        `${pendingProduct.name}: ${formatNumber(availableQty)} disponible(s) sur le camion.`,
+        t('invoiceCreate.insufficientStockTitle'),
+        t('invoiceCreate.availableStockText', {
+          product: pendingProduct.name || t('invoiceCreate.productFallback'),
+          qty: formatNumber(availableQty),
+        }),
       )
       return
     }
@@ -206,14 +216,12 @@ export default function InvoiceCreateScreen({ navigation, route }) {
       return [...prev, nextLine]
     })
 
-    setLineEditorVisible(false)
-    setPendingProduct(null)
-    setPendingIndex(null)
-  }
+    closeLineEditor()
+  }, [camionStock, closeLineEditor, hasStockMap, pendingIndex, pendingProduct, priceInput, qtyInput, t])
 
-  const createCustomer = async () => {
+  const createCustomer = useCallback(async () => {
     if (!newCustomerName.trim()) {
-      Alert.alert('Client requis', 'Le nom du client est obligatoire.')
+      Alert.alert(t('customers.requiredTitle'), t('customers.requiredText'))
       return
     }
 
@@ -236,23 +244,26 @@ export default function InvoiceCreateScreen({ navigation, route }) {
       setNewCustomerPhone('')
       setNewCustomerAddress('')
     } catch (error) {
-      Alert.alert('Création impossible', error.response?.data?.message || 'Veuillez réessayer.')
+      Alert.alert(
+        t('customers.createFailedTitle'),
+        error.response?.data?.message || t('customers.retry'),
+      )
     }
-  }
+  }, [customers, newCustomerAddress, newCustomerName, newCustomerPhone, syncInteraction, t])
 
-  const saveInvoice = async () => {
+  const saveInvoice = useCallback(async () => {
     if (session?.status !== 'open') {
-      Alert.alert('Session requise', 'Ouvrez ou récupérez d’abord une session commerciale avant de créer une facture.')
+      Alert.alert(t('invoices.sessionRequiredTitle'), t('invoices.sessionRequiredText'))
       return
     }
 
     if (!selectedCustomer?.name) {
-      Alert.alert('Client requis', 'Sélectionnez ou créez un client avant de continuer.')
+      Alert.alert(t('invoiceCreate.customerRequiredTitle'), t('invoiceCreate.customerRequiredText'))
       return
     }
 
     if (lines.length === 0) {
-      Alert.alert('Facture vide', 'Ajoutez au moins une ligne produit.')
+      Alert.alert(t('invoiceCreate.emptyInvoiceTitle'), t('invoiceCreate.emptyInvoiceText'))
       return
     }
 
@@ -260,8 +271,11 @@ export default function InvoiceCreateScreen({ navigation, route }) {
       const blocked = lines.find((item) => toNumber(item.qty) > toNumber(camionStock[item.product_id]))
       if (blocked) {
         Alert.alert(
-          'Stock insuffisant',
-          `${blocked.product_name}: ${formatNumber(camionStock[blocked.product_id])} disponible(s).`,
+          t('invoiceCreate.insufficientStockTitle'),
+          t('invoiceCreate.availableStockText', {
+            product: blocked.product_name || t('invoiceCreate.productFallback'),
+            qty: formatNumber(camionStock[blocked.product_id]),
+          }),
         )
         return
       }
@@ -304,13 +318,17 @@ export default function InvoiceCreateScreen({ navigation, route }) {
       })
     } catch (error) {
       const firstFieldError = Object.values(error.response?.data?.errors ?? {})[0]?.[0]
-      Alert.alert('Enregistrement impossible', firstFieldError || error.response?.data?.message || 'Veuillez réessayer.')
+      Alert.alert(
+        t('invoiceCreate.saveFailedTitle'),
+        firstFieldError || error.response?.data?.message || t('invoiceCreate.retry'),
+      )
     } finally {
       if (shouldResetSaving) {
         setSaving(false)
       }
     }
-  }
+  }, [camionStock, hasStockMap, lines, navigation, notes, paidValue, paymentMethod, selectedCustomer, session, syncInteraction, t])
+
   if (loading) {
     return (
       <View style={s.loadingWrap}>
@@ -326,40 +344,40 @@ export default function InvoiceCreateScreen({ navigation, route }) {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={s.content}>
           <PageHeader
-            title="Nouvelle facture"
+            title={t('invoiceCreate.title')}
             subtitle={session?.status === 'open'
-              ? (hasGlobalCustomerAccess ? 'Session mobile active et base clients globale' : 'Session mobile active')
-              : 'Session commerciale requise pour facturer'}
+              ? (hasGlobalCustomerAccess ? t('invoiceCreate.subtitleGlobal') : t('invoiceCreate.subtitleOpen'))
+              : t('invoiceCreate.subtitleClosed')}
           />
 
           <View style={[s.sectionCard, cardShadow]}>
             <View style={s.sectionHeaderRow}>
-              <Text style={s.sectionTitle}>Client</Text>
+              <Text style={s.sectionTitle}>{t('invoiceCreate.customerSectionTitle')}</Text>
               <TouchableOpacity onPress={() => setCustomerPickerVisible(true)}>
-                <Text style={s.linkText}>{selectedCustomer ? 'Changer' : 'Choisir'}</Text>
+                <Text style={s.linkText}>{selectedCustomer ? t('invoiceCreate.changeCustomer') : t('invoiceCreate.chooseCustomer')}</Text>
               </TouchableOpacity>
             </View>
 
             {!selectedCustomer ? (
               <TouchableOpacity style={s.selector} onPress={() => setCustomerPickerVisible(true)}>
                 <MaterialCommunityIcons name="account-search-outline" size={20} color={T.primary} />
-                <Text style={s.selectorText}>Sélectionner un client</Text>
+                <Text style={s.selectorText}>{t('invoiceCreate.selectCustomer')}</Text>
               </TouchableOpacity>
             ) : (
               <View style={s.customerCard}>
                 <Text style={s.customerName}>{selectedCustomer.name}</Text>
-                <Text style={s.customerMeta}>{selectedCustomer.phone || 'Sans numéro'}</Text>
-                <Text style={s.customerMeta}>{selectedCustomer.address || 'Adresse non renseignée'}</Text>
-                {selectedCustomer.owner?.name && (
-                  <Text style={s.customerMeta}>Affecté : {selectedCustomer.owner.name}</Text>
-                )}
+                <Text style={s.customerMeta}>{selectedCustomer.phone || t('customers.noPhone')}</Text>
+                <Text style={s.customerMeta}>{selectedCustomer.address || t('customers.noAddress')}</Text>
+                {selectedCustomer.owner?.name ? (
+                  <Text style={s.customerMeta}>{t('customers.assignedTo', { name: selectedCustomer.owner.name })}</Text>
+                ) : null}
                 <View style={s.customerCreditRow}>
                   <StatusChip
-                    label={`Credit ${formatCurrency(customerCreditBalance)}`}
+                    label={t('customers.creditLabel', { value: formatCurrency(customerCreditBalance) })}
                     tone={customerCreditBalance > 0 ? 'danger' : 'success'}
                   />
                   {customerCreditLimit > 0 ? (
-                    <StatusChip label={`Plafond ${formatCurrency(customerCreditLimit)}`} tone="neutral" />
+                    <StatusChip label={t('invoiceCreate.creditLimitLabel', { value: formatCurrency(customerCreditLimit) })} tone="neutral" />
                   ) : null}
                 </View>
               </View>
@@ -368,17 +386,17 @@ export default function InvoiceCreateScreen({ navigation, route }) {
 
           <View style={[s.sectionCard, cardShadow]}>
             <View style={s.sectionHeaderRow}>
-              <Text style={s.sectionTitle}>Produits</Text>
+              <Text style={s.sectionTitle}>{t('invoiceCreate.productsSectionTitle')}</Text>
               <TouchableOpacity style={s.smallButton} onPress={() => setProductPickerVisible(true)}>
                 <MaterialCommunityIcons name="plus" size={16} color="#fff" />
-                <Text style={s.smallButtonText}>Ajouter</Text>
+                <Text style={s.smallButtonText}>{t('invoiceCreate.addProduct')}</Text>
               </TouchableOpacity>
             </View>
 
             {lines.length === 0 ? (
               <TouchableOpacity style={s.emptyLines} onPress={() => setProductPickerVisible(true)}>
                 <MaterialCommunityIcons name="package-variant-closed-plus" size={30} color={T.textMuted} />
-                <Text style={s.emptyLinesText}>Ajouter votre première ligne produit</Text>
+                <Text style={s.emptyLinesText}>{t('invoiceCreate.emptyLines')}</Text>
               </TouchableOpacity>
             ) : (
               lines.map((line, index) => {
@@ -389,21 +407,23 @@ export default function InvoiceCreateScreen({ navigation, route }) {
                     <View style={{ flex: 1 }}>
                       <Text style={s.lineName}>{line.product_name}</Text>
                       <Text style={s.lineMeta}>
-                        {formatNumber(line.qty)} {line.unit || 'u'} x {formatCurrency(line.price)}
+                        {formatNumber(line.qty)} {line.unit || t('invoiceCreate.unitFallback')} x {formatCurrency(line.price)}
                       </Text>
-                      {hasStockMap && (
+                      {hasStockMap ? (
                         <Text style={[s.lineMeta, blocked && { color: T.warning }]}>
-                          Stock camion: {formatNumber(available)}
+                          {t('invoiceCreate.camionStockLabel', { value: formatNumber(available) })}
                         </Text>
-                      )}
+                      ) : null}
                     </View>
                     <View style={s.lineActions}>
                       <Text style={s.lineAmount}>{formatCurrency(lineTotal(line))}</Text>
                       <View style={s.iconActions}>
-                        <TouchableOpacity style={s.iconButton} onPress={() => {
-                          const product = products.find((item) => item.id === line.product_id)
-                          if (product) openProductEditor(product, index)
-                        }}>
+                        <TouchableOpacity
+                          style={s.iconButton}
+                          onPress={() => {
+                            const product = products.find((item) => item.id === line.product_id)
+                            if (product) openProductEditor(product, index)
+                          }}>
                           <MaterialCommunityIcons name="pencil-outline" size={16} color={T.primary} />
                         </TouchableOpacity>
                         <TouchableOpacity
@@ -420,9 +440,9 @@ export default function InvoiceCreateScreen({ navigation, route }) {
           </View>
 
           <View style={[s.sectionCard, cardShadow]}>
-            <Text style={s.sectionTitle}>Paiement & notes</Text>
+            <Text style={s.sectionTitle}>{t('invoiceCreate.paymentNotesTitle')}</Text>
 
-            <Text style={s.fieldLabel}>Mode de paiement</Text>
+            <Text style={s.fieldLabel}>{t('invoiceCreate.paymentMethodLabel')}</Text>
             <View style={s.wrapRow}>
               {paymentMethods.map((item) => {
                 const active = paymentMethod === item.value
@@ -439,7 +459,7 @@ export default function InvoiceCreateScreen({ navigation, route }) {
               })}
             </View>
 
-            <Text style={s.fieldLabel}>Montant payé</Text>
+            <Text style={s.fieldLabel}>{t('invoiceCreate.paidAmountLabel')}</Text>
             <TextInput
               style={s.input}
               keyboardType="decimal-pad"
@@ -451,15 +471,15 @@ export default function InvoiceCreateScreen({ navigation, route }) {
             {selectedCustomer ? (
               <Text style={s.helperText}>
                 {surplusPayment > 0
-                  ? `Surplus affecte a l'ancien credit: ${formatCurrency(creditReduction)}.`
-                  : 'Le montant saisi regle la facture en cours puis, si besoin, les credits plus anciens.'}
+                  ? t('invoiceCreate.surplusCreditText', { value: formatCurrency(creditReduction) })
+                  : t('invoiceCreate.paidAmountHint')}
               </Text>
             ) : null}
 
-            <Text style={s.fieldLabel}>Notes</Text>
+            <Text style={s.fieldLabel}>{t('invoiceCreate.notesLabel')}</Text>
             <TextInput
               style={[s.input, s.notesInput]}
-              placeholder="Informations de livraison, retour client, etc."
+              placeholder={t('invoiceCreate.notesPlaceholder')}
               placeholderTextColor={T.textMuted}
               value={notes}
               onChangeText={setNotes}
@@ -469,32 +489,32 @@ export default function InvoiceCreateScreen({ navigation, route }) {
 
           <View style={[s.totalCard, cardShadow]}>
             <View style={s.totalRow}>
-              <Text style={s.totalLabel}>Sous-total</Text>
+              <Text style={s.totalLabel}>{t('invoiceCreate.totals.subtotal')}</Text>
               <Text style={s.totalValue}>{formatCurrency(subtotal)}</Text>
             </View>
             <View style={s.totalRow}>
-              <Text style={s.totalLabel}>Payé maintenant</Text>
+              <Text style={s.totalLabel}>{t('invoiceCreate.totals.paidNow')}</Text>
               <Text style={s.totalValue}>{formatCurrency(paidValue)}</Text>
             </View>
             {selectedCustomer ? (
               <>
                 <View style={s.totalRow}>
-                  <Text style={s.totalLabel}>Credit actuel client</Text>
+                  <Text style={s.totalLabel}>{t('invoiceCreate.totals.currentCredit')}</Text>
                   <Text style={s.totalValue}>{formatCurrency(customerCreditBalance)}</Text>
                 </View>
                 <View style={s.totalRow}>
-                  <Text style={s.totalLabel}>Reduction ancien credit</Text>
+                  <Text style={s.totalLabel}>{t('invoiceCreate.totals.creditReduction')}</Text>
                   <Text style={s.totalValue}>{formatCurrency(creditReduction)}</Text>
                 </View>
               </>
             ) : null}
             <View style={s.totalRow}>
-              <Text style={s.totalLabelStrong}>Reste à régler</Text>
+              <Text style={s.totalLabelStrong}>{t('invoiceCreate.totals.remaining')}</Text>
               <Text style={s.totalValueStrong}>{formatCurrency(Math.max(subtotal - paidValue, 0))}</Text>
             </View>
             {selectedCustomer ? (
               <View style={s.totalRow}>
-                <Text style={s.totalLabel}>Solde client apres facture</Text>
+                <Text style={s.totalLabel}>{t('invoiceCreate.totals.projectedBalance')}</Text>
                 <Text style={s.totalValue}>{formatCurrency(projectedCustomerBalance)}</Text>
               </View>
             ) : null}
@@ -503,21 +523,17 @@ export default function InvoiceCreateScreen({ navigation, route }) {
           {!session || session.status !== 'open' ? (
             <View style={s.noticeWarning}>
               <MaterialCommunityIcons name="information-outline" size={18} color={T.warning} />
-              <Text style={s.noticeWarningText}>
-                Aucune session commerciale ouverte. Ouvrez ou recuperez une session avant de facturer.
-              </Text>
+              <Text style={s.noticeWarningText}>{t('invoiceCreate.noSessionWarning')}</Text>
             </View>
           ) : (
             <View style={s.noticeInfo}>
               <MaterialCommunityIcons name="sync-circle" size={18} color={T.info} />
-              <Text style={s.noticeInfoText}>
-                La facture sera rattachee a la session #{session.id} et synchronisera les ventes avec le web en temps reel.
-              </Text>
+              <Text style={s.noticeInfoText}>{t('invoiceCreate.sessionAttachedNotice', { id: session.id })}</Text>
             </View>
           )}
 
           <TouchableOpacity style={[s.primaryButton, saving && s.buttonDisabled]} onPress={saveInvoice} disabled={saving}>
-            {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>Enregistrer la facture</Text>}
+            {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>{t('invoiceCreate.saveAction')}</Text>}
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -525,22 +541,22 @@ export default function InvoiceCreateScreen({ navigation, route }) {
       <Modal visible={customerPickerVisible} animationType="slide" onRequestClose={() => setCustomerPickerVisible(false)}>
         <View style={s.modalRoot}>
           <PageHeader
-            title="Choisir un client"
-            subtitle="Recherche mobile"
+            title={t('invoiceCreate.customerPickerTitle')}
+            subtitle={t('invoiceCreate.customerPickerSubtitle')}
             actionIcon="close"
             onActionPress={() => setCustomerPickerVisible(false)}
           />
 
-            <TextInput
-              style={s.searchInput}
-              placeholder="Nom, téléphone, adresse, propriétaire"
-              placeholderTextColor={T.textMuted}
-              value={customerQuery}
-              onChangeText={setCustomerQuery}
+          <TextInput
+            style={s.searchInput}
+            placeholder={t('invoiceCreate.customerSearchPlaceholder')}
+            placeholderTextColor={T.textMuted}
+            value={customerQuery}
+            onChangeText={setCustomerQuery}
           />
 
           <TouchableOpacity style={s.secondaryButton} onPress={() => setCreateCustomerVisible(true)}>
-            <Text style={s.secondaryButtonText}>Créer un nouveau client</Text>
+            <Text style={s.secondaryButtonText}>{t('invoiceCreate.createCustomerAction')}</Text>
           </TouchableOpacity>
 
           <ScrollView contentContainerStyle={{ paddingBottom: 30 }}>
@@ -553,9 +569,9 @@ export default function InvoiceCreateScreen({ navigation, route }) {
                   setCustomerPickerVisible(false)
                 }}>
                 <Text style={s.modalTitle}>{item.name}</Text>
-                <Text style={s.modalMeta}>{item.phone || 'Sans numéro'}</Text>
-                <Text style={s.modalMeta}>{item.address || 'Adresse non renseignée'}</Text>
-                {item.owner?.name && <Text style={s.modalMeta}>Affecté : {item.owner.name}</Text>}
+                <Text style={s.modalMeta}>{item.phone || t('customers.noPhone')}</Text>
+                <Text style={s.modalMeta}>{item.address || t('customers.noAddress')}</Text>
+                {item.owner?.name ? <Text style={s.modalMeta}>{t('customers.assignedTo', { name: item.owner.name })}</Text> : null}
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -565,15 +581,15 @@ export default function InvoiceCreateScreen({ navigation, route }) {
       <Modal visible={productPickerVisible} animationType="slide" onRequestClose={() => setProductPickerVisible(false)}>
         <View style={s.modalRoot}>
           <PageHeader
-            title="Ajouter un produit"
-            subtitle="Tarif mobile et stock camion"
+            title={t('invoiceCreate.productPickerTitle')}
+            subtitle={t('invoiceCreate.productPickerSubtitle')}
             actionIcon="close"
             onActionPress={() => setProductPickerVisible(false)}
           />
 
           <TextInput
             style={s.searchInput}
-            placeholder="Nom ou référence"
+            placeholder={t('invoiceCreate.productSearchPlaceholder')}
             placeholderTextColor={T.textMuted}
             value={productQuery}
             onChangeText={setProductQuery}
@@ -594,18 +610,18 @@ export default function InvoiceCreateScreen({ navigation, route }) {
                   <View style={s.modalCardRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={s.modalTitle}>{item.name}</Text>
-                      <Text style={s.modalMeta}>{item.reference || item.unit || 'Produit'}</Text>
+                      <Text style={s.modalMeta}>{item.reference || item.unit || t('invoiceCreate.productFallback')}</Text>
                     </View>
                     <Text style={s.modalPrice}>{formatCurrency(item.sale_price ?? item.depot_price ?? item.price)}</Text>
                   </View>
                   <View style={s.wrapRow}>
-                    {hasStockMap && (
+                    {hasStockMap ? (
                       <StatusChip
-                        label={isOut ? 'Stock camion vide' : `Camion ${formatNumber(available)}`}
+                        label={isOut ? t('invoiceCreate.emptyCamionStock') : t('invoiceCreate.camionStockLabel', { value: formatNumber(available) })}
                         tone={isOut ? 'danger' : 'success'}
                       />
-                    )}
-                    <StatusChip label={`Min ${formatNumber(Math.max(toNumber(item.min_stock, 1), 1))}`} tone="neutral" />
+                    ) : null}
+                    <StatusChip label={t('invoiceCreate.minStockLabel', { value: formatNumber(Math.max(toNumber(item.min_stock, 1), 1)) })} tone="neutral" />
                   </View>
                 </TouchableOpacity>
               )
@@ -614,13 +630,13 @@ export default function InvoiceCreateScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      <Modal visible={lineEditorVisible} transparent animationType="fade" onRequestClose={() => setLineEditorVisible(false)}>
+      <Modal visible={lineEditorVisible} transparent animationType="fade" onRequestClose={closeLineEditor}>
         <View style={s.overlay}>
           <View style={s.dialog}>
-            <Text style={s.dialogTitle}>{pendingProduct?.name || 'Produit'}</Text>
-            <Text style={s.dialogText}>{pendingProduct?.reference || pendingProduct?.unit || 'Édition de ligne'}</Text>
+            <Text style={s.dialogTitle}>{pendingProduct?.name || t('invoiceCreate.productFallback')}</Text>
+            <Text style={s.dialogText}>{pendingProduct?.reference || pendingProduct?.unit || t('invoiceCreate.lineEditorSubtitle')}</Text>
 
-            <Text style={s.fieldLabel}>Quantité</Text>
+            <Text style={s.fieldLabel}>{t('invoiceCreate.qtyLabel')}</Text>
             <TextInput
               style={s.input}
               keyboardType="decimal-pad"
@@ -630,7 +646,7 @@ export default function InvoiceCreateScreen({ navigation, route }) {
               onChangeText={(value) => setQtyInput(sanitizeNumber(value))}
             />
 
-            <Text style={s.fieldLabel}>Prix unitaire</Text>
+            <Text style={s.fieldLabel}>{t('invoiceCreate.unitPriceLabel')}</Text>
             <TextInput
               style={s.input}
               keyboardType="decimal-pad"
@@ -641,16 +657,16 @@ export default function InvoiceCreateScreen({ navigation, route }) {
             />
 
             <View style={s.totalPreview}>
-              <Text style={s.totalLabel}>Total ligne</Text>
+              <Text style={s.totalLabel}>{t('invoiceCreate.lineTotalLabel')}</Text>
               <Text style={s.totalValueStrong}>{formatCurrency(toNumber(qtyInput) * toNumber(priceInput))}</Text>
             </View>
 
             <View style={s.dialogActions}>
-              <TouchableOpacity style={s.dialogSecondary} onPress={() => setLineEditorVisible(false)}>
-                <Text style={s.dialogSecondaryText}>Annuler</Text>
+              <TouchableOpacity style={s.dialogSecondary} onPress={closeLineEditor}>
+                <Text style={s.dialogSecondaryText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.dialogPrimary} onPress={saveLine}>
-                <Text style={s.dialogPrimaryText}>Valider</Text>
+                <Text style={s.dialogPrimaryText}>{t('invoiceCreate.validateLineAction')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -660,33 +676,31 @@ export default function InvoiceCreateScreen({ navigation, route }) {
       <Modal visible={createCustomerVisible} transparent animationType="fade" onRequestClose={() => setCreateCustomerVisible(false)}>
         <View style={s.overlay}>
           <View style={s.dialog}>
-            <Text style={s.dialogTitle}>Nouveau client</Text>
-            <Text style={s.dialogText}>
-              Création rapide depuis le mobile. Le client sera affecté à votre compte et visible pour les rôles globaux.
-            </Text>
+            <Text style={s.dialogTitle}>{t('customers.dialogTitle')}</Text>
+            <Text style={s.dialogText}>{t('customers.dialogText')}</Text>
 
-            <Text style={s.fieldLabel}>Nom</Text>
+            <Text style={s.fieldLabel}>{t('customers.fields.name')}</Text>
             <TextInput
               style={s.input}
-              placeholder="Nom du client"
+              placeholder={t('customers.placeholders.name')}
               placeholderTextColor={T.textMuted}
               value={newCustomerName}
               onChangeText={setNewCustomerName}
             />
 
-            <Text style={s.fieldLabel}>Téléphone</Text>
+            <Text style={s.fieldLabel}>{t('customers.fields.phone')}</Text>
             <TextInput
               style={s.input}
-              placeholder="+216 ..."
+              placeholder={t('customers.placeholders.phone')}
               placeholderTextColor={T.textMuted}
               value={newCustomerPhone}
               onChangeText={setNewCustomerPhone}
             />
 
-            <Text style={s.fieldLabel}>Adresse</Text>
+            <Text style={s.fieldLabel}>{t('customers.fields.address')}</Text>
             <TextInput
               style={s.input}
-              placeholder="Adresse de livraison"
+              placeholder={t('customers.placeholders.address')}
               placeholderTextColor={T.textMuted}
               value={newCustomerAddress}
               onChangeText={setNewCustomerAddress}
@@ -694,10 +708,10 @@ export default function InvoiceCreateScreen({ navigation, route }) {
 
             <View style={s.dialogActions}>
               <TouchableOpacity style={s.dialogSecondary} onPress={() => setCreateCustomerVisible(false)}>
-                <Text style={s.dialogSecondaryText}>Annuler</Text>
+                <Text style={s.dialogSecondaryText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.dialogPrimary} onPress={createCustomer}>
-                <Text style={s.dialogPrimaryText}>Créer</Text>
+                <Text style={s.dialogPrimaryText}>{t('customers.createAction')}</Text>
               </TouchableOpacity>
             </View>
           </View>

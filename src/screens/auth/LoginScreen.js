@@ -14,6 +14,7 @@ import {
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useAuth } from '../../contexts/AuthContext'
+import { useI18n } from '../../contexts/I18nContext'
 import { T, cardShadow } from '../../theme'
 import { DEFAULT_BRAND_SOURCE } from '../../utils/branding'
 
@@ -30,8 +31,8 @@ function firstApiErrorMessage(errors) {
   return Object.values(errors ?? {}).flat().find(Boolean)
 }
 
-function describeApiError(err) {
-  if (err.response) {
+function resolveErrorMessage(err, t) {
+  if (err?.response) {
     const payload = err.response.data
     const message = payload?.message || payload?.error || firstApiErrorMessage(payload?.errors)
 
@@ -39,27 +40,28 @@ function describeApiError(err) {
       return message
     }
 
-    return `Erreur API (${err.response.status}).`
+    return t('login.apiError', { status: err.response.status })
   }
 
-  if (err.code === 'ECONNABORTED') {
-    return 'Connexion API expirée. Vérifiez votre réseau.'
+  if (err?.code === 'ECONNABORTED') {
+    return t('login.networkTimeout')
   }
 
-  if (err.message === 'Network Error') {
-    return 'Connexion impossible. Vérifiez Internet et la configuration mobile.'
+  if (err?.message === 'Network Error') {
+    return t('login.networkUnavailable')
   }
 
-  return err.message || 'Connexion impossible.'
+  return err?.message || t('login.genericError')
 }
 
 export default function LoginScreen() {
   const { login, authError, clearAuthError } = useAuth()
+  const { locale, setLocale, supportedLocales, t } = useI18n()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const version = Constants.expoConfig?.version || '1.3.19'
+  const version = Constants.expoConfig?.version || '1.3.20'
 
   const handleLogin = async () => {
     if (!email.trim() || !password) return
@@ -71,7 +73,7 @@ export default function LoginScreen() {
     try {
       await login(email.trim(), password)
     } catch (err) {
-      setError(describeApiError(err))
+      setError(resolveErrorMessage(err, t))
     } finally {
       setBusy(false)
     }
@@ -91,19 +93,37 @@ export default function LoginScreen() {
           <View style={s.logo}>
             <Image source={DEFAULT_BRAND_SOURCE} style={s.logoImage} resizeMode="contain" />
           </View>
-          <Text style={s.title}>Gestion de vente mobile</Text>
-          <Text style={s.subtitle}>Connexion commerciale. Stock camion. Facturation.</Text>
+          <Text style={s.title}>{t('login.title')}</Text>
+          <Text style={s.subtitle}>{t('login.subtitle')}</Text>
+        </View>
+
+        <View style={s.languageRow}>
+          {supportedLocales.map((item) => {
+            const active = locale === item.code
+
+            return (
+              <TouchableOpacity
+                key={item.code}
+                style={[s.languageChip, active && s.languageChipActive]}
+                onPress={() => { void setLocale(item.code, { persist: false }) }}
+              >
+                <Text style={[s.languageChipText, active && s.languageChipTextActive]}>
+                  {item.short} · {item.label}
+                </Text>
+              </TouchableOpacity>
+            )
+          })}
         </View>
 
         <View style={s.capabilities}>
-          <CapabilityChip icon="truck-fast-outline" label="Session" />
-          <CapabilityChip icon="account-group-outline" label="Clients" />
-          <CapabilityChip icon="printer-wireless" label="Facturation" />
+          <CapabilityChip icon="truck-fast-outline" label={t('login.session')} />
+          <CapabilityChip icon="account-group-outline" label={t('login.customers')} />
+          <CapabilityChip icon="printer-wireless" label={t('login.billing')} />
         </View>
 
         <View style={[s.card, cardShadow]}>
-          <Text style={s.cardTitle}>Connexion</Text>
-          <Text style={s.cardSubtitle}>Connectez-vous avec votre compte mobile.</Text>
+          <Text style={s.cardTitle}>{t('login.cardTitle')}</Text>
+          <Text style={s.cardSubtitle}>{t('login.cardSubtitle')}</Text>
 
           {!!(error || authError) && (
             <View style={s.errorBox}>
@@ -112,7 +132,7 @@ export default function LoginScreen() {
             </View>
           )}
 
-          <Text style={s.label}>Email</Text>
+          <Text style={s.label}>{t('login.email')}</Text>
           <TextInput
             style={s.input}
             value={email}
@@ -121,14 +141,14 @@ export default function LoginScreen() {
               if (error) setError('')
               clearAuthError?.()
             }}
-            placeholder="votre@email.com"
+            placeholder={t('login.emailPlaceholder')}
             placeholderTextColor={T.textMuted}
             autoCapitalize="none"
             keyboardType="email-address"
             autoComplete="email"
           />
 
-          <Text style={s.label}>Mot de passe</Text>
+          <Text style={s.label}>{t('login.password')}</Text>
           <TextInput
             style={s.input}
             value={password}
@@ -137,20 +157,20 @@ export default function LoginScreen() {
               if (error) setError('')
               clearAuthError?.()
             }}
-            placeholder="Votre mot de passe"
+            placeholder={t('login.passwordPlaceholder')}
             placeholderTextColor={T.textMuted}
             secureTextEntry
             autoComplete="password"
           />
 
           <TouchableOpacity style={[s.primaryButton, busy && s.buttonDisabled]} onPress={handleLogin} disabled={busy}>
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>Se connecter</Text>}
+            {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>{t('login.submit')}</Text>}
           </TouchableOpacity>
         </View>
 
         <View style={s.footerCard}>
-          <Text style={s.footerTitle}>Version {version}</Text>
-          <Text style={s.footerText}>Connexion simple pour la session, le stock embarqué et les ventes.</Text>
+          <Text style={s.footerTitle}>{t('common.version')} {version}</Text>
+          <Text style={s.footerText}>{t('login.footer')}</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -223,6 +243,33 @@ const s = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: T.textSecondary,
+  },
+  languageRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 14,
+  },
+  languageChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(13, 148, 136, 0.18)',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+  },
+  languageChipActive: {
+    borderColor: T.primary,
+    backgroundColor: 'rgba(13, 148, 136, 0.12)',
+  },
+  languageChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: T.textSecondary,
+  },
+  languageChipTextActive: {
+    color: T.primary,
   },
   capabilities: {
     flexDirection: 'row',

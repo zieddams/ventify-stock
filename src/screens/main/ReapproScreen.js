@@ -17,6 +17,7 @@ import PageHeader from '../../components/PageHeader'
 import QuantityStepperField from '../../components/QuantityStepperField'
 import StatusChip from '../../components/StatusChip'
 import { useAuth } from '../../contexts/AuthContext'
+import { useI18n } from '../../contexts/I18nContext'
 import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
@@ -34,6 +35,7 @@ export default function ReapproScreen() {
   const navigation = useNavigation()
   const insets = useSafeAreaInsets()
   const { isRep } = useAuth()
+  const { t } = useI18n()
   const {
     session,
     loading,
@@ -62,11 +64,11 @@ export default function ReapproScreen() {
       setProducts(parseItems(productsResponse.data))
       setError('')
     } catch (err) {
-      setError(err.response?.data?.message || 'Le module reappro n a pas pu etre charge.')
+      setError(err.response?.data?.message || t('reappro.loadError'))
     } finally {
       setRefreshing(false)
     }
-  }, [refreshSessionDetails])
+  }, [refreshSessionDetails, t])
 
   useFocusEffect(useCallback(() => {
     load()
@@ -127,7 +129,7 @@ export default function ReapproScreen() {
 
   const submit = async () => {
     if (selectedLines.length === 0) {
-      Alert.alert('Reappro', 'Ajoutez au moins une quantite a charger.')
+      Alert.alert(t('reappro.title'), t('reappro.emptyLoad'))
       return
     }
 
@@ -138,7 +140,7 @@ export default function ReapproScreen() {
 
     if (blocked) {
       const product = products.find((entry) => entry.id === blocked.product_id)
-      Alert.alert('Stock depot insuffisant', `${product?.name || 'Produit'} depasse le stock depot disponible.`)
+      Alert.alert(t('reappro.insufficientStockTitle'), t('reappro.insufficientStockText', { product: product?.name || t('reappro.productFallback') }))
       return
     }
 
@@ -146,20 +148,20 @@ export default function ReapproScreen() {
       await addLoad(selectedLines)
       setLoadDraft({})
       await load()
-      Alert.alert('Chargement enregistre', 'La recharge camion a bien ete synchronisee.')
+      Alert.alert(t('reappro.savedTitle'), t('reappro.savedText'))
     } catch (err) {
-      Alert.alert('Chargement impossible', err.response?.data?.message || err.message || 'Veuillez reessayer.')
+      Alert.alert(t('reappro.failedTitle'), err.response?.data?.message || err.message || t('reappro.retry'))
     }
   }
 
   if (!isRep()) {
     return (
       <ScrollView style={s.root} contentContainerStyle={s.content}>
-        <PageHeader title="Reappro camion" subtitle="Recharge du camion depuis le depot." />
+        <PageHeader title={t('reappro.title')} subtitle={t('reappro.pageSubtitle')} />
         <View style={[s.emptyCard, cardShadow]}>
           <MaterialCommunityIcons name="account-lock-outline" size={34} color={T.primary} />
-          <Text style={s.emptyTitle}>Compte commercial requis</Text>
-          <Text style={s.emptyText}>La recharge mobile est reservee au compte commercial qui porte la session du jour.</Text>
+          <Text style={s.emptyTitle}>{t('reappro.repRequiredTitle')}</Text>
+          <Text style={s.emptyText}>{t('reappro.repRequiredText')}</Text>
         </View>
       </ScrollView>
     )
@@ -175,10 +177,10 @@ export default function ReapproScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.primary} />}
       >
         <PageHeader
-          title="Reappro camion"
-          subtitle="Ajoutez du stock a la session active."
+          title={t('reappro.title')}
+          subtitle={t('reappro.pageSubtitleActive')}
           actionIcon="truck-cargo-container"
-          actionLabel="Stock"
+          actionLabel={t('navigation.stock')}
           onActionPress={() => navigation.navigate('Tabs', { screen: 'Stock' })}
         />
 
@@ -192,12 +194,12 @@ export default function ReapproScreen() {
         {!session || !isOpen ? (
           <View style={[s.emptyCard, cardShadow]}>
             <MaterialCommunityIcons name="truck-fast-outline" size={34} color={T.primary} />
-            <Text style={s.emptyTitle}>Session ouverte requise</Text>
+            <Text style={s.emptyTitle}>{t('reappro.sessionRequiredTitle')}</Text>
             <Text style={s.emptyText}>
-              Ouvrez d abord la session du jour avec un camion physique pour declarer une recharge.
+              {t('reappro.sessionRequiredText')}
             </Text>
             <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Tabs', { screen: 'Session' })}>
-              <Text style={s.primaryButtonText}>Ouvrir la session</Text>
+              <Text style={s.primaryButtonText}>{t('reappro.openSessionAction')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -205,37 +207,37 @@ export default function ReapproScreen() {
             <View style={[s.heroCard, cardShadow]}>
               <View style={s.heroTop}>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.heroTitle}>Session en cours</Text>
+                  <Text style={s.heroTitle}>{t('reappro.currentSessionTitle')}</Text>
                   <Text style={s.heroSubtitle}>
                     {session.camion?.name
                       ? `${session.camion.name}${session.camion?.plate ? ` · ${session.camion.plate}` : ''}`
-                      : 'Camion non affecte'}
+                      : t('reappro.noCamionAssigned')}
                   </Text>
                 </View>
-                <StatusChip label="Session ouverte" tone="success" />
+                <StatusChip label={t('reappro.openStatus')} tone="success" />
               </View>
 
               <View style={s.factGrid}>
                 <View style={s.factItem}>
-                  <Text style={s.factLabel}>Ouverture</Text>
+                  <Text style={s.factLabel}>{t('reappro.metrics.openedAt')}</Text>
                   <Text style={s.factValue}>{formatTime(session.opened_at)}</Text>
                 </View>
                 <View style={s.factItem}>
-                  <Text style={s.factLabel}>Lignes session</Text>
+                  <Text style={s.factLabel}>{t('reappro.metrics.sessionLines')}</Text>
                   <Text style={s.factValue}>{formatCount((session.lines ?? []).length)}</Text>
                 </View>
                 <View style={s.factItem}>
-                  <Text style={s.factLabel}>Camion</Text>
-                  <Text style={s.factValue}>{session.camion?.name || 'Aucun'}</Text>
+                  <Text style={s.factLabel}>{t('reappro.metrics.camion')}</Text>
+                  <Text style={s.factValue}>{session.camion?.name || t('reappro.none')}</Text>
                 </View>
               </View>
             </View>
 
             <View style={[s.sectionCard, cardShadow]}>
-              <Text style={s.sectionTitle}>Produits a charger</Text>
+              <Text style={s.sectionTitle}>{t('reappro.productsTitle')}</Text>
               <TextInput
                 style={s.searchInput}
-                placeholder="Rechercher un produit du depot"
+                placeholder={t('reappro.searchPlaceholder')}
                 placeholderTextColor={T.textMuted}
                 value={search}
                 onChangeText={setSearch}
@@ -246,9 +248,9 @@ export default function ReapproScreen() {
               ) : filteredProducts.length === 0 ? (
                 <View style={s.emptyInline}>
                   <MaterialCommunityIcons name="package-variant-closed" size={28} color={T.textMuted} />
-                  <Text style={s.emptyInlineTitle}>Aucun produit disponible</Text>
+                  <Text style={s.emptyInlineTitle}>{t('reappro.noProductsTitle')}</Text>
                   <Text style={s.emptyInlineText}>
-                    Essayez une autre recherche ou attendez un nouveau stock depot.
+                    {t('reappro.noProductsText')}
                   </Text>
                 </View>
               ) : (
@@ -257,18 +259,18 @@ export default function ReapproScreen() {
                     const line = lineByProductId[product.id] ?? null
                     const draftQty = loadDraft[product.id] ?? ''
                     const currentLoaded = toNumber(line?.qty_loaded)
-                    const unitLabel = product.unit || 'u'
+                    const unitLabel = product.unit || t('reappro.unitFallback')
                     const subtitleParts = [product.reference, unitLabel].filter(Boolean)
                     const detailParts = [
-                      `Depot ${formatNumber(toNumber(product.depot_qty))} ${unitLabel}`,
-                      `Camion ${formatNumber(currentLoaded)} ${unitLabel}`,
+                      t('reappro.depotStockLabel', { value: formatNumber(toNumber(product.depot_qty)), unit: unitLabel }),
+                      t('reappro.camionStockLabel', { value: formatNumber(currentLoaded), unit: unitLabel }),
                     ]
 
                     return (
                       <QuantityStepperField
                         key={product.id}
                         title={product.name}
-                        subtitle={subtitleParts.join(' - ') || 'Produit'}
+                        subtitle={subtitleParts.join(' - ') || t('reappro.productFallback')}
                         helper={detailParts.join(' - ')}
                         icon="truck-delivery-outline"
                         value={draftQty}
@@ -287,10 +289,10 @@ export default function ReapproScreen() {
       {!!session && isOpen && (
         <View style={[s.footerCard, { bottom: footerBottom }]}>
           <Text style={s.footerText}>
-            {selectedLines.length} ligne(s) · {formatNumber(selectedTotalQty)} unite(s)
+            {t('reappro.footerSummary', { lines: selectedLines.length, units: formatNumber(selectedTotalQty) })}
           </Text>
           <TouchableOpacity style={[s.footerButton, busy && s.buttonDisabled]} onPress={submit} disabled={busy}>
-            {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.footerButtonText}>Valider la recharge</Text>}
+            {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.footerButtonText}>{t('reappro.submitAction')}</Text>}
           </TouchableOpacity>
         </View>
       )}

@@ -14,13 +14,15 @@ import PageHeader from '../../components/PageHeader'
 import MetricCard from '../../components/MetricCard'
 import StatusChip from '../../components/StatusChip'
 import { useAuth } from '../../contexts/AuthContext'
+import { useI18n } from '../../contexts/I18nContext'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
-import { firstName, formatCount, formatCurrency, formatDateTime } from '../../utils/format'
+import { firstName, formatCount, formatCurrency, formatLongDate } from '../../utils/format'
 
 export default function AdminDashboardScreen() {
   const navigation = useNavigation()
   const { user } = useAuth()
+  const { t } = useI18n()
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -34,12 +36,12 @@ export default function AdminDashboardScreen() {
       setStats(response.data)
       setError('')
     } catch (err) {
-      setError(err.response?.data?.message || 'Les statistiques mobiles ne sont pas disponibles pour ce profil.')
+      setError(err.response?.data?.message || t('adminDashboard.loadError'))
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [])
+  }, [t])
 
   useFocusEffect(useCallback(() => {
     load()
@@ -53,10 +55,10 @@ export default function AdminDashboardScreen() {
       contentContainerStyle={s.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={T.primary} />}>
       <PageHeader
-        title={`Bonjour ${firstName(user?.name)}`}
-        subtitle={`Vue pilotage mobile - ${formatDateTime(new Date())}`}
+        title={t('adminDashboard.headerTitle', { name: firstName(user?.name) })}
+        subtitle={t('adminDashboard.headerSubtitle', { date: formatLongDate(new Date()) })}
         actionIcon="account-circle-outline"
-        actionLabel="Compte"
+        actionLabel={t('common.account')}
         onActionPress={() => navigation.navigate('Profile')}
       />
 
@@ -75,14 +77,14 @@ export default function AdminDashboardScreen() {
             <>
               <View style={s.grid}>
                 <MetricCard
-                  label="CA aujourd'hui"
+                  label={t('adminDashboard.metrics.todayRevenue')}
                   value={formatCurrency(stats.today_revenue)}
-                  hint="Mise à jour auto chaque minute"
+                  hint={t('adminDashboard.metrics.autoRefreshHint')}
                   icon="cash-multiple"
                   color={T.primary}
                 />
                 <MetricCard
-                  label="CA du mois"
+                  label={t('adminDashboard.metrics.monthRevenue')}
                   value={formatCurrency(stats.month_revenue)}
                   icon="calendar-month"
                   color={T.info}
@@ -91,13 +93,13 @@ export default function AdminDashboardScreen() {
 
               <View style={s.grid}>
                 <MetricCard
-                  label="Bénéfice"
+                  label={t('adminDashboard.metrics.profit')}
                   value={formatCurrency(stats.month_profit)}
                   icon="trending-up"
                   color={T.success}
                 />
                 <MetricCard
-          label="Impayés"
+                  label={t('adminDashboard.metrics.unpaid')}
                   value={formatCurrency(stats.unpaid_total)}
                   icon="credit-card-clock-outline"
                   color={T.danger}
@@ -106,13 +108,13 @@ export default function AdminDashboardScreen() {
 
               <View style={s.grid}>
                 <MetricCard
-                  label="Factures du mois"
+                  label={t('adminDashboard.metrics.monthInvoices')}
                   value={formatCount(stats.month_invoices)}
                   icon="file-document-multiple-outline"
                   color={T.primaryDark}
                 />
                 <MetricCard
-                  label="Routes ouvertes"
+                  label={t('adminDashboard.metrics.openRoutes')}
                   value={formatCount(stats.open_routes)}
                   icon="truck-fast-outline"
                   color={T.warning}
@@ -121,23 +123,23 @@ export default function AdminDashboardScreen() {
 
               <View style={[s.sectionCard, cardShadow]}>
                 <View style={s.sectionTop}>
-                  <Text style={s.sectionTitle}>Stock dépôt surveillé</Text>
+                  <Text style={s.sectionTitle}>{t('adminDashboard.depotStock.title')}</Text>
                   <StatusChip
-                    label={(stats.low_depot_stock ?? []).length > 0 ? 'Alerte stock' : 'Stable'}
+                    label={(stats.low_depot_stock ?? []).length > 0 ? t('adminDashboard.depotStock.alert') : t('adminDashboard.depotStock.stable')}
                     tone={(stats.low_depot_stock ?? []).length > 0 ? 'warning' : 'success'}
                   />
                 </View>
 
                 {(stats.low_depot_stock ?? []).length === 0 ? (
-                  <Text style={s.emptyText}>Aucun produit dépôt en alerte pour le moment.</Text>
+                  <Text style={s.emptyText}>{t('adminDashboard.depotStock.empty')}</Text>
                 ) : (
                   stats.low_depot_stock.slice(0, 8).map((item) => (
                     <View key={item.product?.id || item.product_id} style={s.stockRow}>
                       <View style={{ flex: 1 }}>
-                        <Text style={s.stockName}>{item.product?.name || 'Produit'}</Text>
-                        <Text style={s.stockMeta}>Min attendu: {item.product?.min_stock ?? 1}</Text>
+                        <Text style={s.stockName}>{item.product?.name || t('adminDashboard.depotStock.productFallback')}</Text>
+                        <Text style={s.stockMeta}>{t('adminDashboard.depotStock.minExpected', { value: item.product?.min_stock ?? 1 })}</Text>
                       </View>
-                      <Text style={s.stockQty}>{item.qty} {item.product?.unit || 'u'}</Text>
+                      <Text style={s.stockQty}>{item.qty} {item.product?.unit || t('adminDashboard.unitFallback')}</Text>
                     </View>
                   ))
                 )}
@@ -145,18 +147,18 @@ export default function AdminDashboardScreen() {
 
               <View style={[s.sectionCard, cardShadow]}>
                 <View style={s.sectionTop}>
-                  <Text style={s.sectionTitle}>Actions rapides</Text>
-                  <StatusChip label="Mobile staff" tone="info" />
+                  <Text style={s.sectionTitle}>{t('adminDashboard.quickActions.title')}</Text>
+                  <StatusChip label={t('adminDashboard.quickActions.badge')} tone="info" />
                 </View>
 
                 <View style={s.quickGrid}>
                   <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate('Factures')}>
                     <MaterialCommunityIcons name="file-document-outline" size={20} color={T.primary} />
-                    <Text style={s.quickLabel}>Factures</Text>
+                    <Text style={s.quickLabel}>{t('navigation.invoices')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate('Profile')}>
                     <MaterialCommunityIcons name="account-cog-outline" size={20} color={T.info} />
-                    <Text style={s.quickLabel}>Compte</Text>
+                    <Text style={s.quickLabel}>{t('common.account')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>

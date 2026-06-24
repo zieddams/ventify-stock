@@ -1,5 +1,6 @@
 import * as Print from 'expo-print'
 import * as Sharing from 'expo-sharing'
+import { getRuntimeLocale, translate } from '../i18n/locales'
 import {
   formatCurrency,
   formatDateTime,
@@ -7,6 +8,18 @@ import {
   paymentStatusLabel,
   unwrapStatus,
 } from './format'
+
+function t(key, params = {}) {
+  return translate(getRuntimeLocale(), key, params)
+}
+
+function documentLang() {
+  return getRuntimeLocale().startsWith('ar') ? 'ar' : 'fr'
+}
+
+function fallbackText(value, key = 'documents.common.empty') {
+  return value ?? t(key)
+}
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -20,7 +33,7 @@ function escapeHtml(value) {
 function pdfTemplate(title, subtitle, body) {
   return `
     <!doctype html>
-    <html lang="fr">
+    <html lang="${documentLang()}">
       <head>
         <meta charset="utf-8" />
         <title>${escapeHtml(title)}</title>
@@ -143,7 +156,7 @@ function pdfTemplate(title, subtitle, body) {
 function thermalTemplate(title, subtitle, body) {
   return `
     <!doctype html>
-    <html lang="fr">
+    <html lang="${documentLang()}">
       <head>
         <meta charset="utf-8" />
         <title>${escapeHtml(title)}</title>
@@ -247,6 +260,7 @@ function buildInvoiceBody(invoice) {
   const invoiceStatus = invoiceStatusLabel(unwrapStatus(invoice?.status))
   const paymentStatus = paymentStatusLabel(unwrapStatus(invoice?.payment_status))
   const lines = Array.isArray(invoice?.lines) ? invoice.lines : []
+  const emptyText = t('documents.common.empty')
 
   return `
     <div class="chips">
@@ -256,35 +270,35 @@ function buildInvoiceBody(invoice) {
     </div>
 
     <div class="section">
-      <h2 class="section-title">Client</h2>
+      <h2 class="section-title">${escapeHtml(t('documents.invoice.customerSection'))}</h2>
       <table class="meta-grid">
-        <tr><td>Nom</td><td>${escapeHtml(invoice?.customer_name || '--')}</td></tr>
-        <tr><td>Téléphone</td><td>${escapeHtml(invoice?.customer_phone || '--')}</td></tr>
-        <tr><td>Adresse</td><td>${escapeHtml(invoice?.customer_address || '--')}</td></tr>
-        <tr><td>Date</td><td>${escapeHtml(formatDateTime(invoice?.created_at))}</td></tr>
-        <tr><td>Session</td><td>${escapeHtml(invoice?.route_session_id ? `#${invoice.route_session_id}` : 'Aucune')}</td></tr>
+        <tr><td>${escapeHtml(t('documents.invoice.fields.name'))}</td><td>${escapeHtml(fallbackText(invoice?.customer_name))}</td></tr>
+        <tr><td>${escapeHtml(t('documents.invoice.fields.phone'))}</td><td>${escapeHtml(fallbackText(invoice?.customer_phone))}</td></tr>
+        <tr><td>${escapeHtml(t('documents.invoice.fields.address'))}</td><td>${escapeHtml(fallbackText(invoice?.customer_address))}</td></tr>
+        <tr><td>${escapeHtml(t('documents.invoice.fields.date'))}</td><td>${escapeHtml(formatDateTime(invoice?.created_at))}</td></tr>
+        <tr><td>${escapeHtml(t('documents.invoice.fields.session'))}</td><td>${escapeHtml(invoice?.route_session_id ? `#${invoice.route_session_id}` : t('documents.common.noneSession'))}</td></tr>
       </table>
     </div>
 
     <div class="section">
-      <h2 class="section-title">Lignes</h2>
+      <h2 class="section-title">${escapeHtml(t('documents.invoice.linesSection'))}</h2>
       <table>
         <thead>
           <tr>
-            <th>Produit</th>
-            <th>Qté</th>
-            <th>PU</th>
-            <th>Total</th>
+            <th>${escapeHtml(t('documents.invoice.headers.product'))}</th>
+            <th>${escapeHtml(t('documents.invoice.headers.quantity'))}</th>
+            <th>${escapeHtml(t('documents.invoice.headers.unitPrice'))}</th>
+            <th>${escapeHtml(t('documents.invoice.headers.total'))}</th>
           </tr>
         </thead>
         <tbody>
           ${lines.map((line) => `
             <tr>
               <td>
-                <strong>${escapeHtml(line.product_name || 'Produit')}</strong><br />
+                <strong>${escapeHtml(line.product_name || t('documents.invoice.productFallback'))}</strong><br />
                 <span class="muted">${escapeHtml(line.reference || line.unit || '')}</span>
               </td>
-              <td>${escapeHtml(line.qty ?? '--')}</td>
+              <td>${escapeHtml(line.qty ?? emptyText)}</td>
               <td>${escapeHtml(formatCurrency(line.price))}</td>
               <td>${escapeHtml(formatCurrency(line.total))}</td>
             </tr>
@@ -294,14 +308,14 @@ function buildInvoiceBody(invoice) {
     </div>
 
     <div class="totals">
-      <div class="totals-row"><span>Sous-total</span><span>${escapeHtml(formatCurrency(invoice?.subtotal))}</span></div>
-      <div class="totals-row"><span>TVA</span><span>${escapeHtml(formatCurrency(invoice?.tax_amount))}</span></div>
-      <div class="totals-row"><span>Payé</span><span>${escapeHtml(formatCurrency(invoice?.paid_amount))}</span></div>
-      <div class="totals-row strong"><span>Total</span><span>${escapeHtml(formatCurrency(invoice?.total))}</span></div>
+      <div class="totals-row"><span>${escapeHtml(t('documents.invoice.totals.subtotal'))}</span><span>${escapeHtml(formatCurrency(invoice?.subtotal))}</span></div>
+      <div class="totals-row"><span>${escapeHtml(t('documents.invoice.totals.tax'))}</span><span>${escapeHtml(formatCurrency(invoice?.tax_amount))}</span></div>
+      <div class="totals-row"><span>${escapeHtml(t('documents.invoice.totals.paid'))}</span><span>${escapeHtml(formatCurrency(invoice?.paid_amount))}</span></div>
+      <div class="totals-row strong"><span>${escapeHtml(t('documents.invoice.totals.total'))}</span><span>${escapeHtml(formatCurrency(invoice?.total))}</span></div>
     </div>
 
     <div class="footer">
-      Généré depuis la plateforme mobile Irtiwaa.
+      ${escapeHtml(t('documents.invoice.footer'))}
     </div>
   `
 }
@@ -311,32 +325,32 @@ function buildInvoiceListBody({ invoices, subtitle }) {
 
   return `
     <div class="section">
-      <h2 class="section-title">Filtre</h2>
+      <h2 class="section-title">${escapeHtml(t('documents.invoiceList.filterSection'))}</h2>
       <table class="meta-grid">
-        <tr><td>Contexte</td><td>${escapeHtml(subtitle)}</td></tr>
-        <tr><td>Nombre de factures</td><td>${escapeHtml(invoices.length)}</td></tr>
-        <tr><td>Total</td><td>${escapeHtml(formatCurrency(total))}</td></tr>
+        <tr><td>${escapeHtml(t('documents.invoiceList.filterContext'))}</td><td>${escapeHtml(subtitle)}</td></tr>
+        <tr><td>${escapeHtml(t('documents.invoiceList.filterCount'))}</td><td>${escapeHtml(invoices.length)}</td></tr>
+        <tr><td>${escapeHtml(t('documents.invoiceList.headers.total'))}</td><td>${escapeHtml(formatCurrency(total))}</td></tr>
       </table>
     </div>
 
     <div class="section">
-      <h2 class="section-title">Liste</h2>
+      <h2 class="section-title">${escapeHtml(t('documents.invoiceList.listSection'))}</h2>
       <table>
         <thead>
           <tr>
-            <th>Numéro</th>
-            <th>Client</th>
-            <th>Commercial</th>
-            <th>Date</th>
-            <th>Total</th>
+            <th>${escapeHtml(t('documents.invoiceList.headers.number'))}</th>
+            <th>${escapeHtml(t('documents.invoiceList.headers.customer'))}</th>
+            <th>${escapeHtml(t('documents.invoiceList.headers.rep'))}</th>
+            <th>${escapeHtml(t('documents.invoiceList.headers.date'))}</th>
+            <th>${escapeHtml(t('documents.invoiceList.headers.total'))}</th>
           </tr>
         </thead>
         <tbody>
           ${invoices.map((item) => `
             <tr>
-              <td>${escapeHtml(item.number || '--')}</td>
-              <td>${escapeHtml(item.customer_name || '--')}</td>
-              <td>${escapeHtml(item.rep_name || '--')}</td>
+              <td>${escapeHtml(fallbackText(item.number))}</td>
+              <td>${escapeHtml(fallbackText(item.customer_name))}</td>
+              <td>${escapeHtml(fallbackText(item.rep_name))}</td>
               <td>${escapeHtml(formatDateTime(item.created_at))}</td>
               <td>${escapeHtml(formatCurrency(item.total))}</td>
             </tr>
@@ -346,7 +360,7 @@ function buildInvoiceListBody({ invoices, subtitle }) {
     </div>
 
     <div class="footer">
-      Rapport mobile généré le ${escapeHtml(formatDateTime(new Date().toISOString()))}.
+      ${escapeHtml(t('documents.invoiceList.footer', { date: formatDateTime(new Date().toISOString()) }))}
     </div>
   `
 }
@@ -355,6 +369,7 @@ function buildThermalInvoiceBody(invoice) {
   const invoiceStatus = invoiceStatusLabel(unwrapStatus(invoice?.status))
   const paymentStatus = paymentStatusLabel(unwrapStatus(invoice?.payment_status))
   const lines = Array.isArray(invoice?.lines) ? invoice.lines : []
+  const emptyText = t('documents.common.empty')
 
   return `
     <div class="chips">
@@ -362,31 +377,31 @@ function buildThermalInvoiceBody(invoice) {
       <span class="chip">${escapeHtml(paymentStatus)}</span>
     </div>
     <div class="rule"></div>
-    <div class="meta-row"><span class="meta-label">Client</span><span>${escapeHtml(invoice?.customer_name || '--')}</span></div>
-    <div class="meta-row"><span class="meta-label">Téléphone</span><span>${escapeHtml(invoice?.customer_phone || '--')}</span></div>
-    <div class="meta-row"><span class="meta-label">Date</span><span>${escapeHtml(formatDateTime(invoice?.created_at))}</span></div>
-    <div class="meta-row"><span class="meta-label">Session</span><span>${escapeHtml(invoice?.route_session_id ? `#${invoice.route_session_id}` : 'Aucune')}</span></div>
+    <div class="meta-row"><span class="meta-label">${escapeHtml(t('documents.invoice.customerSection'))}</span><span>${escapeHtml(fallbackText(invoice?.customer_name))}</span></div>
+    <div class="meta-row"><span class="meta-label">${escapeHtml(t('documents.invoice.fields.phone'))}</span><span>${escapeHtml(fallbackText(invoice?.customer_phone))}</span></div>
+    <div class="meta-row"><span class="meta-label">${escapeHtml(t('documents.invoice.fields.date'))}</span><span>${escapeHtml(formatDateTime(invoice?.created_at))}</span></div>
+    <div class="meta-row"><span class="meta-label">${escapeHtml(t('documents.invoice.fields.session'))}</span><span>${escapeHtml(invoice?.route_session_id ? `#${invoice.route_session_id}` : t('documents.common.noneSession'))}</span></div>
     <div class="rule"></div>
-    <div class="section-title">Lignes</div>
+    <div class="section-title">${escapeHtml(t('documents.invoice.linesSection'))}</div>
     ${lines.map((line) => `
       <div class="line">
-        <div class="line-name">${escapeHtml(line.product_name || 'Produit')}</div>
+        <div class="line-name">${escapeHtml(line.product_name || t('documents.invoice.productFallback'))}</div>
         <div class="line-meta">
           <span class="muted">${escapeHtml(line.reference || line.unit || '')}</span>
-          <span>${escapeHtml(line.qty ?? '--')} x ${escapeHtml(formatCurrency(line.price))}</span>
+          <span>${escapeHtml(line.qty ?? emptyText)} x ${escapeHtml(formatCurrency(line.price))}</span>
         </div>
         <div class="line-total">
-          <span class="muted">Total ligne</span>
+          <span class="muted">${escapeHtml(t('documents.invoice.lineTotal'))}</span>
           <span>${escapeHtml(formatCurrency(line.total))}</span>
         </div>
       </div>
     `).join('')}
     <div class="rule"></div>
-    <div class="total-row"><span>Sous-total</span><span>${escapeHtml(formatCurrency(invoice?.subtotal))}</span></div>
-    <div class="total-row"><span>TVA</span><span>${escapeHtml(formatCurrency(invoice?.tax_amount))}</span></div>
-    <div class="total-row"><span>Payé</span><span>${escapeHtml(formatCurrency(invoice?.paid_amount))}</span></div>
-    <div class="total-row strong"><span>Total</span><span>${escapeHtml(formatCurrency(invoice?.total))}</span></div>
-    <div class="footer">Sélectionnez votre application Bluetooth thermique.</div>
+    <div class="total-row"><span>${escapeHtml(t('documents.invoice.totals.subtotal'))}</span><span>${escapeHtml(formatCurrency(invoice?.subtotal))}</span></div>
+    <div class="total-row"><span>${escapeHtml(t('documents.invoice.totals.tax'))}</span><span>${escapeHtml(formatCurrency(invoice?.tax_amount))}</span></div>
+    <div class="total-row"><span>${escapeHtml(t('documents.invoice.totals.paid'))}</span><span>${escapeHtml(formatCurrency(invoice?.paid_amount))}</span></div>
+    <div class="total-row strong"><span>${escapeHtml(t('documents.invoice.totals.total'))}</span><span>${escapeHtml(formatCurrency(invoice?.total))}</span></div>
+    <div class="footer">${escapeHtml(t('documents.invoice.thermalFooter'))}</div>
   `
 }
 
@@ -395,77 +410,84 @@ function buildThermalInvoiceListBody({ invoices, subtitle }) {
 
   return `
     <div class="rule"></div>
-    <div class="meta-row"><span class="meta-label">Contexte</span><span>${escapeHtml(subtitle)}</span></div>
-    <div class="meta-row"><span class="meta-label">Factures</span><span>${escapeHtml(invoices.length)}</span></div>
-    <div class="meta-row"><span class="meta-label">Total</span><span>${escapeHtml(formatCurrency(total))}</span></div>
+    <div class="meta-row"><span class="meta-label">${escapeHtml(t('documents.invoiceList.filterContext'))}</span><span>${escapeHtml(subtitle)}</span></div>
+    <div class="meta-row"><span class="meta-label">${escapeHtml(t('documents.invoiceList.filterCount'))}</span><span>${escapeHtml(invoices.length)}</span></div>
+    <div class="meta-row"><span class="meta-label">${escapeHtml(t('documents.invoiceList.headers.total'))}</span><span>${escapeHtml(formatCurrency(total))}</span></div>
     <div class="rule"></div>
-    <div class="section-title">Liste</div>
+    <div class="section-title">${escapeHtml(t('documents.invoiceList.listSection'))}</div>
     ${invoices.map((item) => `
       <div class="line">
-        <div class="line-name">${escapeHtml(item.number || '--')}</div>
+        <div class="line-name">${escapeHtml(fallbackText(item.number))}</div>
         <div class="line-meta">
-          <span>${escapeHtml(item.customer_name || '--')}</span>
+          <span>${escapeHtml(fallbackText(item.customer_name))}</span>
           <span>${escapeHtml(formatDateTime(item.created_at))}</span>
         </div>
         <div class="line-total">
-          <span class="muted">${escapeHtml(item.rep_name || '--')}</span>
+          <span class="muted">${escapeHtml(fallbackText(item.rep_name))}</span>
           <span>${escapeHtml(formatCurrency(item.total))}</span>
         </div>
       </div>
     `).join('')}
-    <div class="footer">Export mobile prêt pour votre application thermique.</div>
+    <div class="footer">${escapeHtml(t('documents.invoiceList.thermalFooter'))}</div>
   `
 }
 
-async function shareHtmlAsPdf(html, dialogTitle = 'Partager le PDF') {
+async function shareHtmlAsPdf(html, dialogTitle) {
   const file = await Print.printToFileAsync({ html, base64: false })
+  const resolvedDialogTitle = dialogTitle || t('documents.common.shareDialog')
 
   if (!await Sharing.isAvailableAsync()) {
-    throw new Error('Le partage n’est pas disponible sur cet appareil.')
+    throw new Error(t('documents.common.shareUnavailable'))
   }
 
   await Sharing.shareAsync(file.uri, {
     mimeType: 'application/pdf',
-    dialogTitle,
+    dialogTitle: resolvedDialogTitle,
   })
 
   return file
 }
 
 function invoiceTitle(invoice) {
-  return invoice?.number || 'Facture mobile'
+  return invoice?.number || t('documents.invoice.titleFallback')
 }
 
 function invoiceSubtitle(invoice) {
   return invoice?.customer_name
     ? `${invoice.customer_name} - ${formatDateTime(invoice.created_at)}`
-    : 'Détail facture'
+    : t('documents.invoice.subtitleFallback')
 }
 
 export async function printInvoiceDocument(invoice) {
   return shareHtmlAsPdf(
     thermalTemplate(invoiceTitle(invoice), invoiceSubtitle(invoice), buildThermalInvoiceBody(invoice)),
-    "Choisir l'application d'impression thermique",
+    t('documents.invoice.printDialog'),
   )
 }
 
 export async function shareInvoiceDocument(invoice) {
   return shareHtmlAsPdf(
     pdfTemplate(invoiceTitle(invoice), invoiceSubtitle(invoice), buildInvoiceBody(invoice)),
-    'Partager le PDF',
+    t('documents.common.shareDialog'),
   )
 }
 
-export async function printInvoiceListDocument({ invoices, title = 'Liste factures', subtitle = 'Rapport mobile' }) {
+export async function printInvoiceListDocument({ invoices, title, subtitle }) {
+  const resolvedTitle = title || t('documents.invoiceList.titleFallback')
+  const resolvedSubtitle = subtitle || t('documents.invoiceList.subtitleFallback')
+
   return shareHtmlAsPdf(
-    thermalTemplate(title, subtitle, buildThermalInvoiceListBody({ invoices, subtitle })),
-    "Choisir l'application d'impression thermique",
+    thermalTemplate(resolvedTitle, resolvedSubtitle, buildThermalInvoiceListBody({ invoices, subtitle: resolvedSubtitle })),
+    t('documents.invoiceList.printDialog'),
   )
 }
 
-export async function shareInvoiceListDocument({ invoices, title = 'Liste factures', subtitle = 'Rapport mobile' }) {
+export async function shareInvoiceListDocument({ invoices, title, subtitle }) {
+  const resolvedTitle = title || t('documents.invoiceList.titleFallback')
+  const resolvedSubtitle = subtitle || t('documents.invoiceList.subtitleFallback')
+
   return shareHtmlAsPdf(
-    pdfTemplate(title, subtitle, buildInvoiceListBody({ invoices, subtitle })),
-    'Partager le PDF',
+    pdfTemplate(resolvedTitle, resolvedSubtitle, buildInvoiceListBody({ invoices, subtitle: resolvedSubtitle })),
+    t('documents.common.shareDialog'),
   )
 }
