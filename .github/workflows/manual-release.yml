@@ -1,0 +1,105 @@
+name: Mobile Manual Release Prep
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: Optional semantic version bump before release prep
+        required: true
+        default: patch
+        type: choice
+        options:
+          - none
+          - patch
+          - minor
+          - major
+      version_code_increment:
+        description: Android versionCode increment when bumping
+        required: true
+        default: '1'
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mobile-release-prep
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.1
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply optional version bump
+        if: ${{ inputs.version_bump != 'none' }}
+        run: |
+          npm version "${{ inputs.version_bump }}" --no-git-tag-version
+          node scripts/sync-mobile-version.cjs --increment-version-code=${{ inputs.version_code_increment }}
+          npm run sync:android-version
+
+      - name: Verify Expo version sync
+        run: npm run check:mobile-version
+
+      - name: Verify Android version sync
+        run: npm run check:android-version
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Capture release metadata
+        id: release
+        shell: bash
+        run: |
+          echo "version=$(node -p 'require(\"./package.json\").version')" >> "$GITHUB_OUTPUT"
+          echo "version_code=$(node -p 'require(\"./app.config.js\").android.versionCode')" >> "$GITHUB_OUTPUT"
+
+      - name: Write release metadata artifact
+        shell: bash
+        run: |
+          node - <<'EOF' > release-metadata.json
+          const pkg = require('./package.json')
+          const appConfig = require('./app.config.js')
+          const payload = {
+            version: pkg.version,
+            versionCode: appConfig.android?.versionCode ?? null,
+            generatedAt: new Date().toISOString(),
+          }
+          process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`)
+          EOF
+
+      - name: Commit prepared release changes
+        if: ${{ inputs.version_bump != 'none' }}
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json app.config.js android/app/build.gradle
+          if [ -f package-lock.json ]; then
+            git add package-lock.json
+          fi
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "chore(release): mobile v${{ steps.release.outputs.version }} (${{ steps.release.outputs.version_code }})"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Upload release metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-release-metadata
+          path: release-metadata.json
