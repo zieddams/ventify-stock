@@ -22,6 +22,15 @@ function extractApkAsset(assets) {
   return (Array.isArray(assets) ? assets : []).find((asset) => /\.apk$/i.test(asset?.name || '')) || null
 }
 
+function normalizeSha256Digest(value) {
+  const digest = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^sha256:/, '')
+
+  return /^[a-f0-9]{64}$/.test(digest) ? digest : null
+}
+
 function normalizeRelease(item) {
   const apkAsset = extractApkAsset(item?.assets)
   const notes = String(item?.body || '').trim() || 'Aucun changelog fourni.'
@@ -41,6 +50,7 @@ function normalizeRelease(item) {
     apkUrl: apkAsset?.browser_download_url || null,
     apkName: apkAsset?.name || null,
     apkSize: apkAsset?.size || 0,
+    apkSha256: normalizeSha256Digest(apkAsset?.digest),
   }
 }
 
