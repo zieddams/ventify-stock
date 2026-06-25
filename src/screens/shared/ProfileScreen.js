@@ -62,7 +62,7 @@ export default function ProfileScreen() {
     { value: 'high', label: t('profile.severityHigh') },
   ]), [t])
 
-  const currentVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || '1.3.21'
+  const currentVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || '0.0.0'
   const buildVersion = Constants.nativeBuildVersion || String(Constants.expoConfig?.android?.versionCode ?? '')
 
   const loadLatestRelease = useCallback(async ({ silent = false } = {}) => {
