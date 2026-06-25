@@ -74,8 +74,16 @@ jobs:
         id: release
         shell: bash
         run: |
-          echo "version=$(node -p 'require(\"./package.json\").version')" >> "$GITHUB_OUTPUT"
-          echo "version_code=$(node -p 'require(\"./app.config.js\").android.versionCode')" >> "$GITHUB_OUTPUT"
+          VERSION="$(node -p "require('./package.json').version")"
+          VERSION_CODE="$(node -p "require('./app.config.js').android.versionCode")"
+
+          if [ -z "$VERSION" ] || [ -z "$VERSION_CODE" ]; then
+            echo "Failed to resolve release metadata from package.json/app.config.js" >&2
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
 
       - name: Write release metadata artifact
         shell: bash
