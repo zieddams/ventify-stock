@@ -15,6 +15,7 @@ const Tab = createBottomTabNavigator()
 const getLoginScreen = () => require('../screens/auth/LoginScreen').default
 const getDashboardScreen = () => require('../screens/main/DashboardScreen').default
 const getCustomersScreen = () => require('../screens/main/CustomersScreen').default
+const getCustomerLedgerScreen = () => require('../screens/main/CustomerLedgerScreen').default
 const getInvoicesScreen = () => require('../screens/main/InvoicesScreen').default
 const getRouteSessionScreen = () => require('../screens/main/RouteSessionScreen').default
 const getCamionScreen = () => require('../screens/main/CamionScreen').default
@@ -126,6 +127,7 @@ function AppStack() {
         component={MobileTabs}
         options={{ headerShown: false }}
       />
+      <Stack.Screen name="CustomerLedger" getComponent={getCustomerLedgerScreen} options={{ title: t('customers.ledgerTitle') }} />
       <Stack.Screen name="InvoiceCreate" getComponent={getInvoiceCreateScreen} options={{ title: t('navigation.createInvoice') }} />
       <Stack.Screen name="InvoiceDetail" getComponent={getInvoiceDetailScreen} options={{ title: t('navigation.invoiceDetail') }} />
       <Stack.Screen name="Reappro" getComponent={getReapproScreen} options={{ title: t('navigation.reappro') }} />

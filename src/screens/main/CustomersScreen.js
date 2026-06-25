@@ -120,43 +120,54 @@ export default function CustomersScreen() {
           const hasCredit = Number(item?.credit_balance ?? 0) > 0
 
           return (
-            <TouchableOpacity
-              style={[s.row, cardShadow]}
-              activeOpacity={0.84}
-              onPress={() => navigation.navigate('InvoiceCreate', { initialCustomer: item })}
-            >
-              <View style={s.rowIcon}>
-                <MaterialCommunityIcons name="account-outline" size={18} color={T.primary} />
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <Text style={s.rowName}>{item.name}</Text>
-                <Text style={s.rowMeta}>{item.phone || t('customers.noPhone')}</Text>
-                <Text style={s.rowMeta}>{item.address || t('customers.noAddress')}</Text>
-                {hasGlobalCustomerAccess && (
-                  <Text style={s.rowOwner}>
-                    {t('customers.assignedTo', { name: item.owner?.name || t('customers.ownerUnknown') })}
-                  </Text>
-                )}
-                {hasCredit && (
-                  <View style={s.badges}>
-                    <View style={[s.badge, s.badgeDanger]}>
-                      <MaterialCommunityIcons name="credit-card-outline" size={14} color="#b91c1c" />
-                      <Text style={[s.badgeText, s.badgeTextDanger]}>
-                        {t('customers.creditLabel', { value: formatCurrency(item.credit_balance) })}
-                      </Text>
-                    </View>
-                  </View>
-                )}
-              </View>
-
+            <View style={[s.row, cardShadow]}>
               <TouchableOpacity
-                style={s.actionButton}
+                style={s.rowMain}
+                activeOpacity={0.84}
                 onPress={() => navigation.navigate('InvoiceCreate', { initialCustomer: item })}
               >
-                <MaterialCommunityIcons name="file-document-plus-outline" size={18} color="#fff" />
+                <View style={s.rowIcon}>
+                  <MaterialCommunityIcons name="account-outline" size={18} color={T.primary} />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={s.rowName}>{item.name}</Text>
+                  <Text style={s.rowMeta}>{item.phone || t('customers.noPhone')}</Text>
+                  <Text style={s.rowMeta}>{item.address || t('customers.noAddress')}</Text>
+                  {hasGlobalCustomerAccess && (
+                    <Text style={s.rowOwner}>
+                      {t('customers.assignedTo', { name: item.owner?.name || t('customers.ownerUnknown') })}
+                    </Text>
+                  )}
+                  {hasCredit && (
+                    <View style={s.badges}>
+                      <View style={[s.badge, s.badgeDanger]}>
+                        <MaterialCommunityIcons name="credit-card-outline" size={14} color="#b91c1c" />
+                        <Text style={[s.badgeText, s.badgeTextDanger]}>
+                          {t('customers.creditLabel', { value: formatCurrency(item.credit_balance) })}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                </View>
               </TouchableOpacity>
-            </TouchableOpacity>
+
+              <View style={s.actionsColumn}>
+                <TouchableOpacity
+                  style={[s.actionButton, s.secondaryActionButton]}
+                  onPress={() => navigation.navigate('CustomerLedger', { customer: item })}
+                >
+                  <MaterialCommunityIcons name="credit-card-check-outline" size={18} color={T.primary} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={s.actionButton}
+                  onPress={() => navigation.navigate('InvoiceCreate', { initialCustomer: item })}
+                >
+                  <MaterialCommunityIcons name="file-document-plus-outline" size={18} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            </View>
           )
         }}
         ListHeaderComponent={(
@@ -290,14 +301,17 @@ const s = StyleSheet.create({
     color: T.textMuted,
   },
   row: {
-    flexDirection: 'row',
-    gap: 12,
     padding: 16,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: T.border,
     backgroundColor: T.surface,
     marginBottom: 10,
+  },
+  rowMain: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-start',
   },
   rowIcon: {
     width: 40,
@@ -354,7 +368,17 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: T.primary,
-    alignSelf: 'center',
+  },
+  actionsColumn: {
+    marginTop: 14,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+  },
+  secondaryActionButton: {
+    backgroundColor: T.surfaceAlt,
+    borderWidth: 1,
+    borderColor: T.border,
   },
   emptyWrap: {
     alignItems: 'center',
