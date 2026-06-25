@@ -1,4 +1,4 @@
-name: Mobile Manual Release Prep
+name: Mobile Manual Release
 
 on:
   workflow_dispatch:
@@ -29,12 +29,21 @@ concurrency:
 jobs:
   prepare:
     runs-on: ubuntu-latest
+    env:
+      CI: '1'
+      EXPECTED_DEBUG_CERT_SHA256: FAC61745DC0903786FB9EDE62A962B399F7348F0BB6F899B8332667591033B9C
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Ensure release-safe branch
+        if: ${{ github.ref_name != 'main' && !startsWith(github.ref_name, 'codex/release-') }}
+        run: |
+          echo "Ref ${GITHUB_REF_NAME} is not approved for mobile release publication." >&2
+          exit 1
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -103,3 +112,112 @@ jobs:
         with:
           name: mobile-release-metadata
           path: release-metadata.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Regenerate Android project for release build
+        run: npx expo prebuild --platform android --clean
+
+      - name: Restore release-compatible debug keystore
+        shell: bash
+        env:
+          ANDROID_DEBUG_KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$ANDROID_DEBUG_KEYSTORE_B64" ]; then
+            echo "ANDROID_DEBUG_KEYSTORE_B64 is not configured." >&2
+            exit 1
+          fi
+
+          printf '%s' "$ANDROID_DEBUG_KEYSTORE_B64" | base64 --decode > android/app/debug.keystore
+
+      - name: Sync Android version after prebuild
+        run: npm run sync:android-version
+
+      - name: Verify Android version sync after prebuild
+        run: npm run check:android-version
+
+      - name: Build release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Verify APK signer compatibility
+        id: signer
+        shell: bash
+        run: |
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort | tail -n 1)"
+
+          if [ -z "$APKSIGNER" ]; then
+            echo "Unable to locate apksigner under $ANDROID_HOME/build-tools" >&2
+            exit 1
+          fi
+
+          "$APKSIGNER" verify --print-certs android/app/build/outputs/apk/release/app-release.apk | tee apk-signature.txt
+          grep -q "Signer #1 certificate SHA-256 digest: $EXPECTED_DEBUG_CERT_SHA256" apk-signature.txt
+
+      - name: Package release asset metadata
+        id: apk
+        shell: bash
+        run: |
+          VERSION="${{ steps.release.outputs.version }}"
+          VERSION_CODE="${{ steps.release.outputs.version_code }}"
+          SRC="android/app/build/outputs/apk/release/app-release.apk"
+          DEST="android/app/build/outputs/apk/release/El-Irtiwaa-Mobile-v${VERSION}.apk"
+          SHA256="$(sha256sum "$SRC" | awk '{print $1}')"
+          SIZE="$(stat -c%s "$SRC")"
+
+          cp "$SRC" "$DEST"
+
+          echo "apk_path=$DEST" >> "$GITHUB_OUTPUT"
+          echo "apk_name=$(basename "$DEST")" >> "$GITHUB_OUTPUT"
+          echo "apk_sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          echo "apk_size=$SIZE" >> "$GITHUB_OUTPUT"
+
+          cat > release-build-metadata.json <<EOF
+          {
+            "version": "${VERSION}",
+            "versionCode": ${VERSION_CODE},
+            "apkName": "$(basename "$DEST")",
+            "apkSha256": "${SHA256}",
+            "apkSize": ${SIZE},
+            "generatedAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          }
+          EOF
+
+      - name: Write release notes
+        shell: bash
+        run: |
+          cat > release-notes.md <<EOF
+          ## El Irtiwaa Mobile v${{ steps.release.outputs.version }}
+
+          - APK aligned to Android versionCode ${{ steps.release.outputs.version_code }}.
+          - In-app updater now verifies the downloaded APK SHA-256 before install.
+          - Removed unneeded legacy Android storage permissions.
+          - Built and published from the validated GitHub Actions release path.
+
+          SHA-256: \`${{ steps.apk.outputs.apk_sha256 }}\`
+          EOF
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.release.outputs.version }}
+          name: El Irtiwaa Mobile v${{ steps.release.outputs.version }}
+          body_path: release-notes.md
+          files: ${{ steps.apk.outputs.apk_path }}
+          overwrite_files: true
+
+      - name: Upload APK build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-release-build
+          path: |
+            ${{ steps.apk.outputs.apk_path }}
+            release-build-metadata.json
+            apk-signature.txt

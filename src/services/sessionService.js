@@ -30,7 +30,7 @@ export function getDevicePayload() {
       ? `Android ${Platform.Version}`
       : `${Platform.OS} ${Platform.Version}`,
     api_level: Platform.OS === 'android' ? Number(Platform.Version) : null,
-    app_version: Constants.expoConfig?.version || Constants.nativeAppVersion || '1.3.20',
+    app_version: Constants.expoConfig?.version || Constants.nativeAppVersion || '1.3.21',
     native_app_version: Constants.nativeAppVersion || Constants.expoConfig?.version || null,
     native_build_version: Constants.nativeBuildVersion || String(Constants.expoConfig?.android?.versionCode ?? ''),
     runtime_version: String(Constants.expoConfig?.runtimeVersion || Constants.expoRuntimeVersion || ''),
