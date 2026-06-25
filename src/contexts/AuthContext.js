@@ -32,8 +32,13 @@ function createMobileRoleError(user) {
   return error
 }
 
-function ensureMobileCommercialAccess(user) {
-  if (user?.mobile_access?.allowed === false || (user?.role && user.role !== 'rep')) {
+function canUseOperationalMobile(user) {
+  return user?.mobile_access?.allowed === true
+    && ['rep', 'admin', 'developer'].includes(user?.role)
+}
+
+function ensureMobileAccessAllowed(user) {
+  if (!canUseOperationalMobile(user)) {
     throw createMobileRoleError(user)
   }
 
@@ -54,7 +59,7 @@ export function AuthProvider({ children }) {
 
   const refreshUser = useCallback(async () => {
     const response = await api.get('/auth/me')
-    const nextUser = ensureMobileCommercialAccess(response.data)
+    const nextUser = ensureMobileAccessAllowed(response.data)
     await saveStoredUser(nextUser)
     setUser(nextUser)
     return nextUser
@@ -148,7 +153,7 @@ export function AuthProvider({ children }) {
         }
 
         const cachedUser = await getStoredUser()
-        if (cachedUser?.role === 'rep' && mounted) {
+        if (canUseOperationalMobile(cachedUser) && mounted) {
           setUser(cachedUser)
           setLoading(false)
         }
@@ -220,7 +225,7 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     setAuthError('')
     const response = await api.post('/auth/login', { email, password })
-    const nextUser = ensureMobileCommercialAccess(response.data.user)
+    const nextUser = ensureMobileAccessAllowed(response.data.user)
     await saveToken(response.data.token)
     return setCurrentUser(nextUser)
   }
@@ -254,6 +259,7 @@ export function AuthProvider({ children }) {
     setCurrentUser,
     clearAuthError,
     touchSession,
+    canUseOperationalMobile: () => canUseOperationalMobile(user),
     isAdmin: () => ['admin', 'developer'].includes(user?.role),
     isRep: () => user?.role === 'rep',
     isStaff: () => ['admin', 'developer', 'comptable'].includes(user?.role),

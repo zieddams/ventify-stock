@@ -34,7 +34,7 @@ function initialTrackingState() {
 }
 
 export function TrackingProvider({ children }) {
-  const { user, isRep } = useAuth()
+  const { user, canUseOperationalMobile } = useAuth()
   const { refreshNotifications } = useNotifications()
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -73,7 +73,7 @@ export function TrackingProvider({ children }) {
   }, [refreshNotifications])
 
   const refreshSession = useCallback(async () => {
-    if (!user || !isRep()) {
+    if (!user || !canUseOperationalMobile()) {
       clearSessionState()
       setLoading(false)
       return null
@@ -103,7 +103,7 @@ export function TrackingProvider({ children }) {
       refreshInFlightRef.current = false
       setLoading(false)
     }
-  }, [clearSessionState, isRep, markSynced, user])
+  }, [canUseOperationalMobile, clearSessionState, markSynced, user])
 
   const refreshSessionDetails = useCallback(async () => {
     const activeSession = sessionRef.current
@@ -137,7 +137,7 @@ export function TrackingProvider({ children }) {
   }, [markSynced, refreshSession])
 
   const syncRemotePresence = useCallback(async (reason = 'presence-ping', mode = 'ping') => {
-    if (!user || !isRep()) {
+    if (!user || !canUseOperationalMobile()) {
       return null
     }
 
@@ -165,7 +165,7 @@ export function TrackingProvider({ children }) {
     } finally {
       presenceInFlightRef.current = false
     }
-  }, [isRep, markSynced, user])
+  }, [canUseOperationalMobile, markSynced, user])
 
   const startSession = useCallback(async (payload = {}) => {
     setBusy(true)
@@ -252,7 +252,7 @@ export function TrackingProvider({ children }) {
   }, [syncRemotePresence])
 
   useEffect(() => {
-    if (!user || !isRep()) {
+    if (!user || !canUseOperationalMobile()) {
       clearSessionState()
       setLoading(false)
       return
@@ -260,10 +260,10 @@ export function TrackingProvider({ children }) {
 
     refreshSession()
     void syncRemotePresence('presence-report', 'report')
-  }, [clearSessionState, isRep, refreshSession, syncRemotePresence, user])
+  }, [canUseOperationalMobile, clearSessionState, refreshSession, syncRemotePresence, user])
 
   useEffect(() => {
-    if (!user || !isRep()) {
+    if (!user || !canUseOperationalMobile()) {
       return undefined
     }
 
@@ -280,10 +280,10 @@ export function TrackingProvider({ children }) {
     })
 
     return () => sub.remove()
-  }, [isRep, refreshSession, refreshSessionDetails, syncRemotePresence, user])
+  }, [canUseOperationalMobile, refreshSession, refreshSessionDetails, syncRemotePresence, user])
 
   useEffect(() => {
-    if (!user || !isRep()) {
+    if (!user || !canUseOperationalMobile()) {
       return undefined
     }
 
@@ -301,10 +301,10 @@ export function TrackingProvider({ children }) {
     }, REMOTE_SESSION_SYNC_MS)
 
     return () => clearInterval(interval)
-  }, [isRep, refreshSession, refreshSessionDetails, user])
+  }, [canUseOperationalMobile, refreshSession, refreshSessionDetails, user])
 
   useEffect(() => {
-    if (!user || !isRep()) {
+    if (!user || !canUseOperationalMobile()) {
       return undefined
     }
 
@@ -317,7 +317,7 @@ export function TrackingProvider({ children }) {
     }, REMOTE_PRESENCE_SYNC_MS)
 
     return () => clearInterval(interval)
-  }, [isRep, syncRemotePresence, user])
+  }, [canUseOperationalMobile, syncRemotePresence, user])
 
   const value = useMemo(() => ({
     session,

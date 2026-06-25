@@ -137,7 +137,7 @@ function AppStack() {
 }
 
 export default function AppNavigator() {
-  const { user, loading, isRep } = useAuth()
+  const { user, loading } = useAuth()
   const { t } = useI18n()
 
   if (loading) {
@@ -151,7 +151,7 @@ export default function AppNavigator() {
 
   return (
     <NavigationContainer>
-      {user && isRep() ? <AppStack /> : <AuthStack />}
+      {user ? <AppStack /> : <AuthStack />}
     </NavigationContainer>
   )
 }

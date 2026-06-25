@@ -53,7 +53,7 @@ function sessionHint(session, configuredCamion, t) {
 
 export default function DashboardScreen() {
   const navigation = useNavigation()
-  const { user, isRep } = useAuth()
+  const { user } = useAuth()
   const { t } = useI18n()
   const { session, refreshSession } = useTracking()
 
@@ -169,14 +169,7 @@ export default function DashboardScreen() {
           />
         </View>
 
-        {!isRep() ? (
-          <View style={s.infoBlock}>
-            <Text style={s.infoBlockTitle}>{t('dashboard.repRequiredTitle')}</Text>
-            <Text style={s.infoBlockText}>
-              {t('dashboard.repRequiredText')}
-            </Text>
-          </View>
-        ) : !session ? (
+        {!session ? (
           <>
             <Text style={s.heroText}>
               {t('dashboard.noSessionText')}

@@ -70,7 +70,7 @@ function buildCloseDefaults(session) {
 export default function RouteSessionScreen() {
   const navigation = useNavigation()
   const insets = useSafeAreaInsets()
-  const { user, isRep } = useAuth()
+  const { user } = useAuth()
   const { t } = useI18n()
   const {
     session,
@@ -247,27 +247,6 @@ export default function RouteSessionScreen() {
     } catch (err) {
       Alert.alert(t('routeSession.closeFailedTitle'), err.response?.data?.message || err.message || t('routeSession.retry'))
     }
-  }
-
-  if (!isRep()) {
-    return (
-      <ScrollView style={s.root} contentContainerStyle={s.content}>
-        <PageHeader
-          title={t('routeSession.title')}
-          subtitle={t('routeSession.repRequiredSubtitle')}
-        />
-
-        <CompanyBrandCard user={user} style={s.brandCard} />
-
-        <View style={[s.emptyCard, cardShadow]}>
-          <MaterialCommunityIcons name="account-lock-outline" size={34} color={T.primary} />
-          <Text style={s.emptyTitle}>{t('routeSession.repRequiredTitle')}</Text>
-          <Text style={s.emptyText}>
-            {t('routeSession.repRequiredText')}
-          </Text>
-        </View>
-      </ScrollView>
-    )
   }
 
   const footerBottom = insets.bottom + 12

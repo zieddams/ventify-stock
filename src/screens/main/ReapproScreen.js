@@ -16,7 +16,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import PageHeader from '../../components/PageHeader'
 import QuantityStepperField from '../../components/QuantityStepperField'
 import StatusChip from '../../components/StatusChip'
-import { useAuth } from '../../contexts/AuthContext'
 import { useI18n } from '../../contexts/I18nContext'
 import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
@@ -34,7 +33,6 @@ function numericInput(value) {
 export default function ReapproScreen() {
   const navigation = useNavigation()
   const insets = useSafeAreaInsets()
-  const { isRep } = useAuth()
   const { t } = useI18n()
   const {
     session,
@@ -152,19 +150,6 @@ export default function ReapproScreen() {
     } catch (err) {
       Alert.alert(t('reappro.failedTitle'), err.response?.data?.message || err.message || t('reappro.retry'))
     }
-  }
-
-  if (!isRep()) {
-    return (
-      <ScrollView style={s.root} contentContainerStyle={s.content}>
-        <PageHeader title={t('reappro.title')} subtitle={t('reappro.pageSubtitle')} />
-        <View style={[s.emptyCard, cardShadow]}>
-          <MaterialCommunityIcons name="account-lock-outline" size={34} color={T.primary} />
-          <Text style={s.emptyTitle}>{t('reappro.repRequiredTitle')}</Text>
-          <Text style={s.emptyText}>{t('reappro.repRequiredText')}</Text>
-        </View>
-      </ScrollView>
-    )
   }
 
   const footerBottom = insets.bottom + 12
