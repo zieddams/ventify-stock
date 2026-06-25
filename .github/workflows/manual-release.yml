@@ -159,7 +159,8 @@ jobs:
           fi
 
           "$APKSIGNER" verify --print-certs android/app/build/outputs/apk/release/app-release.apk | tee apk-signature.txt
-          grep -q "Signer #1 certificate SHA-256 digest: $EXPECTED_DEBUG_CERT_SHA256" apk-signature.txt
+          EXPECTED_CERT_SHA256_LOWER="$(printf '%s' "$EXPECTED_DEBUG_CERT_SHA256" | tr '[:upper:]' '[:lower:]')"
+          grep -qi "certificate sha-256 digest: $EXPECTED_CERT_SHA256_LOWER" apk-signature.txt
 
       - name: Package release asset metadata
         id: apk
