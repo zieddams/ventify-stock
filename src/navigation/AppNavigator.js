@@ -6,6 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuth } from '../contexts/AuthContext'
 import { useI18n } from '../contexts/I18nContext'
+import { useNotifications } from '../contexts/NotificationsContext'
 import { T } from '../theme'
 
 const Stack = createNativeStackNavigator()
@@ -17,6 +18,7 @@ const getCustomersScreen = () => require('../screens/main/CustomersScreen').defa
 const getInvoicesScreen = () => require('../screens/main/InvoicesScreen').default
 const getRouteSessionScreen = () => require('../screens/main/RouteSessionScreen').default
 const getCamionScreen = () => require('../screens/main/CamionScreen').default
+const getNotificationsScreen = () => require('../screens/main/NotificationsScreen').default
 const getInvoiceCreateScreen = () => require('../screens/shared/InvoiceCreateScreen').default
 const getInvoiceDetailScreen = () => require('../screens/shared/InvoiceDetailScreen').default
 const getProfileScreen = () => require('../screens/shared/ProfileScreen').default
@@ -35,6 +37,8 @@ function useTabLayout() {
 function MobileTabs() {
   const { bottomInset, tabBarHeight } = useTabLayout()
   const { t } = useI18n()
+  const { unreadCount } = useNotifications()
+  const unreadBadge = unreadCount > 99 ? '99+' : unreadCount
 
   return (
     <Tab.Navigator
@@ -57,6 +61,12 @@ function MobileTabs() {
           fontWeight: '700',
           marginBottom: 2,
         },
+        tabBarBadgeStyle: {
+          backgroundColor: T.danger,
+          color: '#fff',
+          fontSize: 10,
+          fontWeight: '800',
+        },
         tabBarItemStyle: {
           paddingVertical: 2,
         },
@@ -65,6 +75,7 @@ function MobileTabs() {
             [t('navigation.home')]: focused ? 'view-dashboard' : 'view-dashboard-outline',
             [t('navigation.customers')]: focused ? 'account-group' : 'account-group-outline',
             [t('navigation.invoices')]: focused ? 'file-document-multiple' : 'file-document-multiple-outline',
+            [t('navigation.notifications')]: focused ? 'bell' : 'bell-outline',
             [t('navigation.session')]: focused ? 'truck-fast' : 'truck-fast-outline',
             [t('navigation.stock')]: focused ? 'truck-cargo-container' : 'truck-cargo-container',
           }
@@ -76,6 +87,14 @@ function MobileTabs() {
       <Tab.Screen name={t('navigation.home')} getComponent={getDashboardScreen} options={{ title: t('navigation.home') }} />
       <Tab.Screen name={t('navigation.customers')} getComponent={getCustomersScreen} options={{ title: t('navigation.customers') }} />
       <Tab.Screen name={t('navigation.invoices')} getComponent={getInvoicesScreen} options={{ title: t('navigation.invoices') }} />
+      <Tab.Screen
+        name={t('navigation.notifications')}
+        getComponent={getNotificationsScreen}
+        options={{
+          title: t('navigation.notifications'),
+          tabBarBadge: unreadCount > 0 ? unreadBadge : undefined,
+        }}
+      />
       <Tab.Screen name={t('navigation.session')} getComponent={getRouteSessionScreen} options={{ title: t('navigation.session') }} />
       <Tab.Screen name={t('navigation.stock')} getComponent={getCamionScreen} options={{ title: t('navigation.stock') }} />
     </Tab.Navigator>

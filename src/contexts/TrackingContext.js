@@ -18,6 +18,7 @@ import {
   recordRouteSessionReturns,
 } from '../services/routeSessionService'
 import { pingSession, reportSession } from '../services/sessionService'
+import { useNotifications } from './NotificationsContext'
 
 const TrackingContext = createContext(null)
 const REMOTE_SESSION_SYNC_MS = 5000
@@ -34,6 +35,7 @@ function initialTrackingState() {
 
 export function TrackingProvider({ children }) {
   const { user, isRep } = useAuth()
+  const { refreshNotifications } = useNotifications()
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -61,6 +63,14 @@ export function TrackingProvider({ children }) {
     sessionRef.current = null
     setTrackingState(initialTrackingState())
   }, [])
+
+  const syncNotificationInbox = useCallback(async () => {
+    try {
+      await refreshNotifications({ announce: true, silent: true, force: true })
+    } catch {
+      // notification refresh should never block the session workflow
+    }
+  }, [refreshNotifications])
 
   const refreshSession = useCallback(async () => {
     if (!user || !isRep()) {
@@ -165,11 +175,12 @@ export function TrackingProvider({ children }) {
       setSession(nextSession)
       sessionRef.current = nextSession
       markSynced('session-open', null, Boolean(nextSession))
+      await syncNotificationInbox()
       return data
     } finally {
       setBusy(false)
     }
-  }, [markSynced])
+  }, [markSynced, syncNotificationInbox])
 
   const addLoad = useCallback(async (lines) => {
     if (!sessionRef.current?.id) {
@@ -183,11 +194,12 @@ export function TrackingProvider({ children }) {
       setSession(nextSession)
       sessionRef.current = nextSession
       markSynced('route-load', null, Boolean(nextSession))
+      await syncNotificationInbox()
       return data
     } finally {
       setBusy(false)
     }
-  }, [markSynced])
+  }, [markSynced, syncNotificationInbox])
 
   const recordReturns = useCallback(async (lines) => {
     if (!sessionRef.current?.id) {
@@ -201,11 +213,12 @@ export function TrackingProvider({ children }) {
       setSession(nextSession)
       sessionRef.current = nextSession
       markSynced('route-returns', null, Boolean(nextSession))
+      await syncNotificationInbox()
       return data
     } finally {
       setBusy(false)
     }
-  }, [markSynced])
+  }, [markSynced, syncNotificationInbox])
 
   const endSession = useCallback(async (payload = {}) => {
     if (!sessionRef.current?.id) {
@@ -217,11 +230,12 @@ export function TrackingProvider({ children }) {
       const data = await closeRouteSession(sessionRef.current.id, payload)
       clearSessionState()
       markSynced('session-close', null, false)
+      await syncNotificationInbox()
       return data
     } finally {
       setBusy(false)
     }
-  }, [clearSessionState, markSynced])
+  }, [clearSessionState, markSynced, syncNotificationInbox])
 
   const syncInteraction = useCallback(async (reason = 'interaction', options = {}) => {
     if (options.refreshSession) {
