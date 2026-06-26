@@ -1,5 +1,6 @@
 import Constants from 'expo-constants'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigation } from '@react-navigation/native'
 import {
   ActivityIndicator,
   Alert,
@@ -17,8 +18,9 @@ import PageHeader from '../../components/PageHeader'
 import StatusChip from '../../components/StatusChip'
 import { useAuth } from '../../contexts/AuthContext'
 import { useI18n } from '../../contexts/I18nContext'
+import { useMobileUpdate } from '../../contexts/MobileUpdateContext'
+import { useNotifications } from '../../contexts/NotificationsContext'
 import api from '../../services/api'
-import { downloadAndLaunchApkUpdate, isInAppUpdateSupported } from '../../services/mobileUpdateService'
 import { compareReleaseVersions, getLatestMobileReleases } from '../../services/releaseService'
 import { T, cardShadow } from '../../theme'
 import { formatDateTime } from '../../utils/format'
@@ -41,14 +43,30 @@ function progressPercent(progress) {
   return Math.max(0, Math.min(100, Math.round(ratio * 100)))
 }
 
+function formatFileSize(value) {
+  const bytes = Number(value || 0)
+
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 MB'
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(bytes >= 100 * 1024 * 1024 ? 0 : 1)} MB`
+}
+
 export default function ProfileScreen() {
+  const navigation = useNavigation()
   const { user, logout } = useAuth()
   const { locale, savingLocale, setLocale, supportedLocales, t } = useI18n()
+  const { unreadCount } = useNotifications()
+  const {
+    clearUpdateError,
+    isSupported: isUpdateSupported,
+    startOrResumeUpdate,
+    updateState,
+  } = useMobileUpdate()
   const [checkingRelease, setCheckingRelease] = useState(false)
   const [releaseError, setReleaseError] = useState('')
   const [latestRelease, setLatestRelease] = useState(null)
-  const [installingUpdate, setInstallingUpdate] = useState(false)
-  const [downloadProgress, setDownloadProgress] = useState(null)
   const [bugModalVisible, setBugModalVisible] = useState(false)
   const [aboutVisible, setAboutVisible] = useState(false)
   const [sendingBug, setSendingBug] = useState(false)
@@ -94,6 +112,24 @@ export default function ProfileScreen() {
     return compareReleaseVersions(latestRelease.version, currentVersion) > 0
   }, [currentVersion, latestRelease?.version])
 
+  const isCurrentReleaseDownload = useMemo(() => (
+    Boolean(latestRelease?.version) &&
+    updateState.version === latestRelease.version
+  ), [latestRelease?.version, updateState.version])
+
+  const visibleProgress = isCurrentReleaseDownload ? updateState.progress : null
+  const isDownloadingCurrentRelease = isCurrentReleaseDownload && updateState.status === 'downloading'
+  const isPausedCurrentRelease = isCurrentReleaseDownload && updateState.status === 'paused'
+  const isDownloadedCurrentRelease = isCurrentReleaseDownload && updateState.status === 'downloaded'
+  const hasCurrentReleaseError = isCurrentReleaseDownload && Boolean(updateState.errorMessage)
+
+  const updateActionLabel = useMemo(() => {
+    if (isDownloadingCurrentRelease) return t('profile.downloadInProgress')
+    if (isPausedCurrentRelease) return t('profile.resumeDownload')
+    if (isDownloadedCurrentRelease) return t('profile.installDownloaded')
+    return hasUpdate ? t('profile.installNow') : t('profile.upToDate')
+  }, [hasUpdate, isDownloadedCurrentRelease, isDownloadingCurrentRelease, isPausedCurrentRelease, t])
+
   const confirmLogout = () => {
     Alert.alert(t('profile.logoutTitle'), t('profile.logoutPrompt'), [
       { text: t('common.cancel'), style: 'cancel' },
@@ -114,21 +150,14 @@ export default function ProfileScreen() {
       return
     }
 
-    setInstallingUpdate(true)
-    setDownloadProgress({ ratio: 0, writtenBytes: 0, expectedBytes: release.apkSize || 0 })
-
     try {
-      await downloadAndLaunchApkUpdate({
-        url: release.apkUrl,
-        version: release.version,
-        expectedBytes: release.apkSize || 0,
-        expectedSha256: release.apkSha256 || null,
-        onProgress: setDownloadProgress,
-      })
+      if (hasCurrentReleaseError) {
+        await clearUpdateError()
+      }
+
+      await startOrResumeUpdate(release)
     } catch (error) {
       Alert.alert(t('common.update'), describeApiError(error, t('profile.updateFailed')))
-    } finally {
-      setInstallingUpdate(false)
     }
   }
 
@@ -256,33 +285,68 @@ export default function ProfileScreen() {
           ) : null}
 
           {!!releaseError && <Text style={s.inlineError}>{releaseError}</Text>}
+          {!!updateState.errorMessage && isCurrentReleaseDownload ? (
+            <Text style={s.inlineError}>{updateState.errorMessage}</Text>
+          ) : null}
 
-          {installingUpdate && (
+          {latestRelease?.apkSize ? (
+            <Text style={s.inlineHint}>
+              {t('profile.updatePackageSize', { size: formatFileSize(latestRelease.apkSize) })}
+            </Text>
+          ) : null}
+
+          {visibleProgress ? (
             <View style={s.progressWrap}>
-              <View style={s.progressBar}>
-                <View style={[s.progressFill, { width: `${progressPercent(downloadProgress)}%` }]} />
+              <View style={s.progressHeader}>
+                <Text style={s.progressLabel}>
+                  {isPausedCurrentRelease ? t('profile.downloadPaused') : t('profile.downloadContinuing')}
+                </Text>
+                <Text style={s.progressMeta}>
+                  {formatFileSize(visibleProgress.writtenBytes)} / {formatFileSize(visibleProgress.expectedBytes)}
+                </Text>
               </View>
-              <Text style={s.progressText}>{progressPercent(downloadProgress)}%</Text>
+              <View style={s.progressBar}>
+                <View style={[s.progressFill, { width: `${progressPercent(visibleProgress)}%` }]} />
+              </View>
+              <Text style={s.progressText}>{progressPercent(visibleProgress)}%</Text>
             </View>
-          )}
+          ) : null}
 
-          {isInAppUpdateSupported() ? (
+          {isDownloadedCurrentRelease ? (
+            <Text style={s.inlineHint}>{t('profile.downloadReady')}</Text>
+          ) : null}
+
+          {isUpdateSupported ? (
             <TouchableOpacity
-              style={[s.primaryButton, (!hasUpdate || installingUpdate) && s.buttonDisabled]}
+              style={[s.primaryButton, ((!hasUpdate && !isDownloadedCurrentRelease) || isDownloadingCurrentRelease) && s.buttonDisabled]}
               onPress={handleInstallUpdate}
-              disabled={!hasUpdate || installingUpdate}
+              disabled={(!hasUpdate && !isDownloadedCurrentRelease) || isDownloadingCurrentRelease}
             >
-              {installingUpdate ? (
+              {isDownloadingCurrentRelease ? (
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={s.primaryButtonText}>
-                  {hasUpdate ? t('profile.installNow') : t('profile.upToDate')}
+                  {updateActionLabel}
                 </Text>
               )}
             </TouchableOpacity>
           ) : (
             <Text style={s.inlineHint}>{t('profile.androidOnly')}</Text>
           )}
+        </View>
+
+        <View style={[s.sectionCard, cardShadow]}>
+          <Text style={s.sectionTitle}>{t('profile.notificationsTitle')}</Text>
+          <Text style={s.sectionText}>
+            {unreadCount > 0
+              ? t('profile.notificationsUnread', { count: unreadCount })
+              : t('profile.notificationsEmpty')}
+          </Text>
+
+          <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Notifications')}>
+            <MaterialCommunityIcons name="bell-outline" size={18} color={T.primary} />
+            <Text style={s.secondaryButtonText}>{t('profile.notificationsAction')}</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={[s.sectionCard, cardShadow]}>
@@ -518,6 +582,20 @@ const s = StyleSheet.create({
   progressWrap: {
     marginTop: 14,
     gap: 8,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  progressLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: T.text,
+  },
+  progressMeta: {
+    fontSize: 12,
+    color: T.textMuted,
   },
   progressBar: {
     height: 10,

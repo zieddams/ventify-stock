@@ -207,8 +207,9 @@ jobs:
           ## El Irtiwaa Mobile v${{ steps.release.outputs.version }}
 
           - APK aligned to Android versionCode ${{ steps.release.outputs.version_code }}.
-          - In-app updater now verifies the downloaded APK SHA-256 before install.
-          - Removed unneeded legacy Android storage permissions.
+          - Notifications are now opened from the account and session flows instead of living as a standalone bottom-tab destination.
+          - Session start and camion refill product cards now use a stable three-row layout so reference, depot stock, camion state, and quantity controls stay readable on mobile.
+          - In-app update flow keeps the resumable/background-friendly download behavior and can relaunch installation for an already-downloaded APK.
           - Built and published from the validated GitHub Actions release path.
 
           SHA-256: \`${{ steps.apk.outputs.apk_sha256 }}\`

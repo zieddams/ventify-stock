@@ -4,29 +4,51 @@ import * as Crypto from 'expo-crypto'
 import { File as ExpoFile } from 'expo-file-system'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as IntentLauncher from 'expo-intent-launcher'
+import * as SecureStore from 'expo-secure-store'
 
 const ANDROID_PACKAGE_NAME = Constants.expoConfig?.android?.package || 'com.ventify.stock'
 const ACTION_INSTALL_PACKAGE = 'android.intent.action.INSTALL_PACKAGE'
 const ACTION_VIEW = 'android.intent.action.VIEW'
 const APK_PREFIX = 'el-irtiwaa-update-'
 const APK_MIME_TYPE = 'application/vnd.android.package-archive'
+const DOWNLOAD_DIRECTORY_NAME = 'updates/'
+const PERSISTED_UPDATE_KEY = 'irtiwaa_mobile_update_download'
 const FLAG_GRANT_READ_URI_PERMISSION = 1
 const FLAG_ACTIVITY_NEW_TASK = 268435456
 const INSTALL_FLAGS = FLAG_GRANT_READ_URI_PERMISSION | FLAG_ACTIVITY_NEW_TASK
+const FILE_SIZE_TOLERANCE_BYTES = 4096
 
-function sanitizeVersion(value) {
-  return String(value || Date.now())
-    .trim()
-    .replace(/[^a-z0-9._-]+/gi, '-')
+function normalizeString(value) {
+  return String(value || '').trim()
+}
+
+export function sanitizeVersion(value) {
+  return normalizeString(value || Date.now()).replace(/[^a-z0-9._-]+/gi, '-')
 }
 
 function getDownloadDirectory() {
-  return FileSystem.cacheDirectory || FileSystem.documentDirectory || null
+  const rootDirectory = FileSystem.documentDirectory || FileSystem.cacheDirectory || null
+
+  if (!rootDirectory) {
+    return null
+  }
+
+  return `${rootDirectory}${DOWNLOAD_DIRECTORY_NAME}`
 }
 
-function normalizeSha256Digest(value) {
-  const digest = String(value || '')
-    .trim()
+async function ensureDownloadDirectory() {
+  const directory = getDownloadDirectory()
+
+  if (!directory) {
+    throw new Error("Le stockage local de l'application est indisponible.")
+  }
+
+  await FileSystem.makeDirectoryAsync(directory, { intermediates: true })
+  return directory
+}
+
+export function normalizeSha256Digest(value) {
+  const digest = normalizeString(value)
     .toLowerCase()
     .replace(/^sha256:/, '')
 
@@ -39,19 +61,87 @@ function arrayBufferToHex(buffer) {
     .join('')
 }
 
-async function cleanupDownloadedApks(directory) {
-  if (!directory) return
+function normalizeExpectedBytes(value) {
+  const normalized = Number(value || 0)
+  return Number.isFinite(normalized) && normalized > 0 ? normalized : 0
+}
 
-  try {
-    const entries = await FileSystem.readDirectoryAsync(directory)
-    const targets = entries.filter((entry) => entry.startsWith(APK_PREFIX) && entry.toLowerCase().endsWith('.apk'))
+function buildProgressPayload(progress = {}, fallbackExpectedBytes = 0) {
+  const writtenBytes = Number(progress.totalBytesWritten ?? progress.writtenBytes ?? 0)
+  const expectedBytes = Number(progress.totalBytesExpectedToWrite ?? progress.expectedBytes ?? fallbackExpectedBytes ?? 0)
+  const normalizedExpectedBytes = Number.isFinite(expectedBytes) && expectedBytes > 0 ? expectedBytes : 0
+  const ratio = normalizedExpectedBytes > 0
+    ? writtenBytes / normalizedExpectedBytes
+    : Number(progress.ratio || 0)
 
-    await Promise.all(
-      targets.map((entry) => FileSystem.deleteAsync(`${directory}${entry}`, { idempotent: true }))
-    )
-  } catch {
-    // Best-effort cleanup only.
+  return {
+    writtenBytes: Number.isFinite(writtenBytes) && writtenBytes > 0 ? writtenBytes : 0,
+    expectedBytes: normalizedExpectedBytes,
+    ratio: Number.isFinite(ratio) && ratio > 0 ? Math.min(1, ratio) : 0,
   }
+}
+
+function normalizePersistedUpdateState(value) {
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+
+  const status = normalizeString(value.status)
+  const version = normalizeString(value.version)
+  const url = normalizeString(value.url)
+
+  if (!status || !version || !url) {
+    return null
+  }
+
+  return {
+    status,
+    version,
+    url,
+    fileUri: normalizeString(value.fileUri),
+    expectedBytes: normalizeExpectedBytes(value.expectedBytes),
+    expectedSha256: normalizeSha256Digest(value.expectedSha256),
+    resumeData: normalizeString(value.resumeData) || null,
+    autoResumeOnActive: value.autoResumeOnActive !== false,
+    progress: buildProgressPayload(value.progress, value.expectedBytes),
+    updatedAt: normalizeString(value.updatedAt) || new Date().toISOString(),
+    errorMessage: normalizeString(value.errorMessage),
+  }
+}
+
+export async function getPersistedUpdateState() {
+  try {
+    const raw = await SecureStore.getItemAsync(PERSISTED_UPDATE_KEY)
+    return normalizePersistedUpdateState(raw ? JSON.parse(raw) : null)
+  } catch {
+    return null
+  }
+}
+
+export async function persistUpdateState(state) {
+  const normalized = normalizePersistedUpdateState(state)
+
+  if (!normalized) {
+    await SecureStore.deleteItemAsync(PERSISTED_UPDATE_KEY)
+    return null
+  }
+
+  await SecureStore.setItemAsync(PERSISTED_UPDATE_KEY, JSON.stringify(normalized))
+  return normalized
+}
+
+export async function clearPersistedUpdateState() {
+  await SecureStore.deleteItemAsync(PERSISTED_UPDATE_KEY)
+}
+
+function isWithinExpectedByteRange(actualBytes, expectedBytes) {
+  const normalizedExpectedBytes = normalizeExpectedBytes(expectedBytes)
+
+  if (!normalizedExpectedBytes) {
+    return true
+  }
+
+  return Math.abs(Number(actualBytes || 0) - normalizedExpectedBytes) <= FILE_SIZE_TOLERANCE_BYTES
 }
 
 async function verifyDownloadedApkSha256(fileUri, expectedSha256) {
@@ -67,9 +157,91 @@ async function verifyDownloadedApkSha256(fileUri, expectedSha256) {
   const actualSha256 = arrayBufferToHex(digestBuffer)
 
   if (actualSha256 !== normalizedExpectedSha256) {
-    await FileSystem.deleteAsync(fileUri, { idempotent: true })
     throw new Error("L'intégrité du fichier APK n'a pas pu être vérifiée. Relancez la mise à jour.")
   }
+}
+
+async function verifyDownloadedApk(fileUri, { expectedBytes, expectedSha256 } = {}) {
+  const fileInfo = await FileSystem.getInfoAsync(fileUri)
+
+  if (!fileInfo?.exists) {
+    throw new Error('Le fichier APK téléchargé est introuvable.')
+  }
+
+  if (!isWithinExpectedByteRange(fileInfo.size, expectedBytes)) {
+    throw new Error('Le fichier APK semble incomplet. Relancez le téléchargement.')
+  }
+
+  await verifyDownloadedApkSha256(fileUri, expectedSha256)
+
+  return {
+    fileUri,
+    size: Number(fileInfo.size || 0),
+  }
+}
+
+export async function getDownloadedApkUri(version) {
+  const directory = await ensureDownloadDirectory()
+  return `${directory}${APK_PREFIX}${sanitizeVersion(version)}.apk`
+}
+
+export async function deleteDownloadedApk(fileUri) {
+  if (!fileUri) return
+  await FileSystem.deleteAsync(fileUri, { idempotent: true })
+}
+
+export async function findExistingDownloadedApk({ version, fileUri, expectedBytes, expectedSha256 }) {
+  const targetFileUri = normalizeString(fileUri) || await getDownloadedApkUri(version)
+
+  try {
+    return await verifyDownloadedApk(targetFileUri, { expectedBytes, expectedSha256 })
+  } catch {
+    await deleteDownloadedApk(targetFileUri)
+    return null
+  }
+}
+
+export async function cleanupDownloadedApks({ keepVersions = [] } = {}) {
+  const directory = getDownloadDirectory()
+
+  if (!directory) {
+    return
+  }
+
+  const keepFileNames = new Set(
+    keepVersions
+      .map((version) => normalizeString(version))
+      .filter(Boolean)
+      .map((version) => `${APK_PREFIX}${sanitizeVersion(version)}.apk`)
+  )
+
+  try {
+    const entries = await FileSystem.readDirectoryAsync(directory)
+    const targets = entries.filter((entry) => entry.startsWith(APK_PREFIX) && entry.toLowerCase().endsWith('.apk'))
+
+    await Promise.all(
+      targets
+        .filter((entry) => !keepFileNames.has(entry))
+        .map((entry) => FileSystem.deleteAsync(`${directory}${entry}`, { idempotent: true }))
+    )
+  } catch {
+    // Best-effort cleanup only.
+  }
+}
+
+export function createApkDownloadResumable({ url, version, resumeData, onProgress }) {
+  return getDownloadedApkUri(version).then((fileUri) => ({
+    fileUri,
+    task: FileSystem.createDownloadResumable(
+      url,
+      fileUri,
+      {},
+      (progress) => {
+        onProgress?.(buildProgressPayload(progress))
+      },
+      resumeData || undefined,
+    ),
+  }))
 }
 
 async function openUnknownAppSourcesSettings() {
@@ -111,6 +283,12 @@ async function launchApkInstaller(contentUri) {
   }
 }
 
+export async function installDownloadedApk(fileUri) {
+  const contentUri = await FileSystem.getContentUriAsync(fileUri)
+  await launchApkInstaller(contentUri)
+  return fileUri
+}
+
 export function isInAppUpdateSupported() {
   return Platform.OS === 'android'
 }
@@ -124,60 +302,29 @@ export async function downloadAndLaunchApkUpdate({ url, version, expectedBytes, 
     throw new Error('Aucun fichier APK n’est disponible pour cette release.')
   }
 
-  const directory = getDownloadDirectory()
+  const existingApk = await findExistingDownloadedApk({ version, expectedBytes, expectedSha256 })
 
-  if (!directory) {
-    throw new Error("Le stockage local de l'application est indisponible.")
+  if (existingApk?.fileUri) {
+    await installDownloadedApk(existingApk.fileUri)
+    return existingApk.fileUri
   }
 
-  await cleanupDownloadedApks(directory)
+  await cleanupDownloadedApks({ keepVersions: [version] })
 
-  const fileUri = `${directory}${APK_PREFIX}${sanitizeVersion(version)}.apk`
-
-  const downloadTask = FileSystem.createDownloadResumable(
+  const { fileUri, task } = await createApkDownloadResumable({
     url,
-    fileUri,
-    {},
-    (progress) => {
-      const expectedBytes = Number(progress.totalBytesExpectedToWrite || 0)
-      const writtenBytes = Number(progress.totalBytesWritten || 0)
-      const ratio = expectedBytes > 0 ? writtenBytes / expectedBytes : 0
+    version,
+    onProgress,
+  })
 
-      onProgress?.({
-        ratio,
-        writtenBytes,
-        expectedBytes,
-      })
-    },
-  )
-
-  const result = await downloadTask.downloadAsync()
+  const result = await task.downloadAsync()
 
   if (!result?.uri) {
     throw new Error('Le téléchargement de la mise à jour a été interrompu.')
   }
 
-  const fileInfo = await FileSystem.getInfoAsync(result.uri)
+  await verifyDownloadedApk(result.uri, { expectedBytes, expectedSha256 })
+  await installDownloadedApk(result.uri)
 
-  if (!fileInfo?.exists) {
-    throw new Error('Le fichier APK téléchargé est introuvable.')
-  }
-
-  if (Number.isFinite(expectedBytes) && expectedBytes > 0) {
-    const downloadedBytes = Number(fileInfo.size || 0)
-    const normalizedExpectedBytes = Number(expectedBytes)
-
-    if (Math.abs(downloadedBytes - normalizedExpectedBytes) > 4096) {
-      await FileSystem.deleteAsync(result.uri, { idempotent: true })
-      throw new Error('Le fichier APK semble incomplet. Relancez le téléchargement.')
-    }
-  }
-
-  await verifyDownloadedApkSha256(result.uri, expectedSha256)
-
-  const contentUri = await FileSystem.getContentUriAsync(result.uri)
-
-  await launchApkInstaller(contentUri)
-
-  return result.uri
+  return fileUri
 }

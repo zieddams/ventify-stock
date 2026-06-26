@@ -4,9 +4,9 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import GlobalUpdateProgressBar from '../components/GlobalUpdateProgressBar'
 import { useAuth } from '../contexts/AuthContext'
 import { useI18n } from '../contexts/I18nContext'
-import { useNotifications } from '../contexts/NotificationsContext'
 import { T } from '../theme'
 
 const Stack = createNativeStackNavigator()
@@ -38,8 +38,6 @@ function useTabLayout() {
 function MobileTabs() {
   const { bottomInset, tabBarHeight } = useTabLayout()
   const { t } = useI18n()
-  const { unreadCount } = useNotifications()
-  const unreadBadge = unreadCount > 99 ? '99+' : unreadCount
 
   return (
     <Tab.Navigator
@@ -76,7 +74,6 @@ function MobileTabs() {
             [t('navigation.home')]: focused ? 'view-dashboard' : 'view-dashboard-outline',
             [t('navigation.customers')]: focused ? 'account-group' : 'account-group-outline',
             [t('navigation.invoices')]: focused ? 'file-document-multiple' : 'file-document-multiple-outline',
-            [t('navigation.notifications')]: focused ? 'bell' : 'bell-outline',
             [t('navigation.session')]: focused ? 'truck-fast' : 'truck-fast-outline',
             [t('navigation.stock')]: focused ? 'truck-cargo-container' : 'truck-cargo-container',
           }
@@ -88,14 +85,6 @@ function MobileTabs() {
       <Tab.Screen name={t('navigation.home')} getComponent={getDashboardScreen} options={{ title: t('navigation.home') }} />
       <Tab.Screen name={t('navigation.customers')} getComponent={getCustomersScreen} options={{ title: t('navigation.customers') }} />
       <Tab.Screen name={t('navigation.invoices')} getComponent={getInvoicesScreen} options={{ title: t('navigation.invoices') }} />
-      <Tab.Screen
-        name={t('navigation.notifications')}
-        getComponent={getNotificationsScreen}
-        options={{
-          title: t('navigation.notifications'),
-          tabBarBadge: unreadCount > 0 ? unreadBadge : undefined,
-        }}
-      />
       <Tab.Screen name={t('navigation.session')} getComponent={getRouteSessionScreen} options={{ title: t('navigation.session') }} />
       <Tab.Screen name={t('navigation.stock')} getComponent={getCamionScreen} options={{ title: t('navigation.stock') }} />
     </Tab.Navigator>
@@ -130,6 +119,7 @@ function AppStack() {
       <Stack.Screen name="CustomerLedger" getComponent={getCustomerLedgerScreen} options={{ title: t('customers.ledgerTitle') }} />
       <Stack.Screen name="InvoiceCreate" getComponent={getInvoiceCreateScreen} options={{ title: t('navigation.createInvoice') }} />
       <Stack.Screen name="InvoiceDetail" getComponent={getInvoiceDetailScreen} options={{ title: t('navigation.invoiceDetail') }} />
+      <Stack.Screen name="Notifications" getComponent={getNotificationsScreen} options={{ title: t('navigation.notifications') }} />
       <Stack.Screen name="Reappro" getComponent={getReapproScreen} options={{ title: t('navigation.reappro') }} />
       <Stack.Screen name="Profile" getComponent={getProfileScreen} options={{ title: t('navigation.profile') }} />
     </Stack.Navigator>
@@ -150,13 +140,20 @@ export default function AppNavigator() {
   }
 
   return (
-    <NavigationContainer>
-      {user ? <AppStack /> : <AuthStack />}
-    </NavigationContainer>
+    <View style={s.root}>
+      <NavigationContainer>
+        {user ? <AppStack /> : <AuthStack />}
+      </NavigationContainer>
+      {user ? <GlobalUpdateProgressBar /> : null}
+    </View>
   )
 }
 
 const s = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: T.background,
+  },
   loadingWrap: {
     flex: 1,
     alignItems: 'center',

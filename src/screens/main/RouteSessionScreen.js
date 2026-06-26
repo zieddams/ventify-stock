@@ -20,6 +20,7 @@ import QuantityStepperField from '../../components/QuantityStepperField'
 import StatusChip from '../../components/StatusChip'
 import { useAuth } from '../../contexts/AuthContext'
 import { useI18n } from '../../contexts/I18nContext'
+import { useNotifications } from '../../contexts/NotificationsContext'
 import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
@@ -72,6 +73,7 @@ export default function RouteSessionScreen() {
   const insets = useSafeAreaInsets()
   const { user } = useAuth()
   const { t } = useI18n()
+  const { unreadCount } = useNotifications()
   const {
     session,
     loading,
@@ -299,6 +301,13 @@ export default function RouteSessionScreen() {
                 <TouchableOpacity style={s.secondaryButton} onPress={() => setCamionPickerVisible(true)}>
                   <Text style={s.secondaryButtonText}>{t('routeSession.chooseCamionAction')}</Text>
                 </TouchableOpacity>
+                <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Notifications')}>
+                  <Text style={s.secondaryButtonText}>
+                    {unreadCount > 0
+                      ? t('routeSession.notificationsUnread', { count: unreadCount })
+                      : t('routeSession.notificationsAction')}
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -326,16 +335,22 @@ export default function RouteSessionScreen() {
                 <View style={s.rowsWrap}>
                   {filteredProducts.map((product) => {
                     const draftQty = startLoadDraft[product.id] ?? ''
-                    const isSelected = toNumber(draftQty) > 0
+                    const unitLabel = product.unit || t('routeSession.unitFallback')
 
                     return (
                       <QuantityStepperField
                         key={product.id}
                         title={product.name}
-                        subtitle={product.reference || product.unit || t('routeSession.productFallback')}
-                        helper={isSelected ? t('routeSession.helperSelected') : t('routeSession.helperAvailable')}
+                        titleAccessory={t('routeSession.camionLoadLabel', { value: formatNumber(toNumber(draftQty)), unit: unitLabel })}
+                        detailRows={[[
+                          product.reference
+                            ? t('routeSession.referenceLabel', { value: product.reference })
+                            : t('routeSession.referenceMissing'),
+                          t('routeSession.depotStockLabel', { value: formatNumber(toNumber(product.depot_qty)), unit: unitLabel }),
+                        ]]}
                         icon="truck-delivery-outline"
                         value={draftQty}
+                        layout="stacked"
                         onChangeText={(value) => setStartLoadDraft((current) => ({ ...current, [product.id]: numericInput(value) }))}
                       />
                     )
@@ -390,6 +405,13 @@ export default function RouteSessionScreen() {
               </TouchableOpacity>
               <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Stock')}>
                 <Text style={s.secondaryButtonText}>{t('routeSession.viewStock')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Notifications')}>
+                <Text style={s.secondaryButtonText}>
+                  {unreadCount > 0
+                    ? t('routeSession.notificationsUnread', { count: unreadCount })
+                    : t('routeSession.notificationsAction')}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.secondaryButton} onPress={() => setCloseVisible(true)}>
                 <Text style={s.secondaryButtonText}>{t('routeSession.closeAction')}</Text>

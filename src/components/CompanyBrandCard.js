@@ -17,6 +17,8 @@ export default function CompanyBrandCard({ user, style }) {
   }, [user?.company?.logo_url])
 
   const imageSource = logoFailed ? DEFAULT_BRAND_SOURCE : resolveBrandImageSource(user)
+  const caption = resolveBrandCaption(user)
+  const hint = resolveBrandHint(user)
 
   return (
     <View style={[s.card, style]}>
@@ -30,9 +32,9 @@ export default function CompanyBrandCard({ user, style }) {
       </View>
 
       <View style={s.copy}>
-        <Text style={s.caption}>{resolveBrandCaption(user)}</Text>
-        <Text style={s.title} numberOfLines={1}>{resolveBrandName(user)}</Text>
-        <Text style={s.hint}>{resolveBrandHint(user)}</Text>
+        {caption ? <Text style={s.caption}>{caption}</Text> : null}
+        <Text style={[s.title, !caption && !hint && s.titleCompact]} numberOfLines={1}>{resolveBrandName(user)}</Text>
+        {hint ? <Text style={s.hint}>{hint}</Text> : null}
       </View>
     </View>
   )
@@ -78,6 +80,9 @@ const s = StyleSheet.create({
     fontSize: 17,
     fontWeight: '800',
     color: T.text,
+  },
+  titleCompact: {
+    marginTop: 0,
   },
   hint: {
     marginTop: 4,

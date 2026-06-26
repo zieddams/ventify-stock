@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { AuthProvider } from './src/contexts/AuthContext'
 import { I18nProvider } from './src/contexts/I18nContext'
+import { MobileUpdateProvider } from './src/contexts/MobileUpdateContext'
 import { NotificationsProvider } from './src/contexts/NotificationsContext'
 import { TrackingProvider } from './src/contexts/TrackingContext'
 import AppNavigator from './src/navigation/AppNavigator'
@@ -15,8 +16,10 @@ export default function App() {
         <I18nProvider>
           <NotificationsProvider>
             <TrackingProvider>
-              <StatusBar style="dark" backgroundColor={T.background} translucent={false} />
-              <AppNavigator />
+              <MobileUpdateProvider>
+                <StatusBar style="dark" backgroundColor={T.background} translucent={false} />
+                <AppNavigator />
+              </MobileUpdateProvider>
             </TrackingProvider>
           </NotificationsProvider>
         </I18nProvider>

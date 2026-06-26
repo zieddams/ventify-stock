@@ -73,7 +73,7 @@ export function resolveBrandCaption(user) {
   }
 
   if (shouldUseCompanyBrand(user)) {
-    return 'Societe connectee'
+    return ''
   }
 
   return 'Plateforme'
@@ -81,7 +81,7 @@ export function resolveBrandCaption(user) {
 
 export function resolveBrandHint(user) {
   if (shouldUseCompanyBrand(user)) {
-    return 'Logo actif du compte connecte.'
+    return ''
   }
 
   return 'Icone plateforme par defaut.'

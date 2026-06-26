@@ -117,11 +117,15 @@ export default function NotificationsScreen() {
       return
     }
 
+    if (target.tab === 'notifications') {
+      navigation.navigate('Notifications')
+      return
+    }
+
     const tabLabels = {
       home: t('navigation.home'),
       customers: t('navigation.customers'),
       invoices: t('navigation.invoices'),
-      notifications: t('navigation.notifications'),
       session: t('navigation.session'),
       stock: t('navigation.stock'),
     }

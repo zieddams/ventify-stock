@@ -245,18 +245,18 @@ export default function ReapproScreen() {
                     const draftQty = loadDraft[product.id] ?? ''
                     const currentLoaded = toNumber(line?.qty_loaded)
                     const unitLabel = product.unit || t('reappro.unitFallback')
-                    const subtitleParts = [product.reference, unitLabel].filter(Boolean)
-                    const detailParts = [
-                      t('reappro.depotStockLabel', { value: formatNumber(toNumber(product.depot_qty)), unit: unitLabel }),
-                      t('reappro.camionStockLabel', { value: formatNumber(currentLoaded), unit: unitLabel }),
-                    ]
 
                     return (
                       <QuantityStepperField
                         key={product.id}
                         title={product.name}
-                        subtitle={subtitleParts.join(' - ') || t('reappro.productFallback')}
-                        helper={detailParts.join(' - ')}
+                        titleAccessory={t('reappro.camionStockLabel', { value: formatNumber(currentLoaded), unit: unitLabel })}
+                        detailRows={[[
+                          product.reference
+                            ? t('reappro.referenceLabel', { value: product.reference })
+                            : t('reappro.referenceMissing'),
+                          t('reappro.depotStockLabel', { value: formatNumber(toNumber(product.depot_qty)), unit: unitLabel }),
+                        ]]}
                         icon="truck-delivery-outline"
                         value={draftQty}
                         layout="stacked"
