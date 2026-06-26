@@ -1,7 +1,41 @@
-import { getRuntimeLocale } from '../i18n/locales'
+import { FIXED_DATE_TIME_LOCALE, getRuntimeLocale } from '../i18n/locales'
+
+const DATE_FORMATTER = new Intl.DateTimeFormat(FIXED_DATE_TIME_LOCALE, {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+})
+
+const DATE_TIME_FORMATTER = new Intl.DateTimeFormat(FIXED_DATE_TIME_LOCALE, {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+})
+
+const TIME_FORMATTER = new Intl.DateTimeFormat(FIXED_DATE_TIME_LOCALE, {
+  hour: '2-digit',
+  minute: '2-digit',
+})
+
+const LONG_DATE_FORMATTER = new Intl.DateTimeFormat(FIXED_DATE_TIME_LOCALE, {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+})
 
 function isArabicLocale() {
   return String(getRuntimeLocale() || '').startsWith('ar')
+}
+
+function toValidDate(value) {
+  if (!value) {
+    return null
+  }
+
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
 }
 
 function localizedFallback() {
@@ -31,40 +65,27 @@ export function formatCount(value) {
 }
 
 export function formatDate(value) {
-  if (!value) return '--'
-  return new Date(value).toLocaleDateString(getRuntimeLocale(), {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  })
+  const date = toValidDate(value)
+  if (!date) return '--'
+  return DATE_FORMATTER.format(date)
 }
 
 export function formatDateTime(value) {
-  if (!value) return '--'
-  return new Date(value).toLocaleString(getRuntimeLocale(), {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  const date = toValidDate(value)
+  if (!date) return '--'
+  return DATE_TIME_FORMATTER.format(date)
 }
 
 export function formatTime(value) {
-  if (!value) return '--'
-  return new Date(value).toLocaleTimeString(getRuntimeLocale(), {
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  const date = toValidDate(value)
+  if (!date) return '--'
+  return TIME_FORMATTER.format(date)
 }
 
 export function formatLongDate(value) {
-  if (!value) return '--'
-  return new Date(value).toLocaleDateString(getRuntimeLocale(), {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  })
+  const date = toValidDate(value)
+  if (!date) return '--'
+  return LONG_DATE_FORMATTER.format(date)
 }
 
 export function formatElapsedSince(value, now = new Date()) {
