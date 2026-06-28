@@ -207,8 +207,9 @@ jobs:
           ## El Irtiwaa Mobile v${{ steps.release.outputs.version }}
 
           - APK aligned to Android versionCode ${{ steps.release.outputs.version_code }}.
-          - Notifications are now opened from the account and session flows instead of living as a standalone bottom-tab destination.
-          - Session start and camion refill product cards now use a stable three-row layout so reference, depot stock, camion state, and quantity controls stay readable on mobile.
+          - GPS sharing now follows the company terrain-tracking setting managed from the backend company configuration.
+          - When terrain tracking is disabled for the company, the app keeps working normally without requesting or sending location data.
+          - The rep dashboard now explains whether GPS is active, pending, denied, or disabled by company policy.
           - In-app update flow keeps the resumable/background-friendly download behavior and can relaunch installation for an already-downloaded APK.
           - Built and published from the validated GitHub Actions release path.
 
