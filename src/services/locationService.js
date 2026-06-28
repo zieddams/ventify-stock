@@ -64,15 +64,17 @@ export async function getCurrentLocation(options = {}) {
   }
 
   const preferCached = options.preferCached ?? true
-  const lastKnown = preferCached
-    ? await Location.getLastKnownPositionAsync({
-      maxAge: LIVE_TRACKING_INTERVAL_MS * 3,
-      requiredAccuracy: 250,
-    })
-    : null
+  const lastKnown = await Location.getLastKnownPositionAsync({
+    maxAge: LIVE_TRACKING_INTERVAL_MS * 3,
+    requiredAccuracy: 250,
+  })
 
   if (lastKnown) {
     rememberLocation(lastKnown)
+  }
+
+  if (preferCached && lastKnown) {
+    return lastKnown
   }
 
   try {

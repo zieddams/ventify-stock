@@ -16,12 +16,17 @@ import {
   getTodayRouteSession,
   openRouteSession,
   recordRouteSessionReturns,
+  storeRouteLocation,
 } from '../services/routeSessionService'
 import {
+  distanceBetweenMeters,
   getCurrentLocation,
   getForegroundPermission,
+  getRememberedLocationPayload,
+  LIVE_TRACKING_INTERVAL_MS,
   mapLocationToPayload,
   requestForegroundPermission,
+  watchLocation,
 } from '../services/locationService'
 import { pingSession, reportSession } from '../services/sessionService'
 import { useNotifications } from './NotificationsContext'
@@ -60,11 +65,15 @@ export function TrackingProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [currentLocation, setCurrentLocation] = useState(null)
+  const [appState, setAppState] = useState(AppState.currentState)
   const [locationPermission, setLocationPermission] = useState('disabled')
   const [trackingState, setTrackingState] = useState(initialTrackingState)
   const sessionRef = useRef(null)
   const refreshInFlightRef = useRef(false)
   const presenceInFlightRef = useRef(false)
+  const locationWatchRef = useRef(null)
+  const locationWatchSyncRef = useRef(false)
+  const lastPushedLocationRef = useRef(null)
 
   useEffect(() => {
     sessionRef.current = session
@@ -216,6 +225,7 @@ export function TrackingProvider({ children }) {
           preferFresh: options.preferFreshLocation === true || mode === 'report',
         })
         locationPayload = mapLocationToPayload(location)
+        locationPayload ??= getRememberedLocationPayload()
       }
 
       if (mode === 'report') {
@@ -321,21 +331,141 @@ export function TrackingProvider({ children }) {
       requestPermission: terrainTrackingEnabled,
       preferFresh: true,
     })
+    const locationPayload = mapLocationToPayload(location) ?? getRememberedLocationPayload()
+
+    if (locationPayload && sessionRef.current?.id && sessionRef.current?.status === 'open') {
+      try {
+        await storeRouteLocation(sessionRef.current.id, locationPayload)
+        lastPushedLocationRef.current = locationPayload
+      } catch (error) {
+        setTrackingState((prev) => ({
+          ...prev,
+          error: error.response?.data?.message || error.message || 'Position GPS indisponible.',
+        }))
+      }
+    }
 
     await syncRemotePresence('presence-manual', 'report', {
       includeLocation: terrainTrackingEnabled,
-      locationPayload: mapLocationToPayload(location),
+      locationPayload,
     })
 
     return location
   }, [captureLocation, syncRemotePresence, terrainTrackingEnabled])
 
+  const stopLocationWatch = useCallback(() => {
+    if (locationWatchRef.current?.remove) {
+      locationWatchRef.current.remove()
+    }
+
+    locationWatchRef.current = null
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (!user || !canUseOperationalMobile() || !terrainTrackingEnabled || appState !== 'active') {
+      stopLocationWatch()
+      return undefined
+    }
+
+    const startWatch = async () => {
+      try {
+        let permission = await getForegroundPermission()
+
+        if (permission?.status !== 'granted') {
+          permission = await requestForegroundPermission()
+        }
+
+        if (cancelled) {
+          return
+        }
+
+        setLocationPermission(normalizeLocationPermissionStatus(permission))
+
+        if (permission?.status !== 'granted') {
+          stopLocationWatch()
+          return
+        }
+
+        stopLocationWatch()
+
+        const subscription = await watchLocation(async (location) => {
+          if (cancelled) {
+            return
+          }
+
+          setCurrentLocation(location)
+
+          const payload = mapLocationToPayload(location)
+          if (!payload) {
+            return
+          }
+
+          const previousPayload = lastPushedLocationRef.current
+          const distance = previousPayload ? distanceBetweenMeters(previousPayload, payload) : Number.POSITIVE_INFINITY
+          const previousRecordedAt = previousPayload?.recorded_at ? new Date(previousPayload.recorded_at).getTime() : 0
+          const currentRecordedAt = payload.recorded_at ? new Date(payload.recorded_at).getTime() : Date.now()
+
+          if (previousPayload && distance < 5 && Math.abs(currentRecordedAt - previousRecordedAt) < (LIVE_TRACKING_INTERVAL_MS / 2)) {
+            return
+          }
+
+          if (locationWatchSyncRef.current) {
+            return
+          }
+
+          locationWatchSyncRef.current = true
+
+          try {
+            if (sessionRef.current?.id && sessionRef.current?.status === 'open') {
+              await storeRouteLocation(sessionRef.current.id, payload)
+              markSynced('location-watch', null, true)
+            } else {
+              await pingSession(payload)
+              markSynced('location-watch-idle', null, false)
+            }
+
+            lastPushedLocationRef.current = payload
+          } catch (error) {
+            setTrackingState((prev) => ({
+              ...prev,
+              error: error.response?.data?.message || error.message || 'Position GPS indisponible.',
+            }))
+          } finally {
+            locationWatchSyncRef.current = false
+          }
+        })
+
+        if (!cancelled) {
+          locationWatchRef.current = subscription
+        } else {
+          subscription?.remove?.()
+        }
+      } catch (error) {
+        setTrackingState((prev) => ({
+          ...prev,
+          error: error?.message || prev.error || 'Localisation indisponible.',
+        }))
+      }
+    }
+
+    void startWatch()
+
+    return () => {
+      cancelled = true
+      stopLocationWatch()
+    }
+  }, [appState, canUseOperationalMobile, markSynced, stopLocationWatch, terrainTrackingEnabled, user])
+
   useEffect(() => {
     if (!terrainTrackingEnabled) {
       setCurrentLocation(null)
       setLocationPermission('disabled')
+      lastPushedLocationRef.current = null
+      stopLocationWatch()
     }
-  }, [terrainTrackingEnabled])
+  }, [stopLocationWatch, terrainTrackingEnabled])
 
   useEffect(() => {
     if (!user || !canUseOperationalMobile()) {
@@ -358,6 +488,8 @@ export function TrackingProvider({ children }) {
     }
 
     const sub = AppState.addEventListener('change', (nextState) => {
+      setAppState(nextState)
+
       if (nextState === 'active') {
         if (sessionRef.current?.id) {
           refreshSessionDetails()
