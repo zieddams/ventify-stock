@@ -569,9 +569,12 @@ export default {
       gpsPoints: 'نقاط GPS',
       gpsPermission: 'رخصة GPS',
       permissionGranted: 'OK',
+      permissionDenied: 'مرفوضة',
       permissionPending: 'يلزم تفعيل',
+      permissionDisabledByCompany: 'الشركة هي اللي تتحكم فيه',
       trackingActive: 'التتبع خدام',
       trackingPending: 'التتبع يستنّى',
+      trackingDisabledByCompany: 'التتبع موقفته الشركة',
       syncAt: ({ time }) => `آخر sync ${time}`,
       syncAuto: 'sync أوتوماتيك',
       manageSession: 'سيّر الجلسة',
@@ -580,6 +583,7 @@ export default {
     location: {
       title: 'آخر موقع',
       none: 'ما فما حتى موقع متسجّل.',
+      disabledByCompany: 'مشاركة GPS مطفية للشركة هاذي.',
       lastReported: ({ date }) => `آخر remontée ${date}`,
       nextReport: 'الموقع الجاي يتبعث في الرفعة الجاية.',
     },
@@ -596,6 +600,7 @@ export default {
       mobileGps: 'GPS الموبايل',
       invoiceCount: ({ count }) => `${count} فاتورة`,
       alertCount: ({ count }) => `${count} تنبيه`,
+      companyDisabled: 'GPS الميدان مطفي من إعدادات الشركة',
       liveMode: 'مود لايف: polling + GPS auto',
     },
     quickActions: {

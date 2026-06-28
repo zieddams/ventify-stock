@@ -17,8 +17,15 @@ import {
   openRouteSession,
   recordRouteSessionReturns,
 } from '../services/routeSessionService'
+import {
+  getCurrentLocation,
+  getForegroundPermission,
+  mapLocationToPayload,
+  requestForegroundPermission,
+} from '../services/locationService'
 import { pingSession, reportSession } from '../services/sessionService'
 import { useNotifications } from './NotificationsContext'
+import { isTerrainTrackingEnabled } from '../utils/companyFeatures'
 
 const TrackingContext = createContext(null)
 const REMOTE_SESSION_SYNC_MS = 5000
@@ -33,12 +40,27 @@ function initialTrackingState() {
   }
 }
 
+function normalizeLocationPermissionStatus(permission) {
+  if (permission?.status === 'granted') {
+    return 'granted'
+  }
+
+  if (permission?.status === 'denied' || permission?.canAskAgain === false) {
+    return 'denied'
+  }
+
+  return 'pending'
+}
+
 export function TrackingProvider({ children }) {
   const { user, canUseOperationalMobile } = useAuth()
+  const terrainTrackingEnabled = isTerrainTrackingEnabled(user)
   const { refreshNotifications } = useNotifications()
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [currentLocation, setCurrentLocation] = useState(null)
+  const [locationPermission, setLocationPermission] = useState('disabled')
   const [trackingState, setTrackingState] = useState(initialTrackingState)
   const sessionRef = useRef(null)
   const refreshInFlightRef = useRef(false)
@@ -136,7 +158,44 @@ export function TrackingProvider({ children }) {
     }
   }, [markSynced, refreshSession])
 
-  const syncRemotePresence = useCallback(async (reason = 'presence-ping', mode = 'ping') => {
+  const captureLocation = useCallback(async ({
+    requestPermission = false,
+    preferFresh = false,
+  } = {}) => {
+    if (!terrainTrackingEnabled) {
+      setCurrentLocation(null)
+      setLocationPermission('disabled')
+      return null
+    }
+
+    try {
+      let permission = await getForegroundPermission()
+
+      if (permission?.status !== 'granted' && requestPermission) {
+        permission = await requestForegroundPermission()
+      }
+
+      setLocationPermission(normalizeLocationPermissionStatus(permission))
+
+      if (permission?.status !== 'granted') {
+        return null
+      }
+
+      const location = await getCurrentLocation({
+        preferCached: !preferFresh,
+      })
+      setCurrentLocation(location)
+      return location
+    } catch (error) {
+      setTrackingState((prev) => ({
+        ...prev,
+        error: error?.message || prev.error || 'Localisation indisponible.',
+      }))
+      return null
+    }
+  }, [terrainTrackingEnabled])
+
+  const syncRemotePresence = useCallback(async (reason = 'presence-ping', mode = 'ping', options = {}) => {
     if (!user || !canUseOperationalMobile()) {
       return null
     }
@@ -148,14 +207,25 @@ export function TrackingProvider({ children }) {
     presenceInFlightRef.current = true
 
     try {
+      const includeLocation = options.includeLocation !== false && terrainTrackingEnabled
+      let locationPayload = options.locationPayload ?? null
+
+      if (includeLocation && locationPayload == null) {
+        const location = await captureLocation({
+          requestPermission: options.requestPermission === true,
+          preferFresh: options.preferFreshLocation === true || mode === 'report',
+        })
+        locationPayload = mapLocationToPayload(location)
+      }
+
       if (mode === 'report') {
-        await reportSession()
+        await reportSession(locationPayload)
       } else {
-        await pingSession()
+        await pingSession(locationPayload)
       }
 
       markSynced(reason, null, Boolean(sessionRef.current?.id && sessionRef.current?.status === 'open'))
-      return null
+      return locationPayload
     } catch (error) {
       setTrackingState((prev) => ({
         ...prev,
@@ -165,7 +235,7 @@ export function TrackingProvider({ children }) {
     } finally {
       presenceInFlightRef.current = false
     }
-  }, [canUseOperationalMobile, markSynced, user])
+  }, [canUseOperationalMobile, captureLocation, markSynced, terrainTrackingEnabled, user])
 
   const startSession = useCallback(async (payload = {}) => {
     setBusy(true)
@@ -247,20 +317,40 @@ export function TrackingProvider({ children }) {
   }, [markSynced, refreshSessionDetails])
 
   const captureCurrentLocation = useCallback(async () => {
-    await syncRemotePresence('presence-manual', 'report')
-    return null
-  }, [syncRemotePresence])
+    const location = await captureLocation({
+      requestPermission: terrainTrackingEnabled,
+      preferFresh: true,
+    })
+
+    await syncRemotePresence('presence-manual', 'report', {
+      includeLocation: terrainTrackingEnabled,
+      locationPayload: mapLocationToPayload(location),
+    })
+
+    return location
+  }, [captureLocation, syncRemotePresence, terrainTrackingEnabled])
+
+  useEffect(() => {
+    if (!terrainTrackingEnabled) {
+      setCurrentLocation(null)
+      setLocationPermission('disabled')
+    }
+  }, [terrainTrackingEnabled])
 
   useEffect(() => {
     if (!user || !canUseOperationalMobile()) {
       clearSessionState()
+      setCurrentLocation(null)
+      setLocationPermission('disabled')
       setLoading(false)
       return
     }
 
     refreshSession()
-    void syncRemotePresence('presence-report', 'report')
-  }, [canUseOperationalMobile, clearSessionState, refreshSession, syncRemotePresence, user])
+    void syncRemotePresence('presence-report', 'report', {
+      requestPermission: terrainTrackingEnabled,
+    })
+  }, [canUseOperationalMobile, clearSessionState, refreshSession, syncRemotePresence, terrainTrackingEnabled, user])
 
   useEffect(() => {
     if (!user || !canUseOperationalMobile()) {
@@ -323,8 +413,8 @@ export function TrackingProvider({ children }) {
     session,
     loading,
     busy,
-    currentLocation: null,
-    locationPermission: 'disabled',
+    currentLocation,
+    locationPermission,
     trackingState,
     refreshSession,
     refreshSessionDetails,
@@ -338,8 +428,10 @@ export function TrackingProvider({ children }) {
     addLoad,
     busy,
     captureCurrentLocation,
+    currentLocation,
     endSession,
     loading,
+    locationPermission,
     recordReturns,
     refreshSession,
     refreshSessionDetails,

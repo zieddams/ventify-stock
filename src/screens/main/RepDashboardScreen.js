@@ -57,6 +57,7 @@ export default function RepDashboardScreen() {
     refreshSession,
     captureCurrentLocation,
   } = useTracking()
+  const gpsTrackingEnabled = user?.company?.features?.terrain_tracking_enabled === true
 
   const [invoices, setInvoices] = useState([])
   const [stock, setStock] = useState([])
@@ -118,10 +119,27 @@ export default function RepDashboardScreen() {
     : session.status === 'open'
       ? 'success'
       : 'info'
+  const gpsPermissionLabel = !gpsTrackingEnabled
+    ? t('repDashboard.hero.permissionDisabledByCompany')
+    : locationPermission === 'granted'
+      ? t('repDashboard.hero.permissionGranted')
+      : locationPermission === 'denied'
+        ? t('repDashboard.hero.permissionDenied')
+        : t('repDashboard.hero.permissionPending')
+  const trackingLabel = !gpsTrackingEnabled
+    ? t('repDashboard.hero.trackingDisabledByCompany')
+    : trackingState.active
+      ? t('repDashboard.hero.trackingActive')
+      : t('repDashboard.hero.trackingPending')
+  const trackingTone = !gpsTrackingEnabled
+    ? 'neutral'
+    : trackingState.active
+      ? 'success'
+      : 'warning'
 
-  const latestLocation = currentLocation?.coords
-    ? currentLocation
-    : session?.latestLocation
+  const latestLocation = gpsTrackingEnabled
+    ? (currentLocation?.coords ? currentLocation : session?.latestLocation)
+    : null
 
   return (
     <ScrollView
@@ -182,14 +200,14 @@ export default function RepDashboardScreen() {
               </View>
               <View style={s.factItem}>
                 <Text style={s.factLabel}>{t('repDashboard.hero.gpsPermission')}</Text>
-                <Text style={s.factValue}>{locationPermission === 'granted' ? t('repDashboard.hero.permissionGranted') : t('repDashboard.hero.permissionPending')}</Text>
+                <Text style={s.factValue}>{gpsPermissionLabel}</Text>
               </View>
             </View>
 
             <View style={s.bannerRow}>
               <StatusChip
-                label={trackingState.active ? t('repDashboard.hero.trackingActive') : t('repDashboard.hero.trackingPending')}
-                tone={trackingState.active ? 'success' : 'warning'}
+                label={trackingLabel}
+                tone={trackingTone}
               />
               <StatusChip
                 label={trackingState.lastSyncAt ? t('repDashboard.hero.syncAt', { time: formatTime(trackingState.lastSyncAt) }) : t('repDashboard.hero.syncAuto')}
@@ -201,7 +219,9 @@ export default function RepDashboardScreen() {
               <Text style={s.locationLabel}>{t('repDashboard.location.title')}</Text>
               <Text style={s.locationValue}>{locationText(latestLocation, t)}</Text>
               <Text style={s.locationMeta}>
-                {session.latestLocation?.recorded_at
+                {!gpsTrackingEnabled
+                  ? t('repDashboard.location.disabledByCompany')
+                  : session.latestLocation?.recorded_at
                   ? t('repDashboard.location.lastReported', { date: formatDateTime(session.latestLocation.recorded_at) })
                   : t('repDashboard.location.nextReport')}
               </Text>
@@ -222,9 +242,11 @@ export default function RepDashboardScreen() {
                 <MaterialCommunityIcons name="map-marker-path" size={18} color="#fff" />
                 <Text style={s.primaryButtonText}>{t('repDashboard.hero.manageSession')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.secondaryButton} onPress={() => captureCurrentLocation('manual')}>
-                <Text style={s.secondaryButtonText}>{t('repDashboard.hero.sendPosition')}</Text>
-              </TouchableOpacity>
+              {gpsTrackingEnabled && (
+                <TouchableOpacity style={s.secondaryButton} onPress={() => captureCurrentLocation('manual')}>
+                  <Text style={s.secondaryButtonText}>{t('repDashboard.hero.sendPosition')}</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </>
         )}
@@ -258,9 +280,9 @@ export default function RepDashboardScreen() {
         <MetricCard
           label={t('repDashboard.metrics.mobileGps')}
           value={trackingState.lastSyncAt ? formatTime(trackingState.lastSyncAt) : '--'}
-          hint={trackingState.error || t('repDashboard.metrics.liveMode')}
+          hint={!gpsTrackingEnabled ? t('repDashboard.metrics.companyDisabled') : (trackingState.error || t('repDashboard.metrics.liveMode'))}
           icon="crosshairs-gps"
-          color={trackingState.error ? T.warning : T.success}
+          color={!gpsTrackingEnabled ? T.info : (trackingState.error ? T.warning : T.success)}
         />
       </View>
 

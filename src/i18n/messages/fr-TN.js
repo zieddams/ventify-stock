@@ -569,9 +569,12 @@ export default {
       gpsPoints: 'Points GPS',
       gpsPermission: 'Permission GPS',
       permissionGranted: 'OK',
+      permissionDenied: 'Refusée',
       permissionPending: 'À valider',
+      permissionDisabledByCompany: 'Piloté par la société',
       trackingActive: 'Tracking actif',
       trackingPending: 'Tracking en attente',
+      trackingDisabledByCompany: 'Tracking coupé par la société',
       syncAt: ({ time }) => `Sync ${time}`,
       syncAuto: 'Sync auto',
       manageSession: 'Gérer la session',
@@ -580,6 +583,7 @@ export default {
     location: {
       title: 'Dernière position',
       none: 'Aucune position capturée.',
+      disabledByCompany: 'Le partage GPS est désactivé pour cette société.',
       lastReported: ({ date }) => `Dernière remontée ${date}`,
       nextReport: 'La prochaine position sera envoyée au prochain relevé.',
     },
@@ -596,6 +600,7 @@ export default {
       mobileGps: 'GPS mobile',
       invoiceCount: ({ count }) => `${count} facture(s)`,
       alertCount: ({ count }) => `${count} alerte(s)`,
+      companyDisabled: 'GPS terrain coupé côté société',
       liveMode: 'Mode live : polling + GPS auto',
     },
     quickActions: {
