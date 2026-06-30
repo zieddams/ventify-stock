@@ -1,6 +1,7 @@
 import axios from 'axios'
 import Constants from 'expo-constants'
 import * as SecureStore from 'expo-secure-store'
+import { getCurrentMobileScreen, getMobileActivitySessionId } from './activityClient'
 import { getStoredLocale } from '../i18n/locales'
 
 const extra = Constants.expoConfig?.extra ?? {}
@@ -26,6 +27,15 @@ api.interceptors.request.use(async (config) => {
 
   try {
     config.headers['X-App-Locale'] = await getStoredLocale()
+  } catch {}
+
+  try {
+    const activitySessionId = await getMobileActivitySessionId()
+    const currentScreen = getCurrentMobileScreen()
+    config.headers['X-Activity-Session'] = activitySessionId
+    config.headers['X-App-Screen'] = currentScreen.name
+    config.headers['X-Front-Page-Title'] = currentScreen.label
+    config.headers['X-Front-Path'] = currentScreen.routePath
   } catch {}
 
   return config

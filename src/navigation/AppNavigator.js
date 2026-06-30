@@ -1,12 +1,14 @@
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, AppState, StyleSheet, Text, View } from 'react-native'
+import { useEffect, useRef } from 'react'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import GlobalUpdateProgressBar from '../components/GlobalUpdateProgressBar'
 import { useAuth } from '../contexts/AuthContext'
 import { useI18n } from '../contexts/I18nContext'
+import { trackMobileActivity } from '../services/activityMonitor'
 import { T } from '../theme'
 
 const Stack = createNativeStackNavigator()
@@ -126,9 +128,107 @@ function AppStack() {
   )
 }
 
+function getDeepestRoute(state) {
+  if (!state?.routes?.length) {
+    return null
+  }
+
+  const route = state.routes[state.index ?? 0]
+
+  if (route?.state) {
+    return getDeepestRoute(route.state)
+  }
+
+  return route ?? null
+}
+
+function normalizeScreen(routeName, t) {
+  const map = new Map([
+    [t('navigation.home'), { name: 'Home', label: 'Home' }],
+    [t('navigation.customers'), { name: 'Customers', label: 'Customers' }],
+    [t('navigation.invoices'), { name: 'Invoices', label: 'Invoices' }],
+    [t('navigation.session'), { name: 'RouteSession', label: 'Route Session' }],
+    [t('navigation.stock'), { name: 'Stock', label: 'Stock' }],
+    ['CustomerLedger', { name: 'CustomerLedger', label: 'Customer Ledger' }],
+    ['InvoiceCreate', { name: 'InvoiceCreate', label: 'Create Invoice' }],
+    ['InvoiceDetail', { name: 'InvoiceDetail', label: 'Invoice Detail' }],
+    ['Notifications', { name: 'Notifications', label: 'Notifications' }],
+    ['Reappro', { name: 'Reappro', label: 'Reappro' }],
+    ['Profile', { name: 'Profile', label: 'Profile' }],
+    ['Tabs', { name: 'Tabs', label: 'Tabs' }],
+    ['Login', { name: 'Login', label: 'Login' }],
+  ])
+
+  return map.get(routeName) ?? {
+    name: String(routeName || 'Unknown'),
+    label: String(routeName || 'Unknown'),
+  }
+}
+
 export default function AppNavigator() {
   const { user, loading } = useAuth()
   const { t } = useI18n()
+  const navigationRef = useRef(null)
+  const lastScreenRef = useRef('')
+
+  useEffect(() => {
+    if (!user?.id) {
+      lastScreenRef.current = ''
+      return undefined
+    }
+
+    const sendHeartbeat = () => {
+      if (AppState.currentState !== 'active') {
+        return
+      }
+
+      void trackMobileActivity({
+        eventType: 'heartbeat',
+      }).catch(() => {})
+    }
+
+    const intervalId = setInterval(sendHeartbeat, 60000)
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        sendHeartbeat()
+      }
+    })
+
+    return () => {
+      clearInterval(intervalId)
+      appStateSubscription.remove()
+    }
+  }, [user?.id])
+
+  const reportCurrentScreen = () => {
+    if (!user?.id) {
+      return
+    }
+
+    const route = getDeepestRoute(navigationRef.current?.getRootState?.())
+
+    if (!route?.name) {
+      return
+    }
+
+    const currentScreen = normalizeScreen(route.name, t)
+    const screenKey = `${currentScreen.name}:${route.key || route.name}`
+
+    if (lastScreenRef.current === screenKey) {
+      return
+    }
+
+    lastScreenRef.current = screenKey
+
+    void trackMobileActivity({
+      eventType: 'screen_view',
+      screenName: currentScreen.name,
+      screenLabel: currentScreen.label,
+      metadata: {
+        route_name: route.name,
+      },
+    }).catch(() => {})
+  }
 
   if (loading) {
     return (
@@ -141,7 +241,11 @@ export default function AppNavigator() {
 
   return (
     <View style={s.root}>
-      <NavigationContainer>
+      <NavigationContainer
+        ref={navigationRef}
+        onReady={reportCurrentScreen}
+        onStateChange={reportCurrentScreen}
+      >
         {user ? <AppStack /> : <AuthStack />}
       </NavigationContainer>
       {user ? <GlobalUpdateProgressBar /> : null}
