@@ -211,6 +211,7 @@ jobs:
           - Active sessions now keep a foreground GPS watcher alive so route positions reach the terrain map more reliably instead of depending only on one-shot heartbeats.
           - When terrain tracking is disabled for the company, the app keeps working normally without requesting or sending location data.
           - The rep dashboard now explains whether GPS is active, pending, denied, disabled by company policy, or still waiting for the next valid fix.
+          - Supported app builds now report screen navigation to the developer live monitor so web/mobile activity can be traced from the new workspace.
           - In-app update flow keeps the resumable/background-friendly download behavior and can relaunch installation for an already-downloaded APK.
           - Built and published from the validated GitHub Actions release path.
 
