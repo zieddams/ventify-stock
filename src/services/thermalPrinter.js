@@ -114,13 +114,85 @@ function toBluetoothAddress(macAddress) {
   return macAddress.startsWith('bt:') ? macAddress : `bt:${macAddress}`
 }
 
+function parseDeviceListPayload(raw) {
+  if (!raw) {
+    return []
+  }
+
+  if (Array.isArray(raw)) {
+    return raw
+  }
+
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
 // Lists OS-paired ("bonded") Bluetooth devices only - we never do live
 // discovery of unpaired devices. The user pairs the PT-210 once from
 // Android's own Bluetooth settings (same requirement RawBT had), and this
 // service only needs to know which already-paired device is "the printer".
-export async function listPairedDevices() {
-  const result = await ThermalPrinter.scanDevices()
-  return result?.paired ?? []
+//
+// IMPORTANT: `ThermalPrinter.scanDevices()` does NOT resolve with the paired
+// device list, despite its TS type suggesting `Promise<{paired, found}>`.
+// The native side (BluetoothDiscovery.kt) resolves that promise with just
+// `{ success, error }` and instead emits the actual bonded-device list
+// asynchronously via the `EVENT_DEVICE_ALREADY_PAIRED` event (fired right
+// after reading `BluetoothAdapter.bondedDevices`, before any live discovery
+// even starts). Trusting the promise return value here always produced an
+// empty list, which is why every print attempt hit "no paired printer" even
+// with the PT-210 correctly paired in Android Bluetooth settings. Fixed by
+// listening for that event (with `EVENT_DEVICE_DISCOVER_DONE` and a timeout
+// as fallbacks) instead of reading the promise result.
+export function listPairedDevices() {
+  return new Promise((resolve) => {
+    let settled = false
+    const subscriptions = []
+
+    const cleanup = () => {
+      subscriptions.forEach((sub) => sub?.remove())
+      ThermalPrinter.stopScanDevices?.().catch(() => {})
+    }
+
+    const finish = (devices) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      resolve(devices)
+    }
+
+    subscriptions.push(
+      ThermalPrinter.addDiscoveryEventListener(
+        ThermalPrinter.EVENT_DEVICE_ALREADY_PAIRED,
+        (data) => finish(parseDeviceListPayload(data?.devices)),
+      ),
+    )
+    subscriptions.push(
+      ThermalPrinter.addDiscoveryEventListener(
+        ThermalPrinter.EVENT_DEVICE_DISCOVER_DONE,
+        (data) => finish(parseDeviceListPayload(data?.paired)),
+      ),
+    )
+    subscriptions.push(
+      ThermalPrinter.addDiscoveryEventListener(
+        ThermalPrinter.EVENT_BLUETOOTH_NOT_SUPPORT,
+        () => finish([]),
+      ),
+    )
+
+    // Kick off the native scan - this is what triggers the events above.
+    // A discovery-start failure (e.g. live-scan permission/location issue)
+    // does not matter for us: the paired-device event already fires before
+    // that failure is even possible, since bonded devices are read first.
+    ThermalPrinter.scanDevices().catch(() => {})
+
+    // Safety net in case no event ever arrives (older library version,
+    // unexpected native behavior, etc.) so the UI never hangs forever.
+    setTimeout(() => finish([]), 6000)
+  })
 }
 
 // Resolves which printer address to use for this print job:

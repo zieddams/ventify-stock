@@ -43,14 +43,60 @@ export async function requestBluetoothPermissions() {
   return granted === PermissionsAndroid.RESULTS.GRANTED
 }
 
+function parseDeviceListPayload(raw) {
+  if (!raw) {
+    return []
+  }
+  if (Array.isArray(raw)) {
+    return raw
+  }
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
 // Returns the OS-paired ("bonded") devices only. We deliberately do not surface
 // live-discovery ("found") results in the real settings screen later - the user
 // pairs the PT-210 once via Android's own Bluetooth settings (same requirement
 // RawBT has today), and the app just lets them pick which paired device is
 // "the printer".
-export async function scanPairedDevices() {
-  const result = await ThermalPrinter.scanDevices()
-  return result?.paired ?? []
+//
+// NOTE: ThermalPrinter.scanDevices() resolves with {success, error} only - the
+// actual bonded-device list comes back via the EVENT_DEVICE_ALREADY_PAIRED
+// event, not the promise result. See src/services/thermalPrinter.js for the
+// full writeup of this library quirk (confirmed via native source).
+export function scanPairedDevices() {
+  return new Promise((resolve) => {
+    let settled = false
+    const subs = []
+    const cleanup = () => {
+      subs.forEach((sub) => sub?.remove())
+      ThermalPrinter.stopScanDevices?.().catch(() => {})
+    }
+    const finish = (devices) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      resolve(devices)
+    }
+    subs.push(ThermalPrinter.addDiscoveryEventListener(
+      ThermalPrinter.EVENT_DEVICE_ALREADY_PAIRED,
+      (data) => finish(parseDeviceListPayload(data?.devices)),
+    ))
+    subs.push(ThermalPrinter.addDiscoveryEventListener(
+      ThermalPrinter.EVENT_DEVICE_DISCOVER_DONE,
+      (data) => finish(parseDeviceListPayload(data?.paired)),
+    ))
+    subs.push(ThermalPrinter.addDiscoveryEventListener(
+      ThermalPrinter.EVENT_BLUETOOTH_NOT_SUPPORT,
+      () => finish([]),
+    ))
+    ThermalPrinter.scanDevices().catch(() => {})
+    setTimeout(() => finish([]), 6000)
+  })
 }
 
 export function toBluetoothAddress(macAddress) {
