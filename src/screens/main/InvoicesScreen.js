@@ -19,9 +19,12 @@ import StatusChip from '../../components/StatusChip'
 import { useAuth } from '../../contexts/AuthContext'
 import { useI18n } from '../../contexts/I18nContext'
 import { useTracking } from '../../contexts/TrackingContext'
+import { useThermalPrint } from '../../hooks/useThermalPrint'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
-import { printInvoiceListDocument, shareInvoiceListDocument } from '../../utils/invoicePrint'
+import { resolveBrandName } from '../../utils/branding'
+import { shareInvoiceListDocument } from '../../utils/invoicePrint'
+import { buildInvoiceListReceiptDocument } from '../../utils/thermalReceipt'
 import {
   formatCurrency,
   formatDateTime,
@@ -51,7 +54,7 @@ export default function InvoicesScreen() {
   const [period, setPeriod] = useState('month')
   const [selectedRepId, setSelectedRepId] = useState('')
   const [repFilterVisible, setRepFilterVisible] = useState(false)
-  const [printing, setPrinting] = useState(false)
+  const thermal = useThermalPrint((key) => t(`invoices.${key}`))
   const [sharing, setSharing] = useState(false)
   const hasGlobalInvoiceAccess = canManageAllCustomers()
   const periodOptions = [
@@ -141,18 +144,22 @@ export default function InvoicesScreen() {
       return
     }
 
-    setPrinting(true)
-    try {
-      await printInvoiceListDocument({
-        invoices: filtered,
-        title: t('invoices.listDocumentTitle'),
-        subtitle: filterSummary,
-      })
+    const companyInfo = {
+      companyName: resolveBrandName(user),
+      companyAddress: user?.company?.address,
+      companyPhone: user?.company?.phone,
+      companyTaxId: user?.company?.tax_id,
+    }
+
+    const ok = await thermal.run(() => buildInvoiceListReceiptDocument({
+      invoices: filtered,
+      title: t('invoices.listDocumentTitle'),
+      subtitle: filterSummary,
+      ...companyInfo,
+    }))
+
+    if (ok) {
       await syncInteraction('invoice-list-thermal', { includeLocation: false, refreshSession: false })
-    } catch (error) {
-      Alert.alert(t('invoices.thermalErrorTitle'), error.message || t('invoices.retry'))
-    } finally {
-      setPrinting(false)
     }
   }
 
@@ -257,8 +264,8 @@ export default function InvoicesScreen() {
                 </TouchableOpacity>
               )}
 
-              <TouchableOpacity style={s.toolButton} onPress={handlePrintList} disabled={printing}>
-                {printing ? (
+              <TouchableOpacity style={s.toolButton} onPress={handlePrintList} disabled={thermal.printing}>
+                {thermal.printing ? (
                   <ActivityIndicator size="small" color={T.primary} />
                 ) : (
                   <>
@@ -292,7 +299,7 @@ export default function InvoicesScreen() {
             </View>
 
             <Text style={s.filterHint}>{filterSummary}</Text>
-            <Text style={s.printHint}>{t('invoices.printHint')}</Text>
+            <Text style={s.printHint}>{thermal.stageLabel || t('invoices.printHint')}</Text>
           </View>
         )}
         ListEmptyComponent={(
@@ -356,6 +363,28 @@ export default function InvoicesScreen() {
               </TouchableOpacity>
             ))}
           </ScrollView>
+        </View>
+      </Modal>
+
+      <Modal visible={!!thermal.chooserDevices?.length} transparent animationType="fade" onRequestClose={thermal.dismissChooser}>
+        <View style={s.chooserBackdrop}>
+          <View style={[s.chooserCard, cardShadow]}>
+            <Text style={s.chooserTitle}>{t('invoices.thermalChooseTitle')}</Text>
+            <Text style={s.chooserText}>{t('invoices.thermalChooseText')}</Text>
+            {(thermal.chooserDevices ?? []).map((device) => (
+              <TouchableOpacity
+                key={device.address}
+                style={s.chooserRow}
+                onPress={() => thermal.chooseDevice(device.address)}
+              >
+                <Text style={s.chooserDeviceName}>{device.name || device.address}</Text>
+                <Text style={s.chooserDeviceAddress}>{device.address}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={s.chooserCancel} onPress={thermal.dismissChooser}>
+              <Text style={s.chooserCancelText}>{t('invoices.thermalCancelAction')}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </Modal>
     </View>
@@ -541,5 +570,55 @@ const s = StyleSheet.create({
     marginTop: 4,
     fontSize: 12,
     color: T.textMuted,
+  },
+  chooserBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  chooserCard: {
+    width: '100%',
+    borderRadius: 20,
+    backgroundColor: T.surface,
+    padding: 20,
+  },
+  chooserTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: T.text,
+  },
+  chooserText: {
+    marginTop: 6,
+    fontSize: 12,
+    color: T.textMuted,
+  },
+  chooserRow: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: T.border,
+    borderRadius: 12,
+    padding: 12,
+  },
+  chooserDeviceName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: T.text,
+  },
+  chooserDeviceAddress: {
+    marginTop: 2,
+    fontSize: 11,
+    color: T.textMuted,
+  },
+  chooserCancel: {
+    marginTop: 16,
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  chooserCancelText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: T.textSecondary,
   },
 })
