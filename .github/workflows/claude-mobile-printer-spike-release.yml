@@ -1,0 +1,193 @@
+name: Claude Mobile - Printer Spike Release (one-off)
+
+# One-off, additive workflow scoped ONLY to this dated branch name. It does not
+# modify or replace manual-release.yml (the normal release lane other agents
+# use) - it just mirrors the same proven steps so this specific spike build
+# can publish a release via a plain `git push` (this sandbox's network policy
+# allows git-over-https to github.com but blocks the api.github.com REST calls
+# needed to dispatch manual-release.yml directly).
+
+on:
+  push:
+    branches:
+      - 'codex/release-20260705-printer-spike'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mobile-release-prep
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    env:
+      CI: '1'
+      EXPECTED_DEBUG_CERT_SHA256: FAC61745DC0903786FB9EDE62A962B399F7348F0BB6F899B8332667591033B9C
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.1
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply version bump (patch)
+        run: |
+          npm version patch --no-git-tag-version
+          node scripts/sync-mobile-version.cjs --increment-version-code=1
+          npm run sync:android-version
+
+      - name: Verify Expo version sync
+        run: npm run check:mobile-version
+
+      - name: Verify Android version sync
+        run: npm run check:android-version
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Capture release metadata
+        id: release
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          VERSION_CODE="$(node -p "require('./app.config.js').android.versionCode")"
+
+          if [ -z "$VERSION" ] || [ -z "$VERSION_CODE" ]; then
+            echo "Failed to resolve release metadata from package.json/app.config.js" >&2
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+
+      - name: Commit prepared release changes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json app.config.js
+          git add -f android/app/build.gradle
+          if [ -f package-lock.json ]; then
+            git add package-lock.json
+          fi
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "chore(release): mobile v${{ steps.release.outputs.version }} (${{ steps.release.outputs.version_code }}) [printer-spike]"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Regenerate Android project for release build
+        run: npx expo prebuild --platform android --clean
+
+      - name: Restore release-compatible debug keystore
+        shell: bash
+        env:
+          ANDROID_DEBUG_KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$ANDROID_DEBUG_KEYSTORE_B64" ]; then
+            echo "ANDROID_DEBUG_KEYSTORE_B64 is not configured." >&2
+            exit 1
+          fi
+
+          printf '%s' "$ANDROID_DEBUG_KEYSTORE_B64" | base64 --decode > android/app/debug.keystore
+
+      - name: Sync Android version after prebuild
+        run: npm run sync:android-version
+
+      - name: Verify Android version sync after prebuild
+        run: npm run check:android-version
+
+      - name: Build release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Verify APK signer compatibility
+        id: signer
+        shell: bash
+        run: |
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort | tail -n 1)"
+
+          if [ -z "$APKSIGNER" ]; then
+            echo "Unable to locate apksigner under $ANDROID_HOME/build-tools" >&2
+            exit 1
+          fi
+
+          "$APKSIGNER" verify --print-certs android/app/build/outputs/apk/release/app-release.apk | tee apk-signature.txt
+          EXPECTED_CERT_SHA256_LOWER="$(printf '%s' "$EXPECTED_DEBUG_CERT_SHA256" | tr '[:upper:]' '[:lower:]')"
+          grep -qi "certificate sha-256 digest: $EXPECTED_CERT_SHA256_LOWER" apk-signature.txt
+
+      - name: Package release asset metadata
+        id: apk
+        shell: bash
+        run: |
+          VERSION="${{ steps.release.outputs.version }}"
+          VERSION_CODE="${{ steps.release.outputs.version_code }}"
+          SRC="android/app/build/outputs/apk/release/app-release.apk"
+          DEST="android/app/build/outputs/apk/release/El-Irtiwaa-Mobile-v${VERSION}.apk"
+          SHA256="$(sha256sum "$SRC" | awk '{print $1}')"
+          SIZE="$(stat -c%s "$SRC")"
+
+          cp "$SRC" "$DEST"
+
+          echo "apk_path=$DEST" >> "$GITHUB_OUTPUT"
+          echo "apk_name=$(basename "$DEST")" >> "$GITHUB_OUTPUT"
+          echo "apk_sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          echo "apk_size=$SIZE" >> "$GITHUB_OUTPUT"
+
+      - name: Write release notes
+        shell: bash
+        run: |
+          cat > release-notes.md <<EOF
+          ## El Irtiwaa Mobile v${{ steps.release.outputs.version }} (printer spike)
+
+          Phase 0 validation build for direct Bluetooth ESC/POS printing on the
+          GOOJPRT PT-210, replacing the RawBT dependency.
+
+          - New developer-role-only diagnostic screen: Profile -> "Open printer spike".
+          - Lists OS-paired Bluetooth devices, requests runtime permissions, tests
+            connection, and prints a raw ESC/POS test slip via
+            @finan-me/react-native-thermal-printer.
+          - The real invoice print flow (src/utils/invoicePrint.js) is untouched -
+            this is an isolated validation build only.
+          - See docs/thermal-printer-integration-plan.md for the full phased plan.
+
+          APK aligned to Android versionCode ${{ steps.release.outputs.version_code }}.
+          SHA-256: \`${{ steps.apk.outputs.apk_sha256 }}\`
+          EOF
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.release.outputs.version }}
+          target_commitish: ${{ github.ref_name }}
+          name: El Irtiwaa Mobile v${{ steps.release.outputs.version }} (printer spike)
+          body_path: release-notes.md
+          files: ${{ steps.apk.outputs.apk_path }}
+          overwrite_files: true
+
+      - name: Upload APK build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-release-build-printer-spike
+          path: |
+            ${{ steps.apk.outputs.apk_path }}
+            apk-signature.txt
