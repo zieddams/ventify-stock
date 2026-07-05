@@ -32,6 +32,13 @@ module.exports = {
       'ACCESS_BACKGROUND_LOCATION',
       'CAMERA',
       'REQUEST_INSTALL_PACKAGES',
+      // Thermal printer spike (Phase 0): Bluetooth Classic connect/scan for the
+      // GOOJPRT PT-210. The library's own AndroidManifest already declares
+      // BLUETOOTH / BLUETOOTH_ADMIN / BLUETOOTH_CONNECT / BLUETOOTH_SCAN and
+      // gets merged in automatically, but we list the modern ones here too for
+      // clarity. Runtime requests still happen in JS (see thermalPrinterSpike.js).
+      'BLUETOOTH_CONNECT',
+      'BLUETOOTH_SCAN',
     ],
   },
   web: {

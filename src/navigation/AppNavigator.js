@@ -26,6 +26,9 @@ const getInvoiceCreateScreen = () => require('../screens/shared/InvoiceCreateScr
 const getInvoiceDetailScreen = () => require('../screens/shared/InvoiceDetailScreen').default
 const getProfileScreen = () => require('../screens/shared/ProfileScreen').default
 const getReapproScreen = () => require('../screens/main/ReapproScreen').default
+// Phase 0 thermal-printer spike (dev-only, throwaway) - see
+// docs/thermal-printer-integration-plan.md
+const getThermalPrinterSpikeScreen = () => require('../screens/dev/ThermalPrinterSpikeScreen').default
 
 function useTabLayout() {
   const insets = useSafeAreaInsets()
@@ -124,6 +127,11 @@ function AppStack() {
       <Stack.Screen name="Notifications" getComponent={getNotificationsScreen} options={{ title: t('navigation.notifications') }} />
       <Stack.Screen name="Reappro" getComponent={getReapproScreen} options={{ title: t('navigation.reappro') }} />
       <Stack.Screen name="Profile" getComponent={getProfileScreen} options={{ title: t('navigation.profile') }} />
+      <Stack.Screen
+        name="ThermalPrinterSpike"
+        getComponent={getThermalPrinterSpikeScreen}
+        options={{ title: 'Printer spike (dev)' }}
+      />
     </Stack.Navigator>
   )
 }

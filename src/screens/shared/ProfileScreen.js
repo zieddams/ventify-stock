@@ -234,6 +234,21 @@ export default function ProfileScreen() {
           </Text>
         </View>
 
+        {user?.role === 'developer' ? (
+          <View style={[s.sectionCard, cardShadow]}>
+            <Text style={s.sectionTitle}>Developer</Text>
+            <Text style={s.sectionText}>
+              Phase 0 thermal-printer spike - throwaway screen, developer role only.
+            </Text>
+            <TouchableOpacity
+              style={s.inlineButton}
+              onPress={() => navigation.navigate('ThermalPrinterSpike')}
+            >
+              <Text style={s.inlineButtonText}>Open printer spike</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
         <View style={[s.sectionCard, cardShadow]}>
           <Text style={s.sectionTitle}>{t('profile.languageTitle')}</Text>
           <Text style={s.sectionText}>{t('profile.languageText')}</Text>
