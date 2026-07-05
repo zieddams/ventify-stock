@@ -28,14 +28,18 @@
 import { forwardRef } from 'react'
 import { Image, StyleSheet, Text, View } from 'react-native'
 import { resolveCompanyLogoUrl } from '../../utils/branding'
-import { getRuntimeLocale, translate } from '../../i18n/locales'
-import {
-  formatCurrency,
-  formatDateTime,
-  invoiceStatusLabel,
-  paymentStatusLabel,
-  unwrapStatus,
-} from '../../utils/format'
+import { translate } from '../../i18n/locales'
+import { unwrapStatus } from '../../utils/format'
+
+// The user asked for printed receipts to always be French, regardless of
+// which language the app UI is currently running in (the app-wide locale
+// can be ar-TN, and both the translation lookup AND Intl number/date
+// formatting would otherwise follow that - including Arabic-Indic digit
+// glyphs (٠١٢٣) from Intl.NumberFormat('ar-TN', ...), which is very likely
+// what looked like "still Arabic" even after the text-rendering fix. Every
+// formatter below is pinned to fr-TN independent of the app's runtime
+// locale/format.js helpers (which are intentionally left following the
+// runtime locale for on-screen UI elsewhere in the app).
 
 // The PT-210 (and this class of 58mm printer generally) has a ~48mm/384-dot
 // printable width at the standard 203 DPI (8 dots/mm) thermal-printer
@@ -47,8 +51,56 @@ import {
 // larger, more legible font size.
 export const RECEIPT_IMAGE_WIDTH_PX = 384
 
+const PRINT_LOCALE = 'fr-TN'
+
 function t(key, params) {
-  return translate(getRuntimeLocale(), key, params)
+  return translate(PRINT_LOCALE, key, params)
+}
+
+const MONEY_FORMATTER = new Intl.NumberFormat(PRINT_LOCALE, {
+  minimumFractionDigits: 3,
+  maximumFractionDigits: 3,
+})
+
+const DATE_TIME_FORMATTER = new Intl.DateTimeFormat(PRINT_LOCALE, {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
+function formatCurrency(value) {
+  const n = Number(value)
+  return `${MONEY_FORMATTER.format(Number.isFinite(n) ? n : 0)} TND`
+}
+
+function formatDateTime(value) {
+  if (!value) return '--'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '--' : DATE_TIME_FORMATTER.format(date)
+}
+
+const INVOICE_STATUS_LABELS_FR = {
+  draft: 'Brouillon',
+  sent: 'Envoyée',
+  paid: 'Payée',
+  cancelled: 'Annulée',
+}
+
+const PAYMENT_STATUS_LABELS_FR = {
+  unpaid: 'Impayée',
+  partial: 'Partielle',
+  paid: 'Payée',
+}
+
+function invoiceStatusLabel(status) {
+  return INVOICE_STATUS_LABELS_FR[unwrapStatus(status)] ?? INVOICE_STATUS_LABELS_FR.draft
+}
+
+function paymentStatusLabel(status) {
+  return PAYMENT_STATUS_LABELS_FR[unwrapStatus(status)] ?? PAYMENT_STATUS_LABELS_FR.unpaid
 }
 
 function cleanString(value) {
@@ -206,46 +258,46 @@ const st = StyleSheet.create({
   page: {
     width: RECEIPT_IMAGE_WIDTH_PX,
     backgroundColor: '#ffffff',
-    paddingHorizontal: 14,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
   },
   logo: {
     alignSelf: 'center',
-    width: 160,
-    height: 70,
-    marginBottom: 6,
+    width: 190,
+    height: 85,
+    marginBottom: 8,
   },
   center: {
     textAlign: 'center',
     color: '#000000',
-    fontSize: 16,
-    marginTop: 3,
+    fontSize: 18,
+    marginTop: 4,
   },
   bold: {
     fontWeight: '800',
   },
   brand: {
-    fontSize: 22,
+    fontSize: 25,
   },
   badge: {
-    fontSize: 14,
-    marginTop: 5,
-  },
-  docTitle: {
-    fontSize: 20,
+    fontSize: 16,
     marginTop: 6,
   },
+  docTitle: {
+    fontSize: 23,
+    marginTop: 8,
+  },
   docNumber: {
-    fontSize: 17,
-    marginTop: 2,
+    fontSize: 19,
+    marginTop: 3,
   },
   line: {
     color: '#000000',
-    fontSize: 15,
+    fontSize: 17,
   },
   fieldRow: {
     flexDirection: 'row',
-    marginTop: 5,
+    marginTop: 7,
     gap: 6,
   },
   fieldLabel: {
@@ -258,19 +310,19 @@ const st = StyleSheet.create({
     borderTopWidth: 1,
     borderStyle: 'dashed',
     borderColor: '#000000',
-    marginVertical: 10,
+    marginVertical: 12,
   },
   row: {
     flexDirection: 'row',
-    marginTop: 5,
+    marginTop: 7,
     gap: 4,
   },
   cell: {
     color: '#000000',
-    fontSize: 15,
+    fontSize: 17,
   },
   totalBig: {
-    fontSize: 20,
+    fontSize: 23,
   },
   centerText: {
     textAlign: 'center',
@@ -285,8 +337,8 @@ const st = StyleSheet.create({
     borderBottomColor: '#d4d4d4',
   },
   listItemMeta: {
-    marginTop: 2,
-    fontSize: 12,
+    marginTop: 3,
+    fontSize: 14,
     color: '#333333',
   },
 })

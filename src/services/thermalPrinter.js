@@ -98,16 +98,51 @@ export function openAppSettings() {
   return Linking.openSettings()
 }
 
+// Belt-and-suspenders cache: SecureStore should persist the chosen printer
+// across app restarts, but users reported the device-chooser/permission
+// flow re-appearing on every single print within the same app session -
+// which should be impossible if SecureStore round-trips reliably. Rather
+// than leave that unexplained, an in-memory cache is kept alongside it so
+// that, at minimum, every print after the first one in a given app session
+// reuses the resolved address instantly and never re-scans, regardless of
+// whether the underlying SecureStore read/write is behaving correctly on
+// this specific device/Android version.
+let inMemoryPrinterAddress = null
+
 export async function getStoredPrinterAddress() {
-  return SecureStore.getItemAsync(PRINTER_ADDRESS_KEY)
+  if (inMemoryPrinterAddress) {
+    return inMemoryPrinterAddress
+  }
+
+  try {
+    const stored = await SecureStore.getItemAsync(PRINTER_ADDRESS_KEY)
+    if (stored) {
+      inMemoryPrinterAddress = stored
+    }
+    return stored
+  } catch {
+    return null
+  }
 }
 
 export async function savePrinterAddress(macAddress) {
-  await SecureStore.setItemAsync(PRINTER_ADDRESS_KEY, macAddress)
+  inMemoryPrinterAddress = macAddress
+
+  try {
+    await SecureStore.setItemAsync(PRINTER_ADDRESS_KEY, macAddress)
+  } catch {
+    // Ignore - the in-memory cache above still makes this session usable.
+  }
 }
 
 export async function clearStoredPrinterAddress() {
-  await SecureStore.deleteItemAsync(PRINTER_ADDRESS_KEY)
+  inMemoryPrinterAddress = null
+
+  try {
+    await SecureStore.deleteItemAsync(PRINTER_ADDRESS_KEY)
+  } catch {
+    // Ignore.
+  }
 }
 
 function toBluetoothAddress(macAddress) {
@@ -243,14 +278,39 @@ export async function printThermalDocument(documentBuilder, { onStage = noop, ma
   const address = macAddress || await resolvePrinterAddress()
 
   onStage('connecting')
+  // Classic Bluetooth (SPP) sockets on some printers/phones take a moment
+  // to fully release right after the previous print job disconnects, which
+  // can make the very next print's connection attempt fail transiently.
+  // One short automatic retry covers that common case instead of surfacing
+  // a scary error (and forcing the user to try again manually) for what is
+  // really just a "give it a second" race condition.
+  const btAddress = toBluetoothAddress(address)
   let testResult
-  try {
-    testResult = await ThermalPrinter.testConnection(toBluetoothAddress(address))
-  } catch (error) {
+  let lastError = null
+
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      testResult = await ThermalPrinter.testConnection(btAddress)
+      lastError = null
+    } catch (error) {
+      lastError = error
+      testResult = null
+    }
+
+    if (testResult?.success) {
+      break
+    }
+
+    if (attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 900))
+    }
+  }
+
+  if (lastError) {
     throw new ThermalPrinterError(
       PrinterReason.CONNECTION_FAILED,
-      error?.message || 'Could not reach the printer.',
-      { code: error?.code },
+      lastError?.message || 'Could not reach the printer.',
+      { code: lastError?.code },
     )
   }
 
@@ -267,7 +327,7 @@ export async function printThermalDocument(documentBuilder, { onStage = noop, ma
 
   onStage('printing')
   const job = {
-    printers: [{ address: toBluetoothAddress(address), options: PT210_PRINTER_OPTIONS }],
+    printers: [{ address: btAddress, options: PT210_PRINTER_OPTIONS }],
     documents: [document],
   }
 
