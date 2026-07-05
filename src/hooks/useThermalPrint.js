@@ -27,6 +27,7 @@ export function useThermalPrint(tScope) {
     permission: tScope('thermalStagePermission'),
     locating: tScope('thermalStageLocating'),
     connecting: tScope('thermalStageConnecting'),
+    rendering: tScope('thermalStageRendering'),
     printing: tScope('thermalStagePrinting'),
   }[stage] ?? null
 

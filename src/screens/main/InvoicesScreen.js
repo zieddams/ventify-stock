@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -16,6 +16,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import PageHeader from '../../components/PageHeader'
 import StatusChip from '../../components/StatusChip'
+import { InvoiceListReceiptPrintable } from '../../components/print/ReceiptPrintable'
 import { useAuth } from '../../contexts/AuthContext'
 import { useI18n } from '../../contexts/I18nContext'
 import { useTracking } from '../../contexts/TrackingContext'
@@ -24,7 +25,7 @@ import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
 import { resolveBrandName } from '../../utils/branding'
 import { shareInvoiceListDocument } from '../../utils/invoicePrint'
-import { buildInvoiceListReceiptDocument } from '../../utils/thermalReceipt'
+import { captureReceiptImage } from '../../utils/thermalReceiptImage'
 import {
   formatCurrency,
   formatDateTime,
@@ -55,6 +56,7 @@ export default function InvoicesScreen() {
   const [selectedRepId, setSelectedRepId] = useState('')
   const [repFilterVisible, setRepFilterVisible] = useState(false)
   const thermal = useThermalPrint((key) => t(`invoices.${key}`))
+  const printableRef = useRef(null)
   const [sharing, setSharing] = useState(false)
   const hasGlobalInvoiceAccess = canManageAllCustomers()
   const periodOptions = [
@@ -138,25 +140,20 @@ export default function InvoicesScreen() {
     return parts.join(' | ')
   }, [hasGlobalInvoiceAccess, period, periodOptions, search, selectedRep, selectedRepId, t, user?.name])
 
+  const companyInfo = {
+    companyName: resolveBrandName(user),
+    companyAddress: user?.company?.address,
+    companyPhone: user?.company?.phone,
+    companyTaxId: user?.company?.tax_id,
+  }
+
   const handlePrintList = async () => {
     if (filtered.length === 0) {
       Alert.alert(t('invoices.noneTitle'), t('invoices.noneText'))
       return
     }
 
-    const companyInfo = {
-      companyName: resolveBrandName(user),
-      companyAddress: user?.company?.address,
-      companyPhone: user?.company?.phone,
-      companyTaxId: user?.company?.tax_id,
-    }
-
-    const ok = await thermal.run(() => buildInvoiceListReceiptDocument({
-      invoices: filtered,
-      title: t('invoices.listDocumentTitle'),
-      subtitle: filterSummary,
-      ...companyInfo,
-    }))
+    const ok = await thermal.run(() => captureReceiptImage(printableRef.current))
 
     if (ok) {
       await syncInteraction('invoice-list-thermal', { includeLocation: false, refreshSession: false })
@@ -186,6 +183,17 @@ export default function InvoicesScreen() {
 
   return (
     <View style={s.root}>
+      {/* Off-screen receipt layout captured as an image at print time (see
+          src/utils/thermalReceiptImage.js) - never visible to the user. */}
+      <View style={s.offscreenPrintable} pointerEvents="none">
+        <InvoiceListReceiptPrintable
+          ref={printableRef}
+          invoices={filtered}
+          title={t('invoices.listDocumentTitle')}
+          subtitle={filterSummary}
+          companyInfo={companyInfo}
+        />
+      </View>
       <FlatList
         data={filtered}
         keyExtractor={(item) => String(item.id)}
@@ -620,5 +628,11 @@ const s = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: T.textSecondary,
+  },
+  offscreenPrintable: {
+    position: 'absolute',
+    top: 0,
+    left: -9999,
+    opacity: 0,
   },
 })

@@ -230,9 +230,11 @@ export async function resolvePrinterAddress() {
 }
 
 // Full connect + print pipeline used by the real "Thermique" button.
-// `documentBuilder` returns the @finan-me document content array (see
-// src/utils/thermalReceipt.js). `onStage` is called with one of:
-// 'permission' | 'locating' | 'connecting' | 'printing' | 'done'
+// `documentBuilder` returns (or resolves to, since it may be async - e.g.
+// capturing a receipt image via react-native-view-shot, see
+// src/utils/thermalReceiptImage.js) the @finan-me document content array.
+// `onStage` is called with one of:
+// 'permission' | 'locating' | 'connecting' | 'rendering' | 'printing' | 'done'
 export async function printThermalDocument(documentBuilder, { onStage = noop, macAddress } = {}) {
   onStage('permission')
   await ensureBluetoothPermission()
@@ -260,9 +262,10 @@ export async function printThermalDocument(documentBuilder, { onStage = noop, ma
     )
   }
 
-  onStage('printing')
-  const document = documentBuilder()
+  onStage('rendering')
+  const document = await documentBuilder()
 
+  onStage('printing')
   const job = {
     printers: [{ address: toBluetoothAddress(address), options: PT210_PRINTER_OPTIONS }],
     documents: [document],

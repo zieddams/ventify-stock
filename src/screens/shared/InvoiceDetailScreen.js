@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -13,6 +13,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import StatusChip from '../../components/StatusChip'
+import { InvoiceReceiptPrintable } from '../../components/print/ReceiptPrintable'
 import { useAuth } from '../../contexts/AuthContext'
 import { useI18n } from '../../contexts/I18nContext'
 import { useTracking } from '../../contexts/TrackingContext'
@@ -21,7 +22,7 @@ import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
 import { resolveBrandName } from '../../utils/branding'
 import { shareInvoiceDocument } from '../../utils/invoicePrint'
-import { buildInvoiceReceiptDocument } from '../../utils/thermalReceipt'
+import { captureReceiptImage } from '../../utils/thermalReceiptImage'
 import {
   formatCurrency,
   formatDateTime,
@@ -36,6 +37,7 @@ export default function InvoiceDetailScreen({ route }) {
   const { user } = useAuth()
   const { syncInteraction } = useTracking()
   const thermal = useThermalPrint((key) => t(`invoiceDetail.${key}`))
+  const printableRef = useRef(null)
   const [invoice, setInvoice] = useState(initialInvoice ?? null)
   const [loading, setLoading] = useState(!initialInvoice)
   const [refreshing, setRefreshing] = useState(false)
@@ -71,17 +73,17 @@ export default function InvoiceDetailScreen({ route }) {
   const invoiceStatus = unwrapStatus(invoice?.status)
   const paymentStatus = unwrapStatus(invoice?.payment_status)
 
+  const companyInfo = {
+    companyName: resolveBrandName(user),
+    companyAddress: user?.company?.address,
+    companyPhone: user?.company?.phone,
+    companyTaxId: user?.company?.tax_id,
+  }
+
   const handlePrint = async () => {
     if (!invoice) return
 
-    const companyInfo = {
-      companyName: resolveBrandName(user),
-      companyAddress: user?.company?.address,
-      companyPhone: user?.company?.phone,
-      companyTaxId: user?.company?.tax_id,
-    }
-
-    const ok = await thermal.run(() => buildInvoiceReceiptDocument(invoice, companyInfo))
+    const ok = await thermal.run(() => captureReceiptImage(printableRef.current))
     if (ok) {
       await syncInteraction('invoice-thermal', { includeLocation: false, refreshSession: false })
     }
@@ -103,6 +105,11 @@ export default function InvoiceDetailScreen({ route }) {
 
   return (
     <>
+    {/* Off-screen receipt layout captured as an image at print time (see
+        src/utils/thermalReceiptImage.js) - never visible to the user. */}
+    <View style={s.offscreenPrintable} pointerEvents="none">
+      <InvoiceReceiptPrintable ref={printableRef} invoice={invoice} companyInfo={companyInfo} />
+    </View>
     <ScrollView
       style={s.root}
       contentContainerStyle={s.content}
@@ -446,5 +453,11 @@ const s = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: T.textSecondary,
+  },
+  offscreenPrintable: {
+    position: 'absolute',
+    top: 0,
+    left: -9999,
+    opacity: 0,
   },
 })
