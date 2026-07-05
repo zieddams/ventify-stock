@@ -144,6 +144,7 @@ export default function InvoicesScreen() {
     companyName: resolveBrandName(user),
     companyAddress: user?.company?.address,
     companyPhone: user?.company?.phone,
+    companyEmail: user?.company?.email,
     companyTaxId: user?.company?.tax_id,
   }
 
@@ -192,6 +193,7 @@ export default function InvoicesScreen() {
           title={t('invoices.listDocumentTitle')}
           subtitle={filterSummary}
           companyInfo={companyInfo}
+          user={user}
         />
       </View>
       <FlatList

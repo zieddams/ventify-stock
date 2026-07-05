@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -42,6 +42,7 @@ export default function InvoiceDetailScreen({ route }) {
   const [loading, setLoading] = useState(!initialInvoice)
   const [refreshing, setRefreshing] = useState(false)
   const [sharing, setSharing] = useState(false)
+  const [customerDetail, setCustomerDetail] = useState(null)
 
   const load = useCallback(async (isRefresh = false) => {
     if (!id) return
@@ -62,6 +63,33 @@ export default function InvoiceDetailScreen({ route }) {
     }
   }, [id, initialInvoice, load]))
 
+  // The invoice only snapshots customer_name/phone/address/tax_id at
+  // creation time - it does not carry the customer's CIN (national ID),
+  // which was added to the Customer model separately. Rather than change
+  // the API/invoice schema, fetch the full customer record directly (the
+  // route already exists and is authorized for a rep's own customers) so
+  // the printed receipt can show it alongside the other customer fields.
+  useEffect(() => {
+    let cancelled = false
+
+    if (!invoice?.customer_id) {
+      setCustomerDetail(null)
+      return undefined
+    }
+
+    api.get(`/customers/${invoice.customer_id}`)
+      .then((response) => {
+        if (!cancelled) setCustomerDetail(response.data)
+      })
+      .catch(() => {
+        if (!cancelled) setCustomerDetail(null)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [invoice?.customer_id])
+
   if (loading && !invoice) {
     return (
       <View style={s.loadingWrap}>
@@ -77,6 +105,7 @@ export default function InvoiceDetailScreen({ route }) {
     companyName: resolveBrandName(user),
     companyAddress: user?.company?.address,
     companyPhone: user?.company?.phone,
+    companyEmail: user?.company?.email,
     companyTaxId: user?.company?.tax_id,
   }
 
@@ -108,7 +137,13 @@ export default function InvoiceDetailScreen({ route }) {
     {/* Off-screen receipt layout captured as an image at print time (see
         src/utils/thermalReceiptImage.js) - never visible to the user. */}
     <View style={s.offscreenPrintable} pointerEvents="none">
-      <InvoiceReceiptPrintable ref={printableRef} invoice={invoice} companyInfo={companyInfo} />
+      <InvoiceReceiptPrintable
+        ref={printableRef}
+        invoice={invoice}
+        companyInfo={companyInfo}
+        customerCin={customerDetail?.cin}
+        user={user}
+      />
     </View>
     <ScrollView
       style={s.root}
