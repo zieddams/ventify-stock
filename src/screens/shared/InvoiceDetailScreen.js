@@ -5,6 +5,7 @@ import {
   Modal,
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -25,6 +26,7 @@ import { resolveBrandName } from '../../utils/branding'
 import { shareInvoiceDocument } from '../../utils/invoicePrint'
 import { captureReceiptImage } from '../../utils/thermalReceiptImage'
 import { fetchDocumentCompanyProfile, mergeCompanyInfo } from '../../utils/documentCompanyProfile'
+import { getPrintDiagnosticsText } from '../../utils/printDiagnostics'
 import {
   formatCurrency,
   formatDateTime,
@@ -210,6 +212,12 @@ export default function InvoiceDetailScreen({ route }) {
           </TouchableOpacity>
         </View>
         <Text style={s.heroHint}>{t('invoiceDetail.heroHint')}</Text>
+        <TouchableOpacity
+          style={s.diagnosticsLink}
+          onPress={() => Share.share({ message: getPrintDiagnosticsText() })}
+        >
+          <Text style={s.diagnosticsLinkText}>{t('invoiceDetail.thermalDiagnosticsAction')}</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={[s.sectionCard, cardShadow]}>
@@ -383,6 +391,15 @@ const s = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     color: T.textMuted,
+  },
+  diagnosticsLink: {
+    marginTop: 6,
+    alignSelf: 'flex-start',
+  },
+  diagnosticsLinkText: {
+    fontSize: 12,
+    color: T.primary,
+    textDecorationLine: 'underline',
   },
   sectionCard: {
     borderRadius: 22,

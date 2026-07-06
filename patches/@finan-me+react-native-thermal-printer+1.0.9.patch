@@ -189,7 +189,7 @@ index c8f5f58..6402153 100644
              if (offset < data.size) {
                  delay(50)
 diff --git a/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/printing/PrintingModule.kt b/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/printing/PrintingModule.kt
-index 6aa48f5..6cb9538 100644
+index 6aa48f5..608d66c 100644
 --- a/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/printing/PrintingModule.kt
 +++ b/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/printing/PrintingModule.kt
 @@ -63,7 +63,8 @@ class PrintingModule {
@@ -202,16 +202,49 @@ index 6aa48f5..6cb9538 100644
      ): PrintResult = withContext(Dispatchers.IO) {
          Log.d(TAG, "[Native:Android] printRaw START: addr=$address, size=${data.size}b, keepAlive=$keepAlive")
  
-@@ -86,7 +87,7 @@ class PrintingModule {
+@@ -84,9 +85,39 @@ class PrintingModule {
+             }
+ 
              // ===== STEP 2: SEND DATA TO PRINTER =====
-             // Send the ESC/POS commands through the connection
+-            // Send the ESC/POS commands through the connection
++            // Send the ESC/POS commands through the connection.
++            //
++            // IMPORTANT: connection.send() itself has no internal timeout - a
++            // plain blocking socket write can hang forever if the printer
++            // stops draining mid-transfer (goes into its own auto-sleep,
++            // moves out of range, firmware hiccup, etc.). Without a wrapper
++            // here, a stall shows up on the JS side as the print progress UI
++            // frozen at whatever percent it last reached, with no error ever
++            // surfacing - the promise from ThermalPrinter.printReceipt()
++            // simply never resolves or rejects. Wrapping in a size-scaled
++            // timeout guarantees we always eventually fail loudly instead of
++            // hanging the UI indefinitely.
++            val sendTimeoutMs = (8000L + (data.size / 1024L) * 150L).coerceAtMost(45000L)
              try {
 -                connectionEntry.connection.send(data)
-+                connectionEntry.connection.send(data, onProgress)
++                val sendCompleted = withTimeoutOrNull(sendTimeoutMs) {
++                    connectionEntry.connection.send(data, onProgress)
++                    true
++                }
++
++                if (sendCompleted != true) {
++                    Log.e(TAG, "[Native:Android] printRaw TIMEOUT: no progress within ${sendTimeoutMs}ms for ${data.size} bytes")
++                    connectionEntry.connection.close()
++                    activeConnections.remove(address)
++                    return@withContext PrintResult(
++                        success = false,
++                        error = PrintError.connectionFailed(
++                            address,
++                            "Printer stopped responding mid-transfer (timed out after ${sendTimeoutMs}ms). It may have gone to sleep or moved out of range - turn it back on/move closer and try again.",
++                            ErrorStep.SEND
++                        )
++                    )
++                }
++
                  connectionEntry.lastUsed = System.currentTimeMillis()
                  Log.d(TAG, "[Native:Android] printRaw SUCCESS: ${data.size} bytes sent")
  
-@@ -147,7 +148,8 @@ class PrintingModule {
+@@ -147,7 +178,8 @@ class PrintingModule {
          timeoutMs: Long = DEFAULT_TIMEOUT_MS,
          isCutPaper: Boolean = false,
          marginMm: Double = 0.0,
@@ -221,7 +254,7 @@ index 6aa48f5..6cb9538 100644
      ): PrintResult = withContext(Dispatchers.IO) {
          Log.d(TAG, "[Native:Android] printImage START: path=$imagePath, width=${widthPx}px, paperWidth=${paperWidthMm}mm, margin=${marginMm}mm, align=$align")
  
-@@ -184,8 +186,9 @@ class PrintingModule {
+@@ -184,8 +216,9 @@ class PrintingModule {
              Log.d(TAG, "[Native:Android] printImage PROCESSED: ${rasterData.size} bytes ready")
  
              // ===== STEP 3: SEND TO PRINTER =====

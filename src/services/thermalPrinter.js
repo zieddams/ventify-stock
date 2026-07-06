@@ -22,6 +22,7 @@
 
 import { Linking, NativeEventEmitter, NativeModules, PermissionsAndroid, Platform } from 'react-native'
 import { BluetoothStateManager, ThermalPrinter } from '@finan-me/react-native-thermal-printer'
+import { logPrintEvent } from '../utils/printDiagnostics'
 
 // Custom event emitted by our own native patch (see
 // patches/@finan-me+react-native-thermal-printer+*.patch) from inside the
@@ -270,106 +271,144 @@ export async function resolvePrinterAddress() {
 // percentage while the receipt image is actually being sent (stage
 // 'printing') - see the native EVENT_PRINT_TRANSFER_PROGRESS wiring below.
 export async function printThermalDocument(documentBuilder, { onStage = noop, onProgress = noop, macAddress } = {}) {
-  onStage('permission')
-  await ensureBluetoothPermission()
+  const startedAt = Date.now()
+  const elapsed = () => Date.now() - startedAt
 
-  onStage('bluetooth')
-  await ensureBluetoothEnabled()
+  logPrintEvent('print_start', { cachedAddress: !!macAddress })
 
-  onStage('locating')
-  const address = macAddress || await resolvePrinterAddress()
-
-  onStage('connecting')
-  // Classic Bluetooth (SPP) sockets on some printers/phones take a moment
-  // to fully release right after the previous print job disconnects, which
-  // can make the very next print's connection attempt fail transiently.
-  // One short automatic retry covers that common case instead of surfacing
-  // a scary error (and forcing the user to try again manually) for what is
-  // really just a "give it a second" race condition.
-  const btAddress = toBluetoothAddress(address)
-  let testResult
-  let lastError = null
-
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
-    try {
-      testResult = await ThermalPrinter.testConnection(btAddress)
-      lastError = null
-    } catch (error) {
-      lastError = error
-      testResult = null
-    }
-
-    if (testResult?.success) {
-      break
-    }
-
-    if (attempt < 2) {
-      await new Promise((resolve) => setTimeout(resolve, 900))
-    }
-  }
-
-  if (lastError) {
-    throw new ThermalPrinterError(
-      PrinterReason.CONNECTION_FAILED,
-      lastError?.message || 'Could not reach the printer.',
-      { code: lastError?.code },
-    )
-  }
-
-  if (!testResult?.success) {
-    throw new ThermalPrinterError(
-      PrinterReason.CONNECTION_FAILED,
-      testResult?.error?.message || 'Could not reach the printer.',
-      { code: testResult?.error?.code, suggestion: testResult?.error?.suggestion },
-    )
-  }
-
-  onStage('rendering')
-  const document = await documentBuilder()
-
-  onStage('printing')
-  onProgress(0)
-  const job = {
-    printers: [{ address: btAddress, options: PT210_PRINTER_OPTIONS }],
-    documents: [document],
-  }
-
-  // Listen for our own patched-in native progress events for the duration of
-  // this transfer only - always removed in `finally` so we never leak a
-  // listener across print attempts.
-  const progressSubscription = printerEventEmitter.addListener(
-    EVENT_PRINT_TRANSFER_PROGRESS,
-    (payload) => {
-      const sent = Number(payload?.sent) || 0
-      const total = Number(payload?.total) || 0
-      onProgress(total > 0 ? Math.round((sent / total) * 100) : 0)
-    },
-  )
-
-  let result
   try {
+    onStage('permission')
+    await ensureBluetoothPermission()
+    logPrintEvent('permission_ok', { ms: elapsed() })
+
+    onStage('bluetooth')
+    await ensureBluetoothEnabled()
+    logPrintEvent('bluetooth_ok', { ms: elapsed() })
+
+    onStage('locating')
+    const address = macAddress || await resolvePrinterAddress()
+    logPrintEvent('address_resolved', { address, ms: elapsed() })
+
+    onStage('connecting')
+    // Classic Bluetooth (SPP) sockets on some printers/phones take a moment
+    // to fully release right after the previous print job disconnects, which
+    // can make the very next print's connection attempt fail transiently.
+    // One short automatic retry covers that common case instead of surfacing
+    // a scary error (and forcing the user to try again manually) for what is
+    // really just a "give it a second" race condition.
+    const btAddress = toBluetoothAddress(address)
+    let testResult
+    let lastError = null
+
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        testResult = await ThermalPrinter.testConnection(btAddress)
+        lastError = null
+      } catch (error) {
+        lastError = error
+        testResult = null
+      }
+
+      logPrintEvent('test_connection_attempt', {
+        attempt,
+        success: !!testResult?.success,
+        error: lastError?.message || testResult?.error?.message || null,
+        ms: elapsed(),
+      })
+
+      if (testResult?.success) {
+        break
+      }
+
+      if (attempt < 2) {
+        await new Promise((resolve) => setTimeout(resolve, 900))
+      }
+    }
+
+    if (lastError) {
+      throw new ThermalPrinterError(
+        PrinterReason.CONNECTION_FAILED,
+        lastError?.message || 'Could not reach the printer.',
+        { code: lastError?.code },
+      )
+    }
+
+    if (!testResult?.success) {
+      throw new ThermalPrinterError(
+        PrinterReason.CONNECTION_FAILED,
+        testResult?.error?.message || 'Could not reach the printer.',
+        { code: testResult?.error?.code, suggestion: testResult?.error?.suggestion },
+      )
+    }
+
+    logPrintEvent('connection_ok', { ms: elapsed() })
+
+    onStage('rendering')
+    const document = await documentBuilder()
+    logPrintEvent('rendering_done', { ms: elapsed() })
+
+    onStage('printing')
+    onProgress(0)
+    const job = {
+      printers: [{ address: btAddress, options: PT210_PRINTER_OPTIONS }],
+      documents: [document],
+    }
+
+    // Listen for our own patched-in native progress events for the duration
+    // of this transfer only - always removed in `finally` so we never leak
+    // a listener across print attempts. Every event is logged (not just
+    // shown as a %) so that if a transfer stalls, the diagnostic log shows
+    // exactly the last byte count reached and how long ago, instead of just
+    // a frozen percentage with no further information.
+    let lastLoggedPercent = -1
+    const progressSubscription = printerEventEmitter.addListener(
+      EVENT_PRINT_TRANSFER_PROGRESS,
+      (payload) => {
+        const sent = Number(payload?.sent) || 0
+        const total = Number(payload?.total) || 0
+        const percent = total > 0 ? Math.round((sent / total) * 100) : 0
+        onProgress(percent)
+        if (percent !== lastLoggedPercent) {
+          lastLoggedPercent = percent
+          logPrintEvent('transfer_progress', { sent, total, percent, ms: elapsed() })
+        }
+      },
+    )
+
+    let result
     try {
-      result = await ThermalPrinter.printReceipt(job)
-    } catch (error) {
-      throw new ThermalPrinterError(
-        PrinterReason.PRINT_FAILED,
-        error?.message || 'Printing failed.',
-        { code: error?.code },
-      )
+      try {
+        result = await ThermalPrinter.printReceipt(job)
+      } catch (error) {
+        throw new ThermalPrinterError(
+          PrinterReason.PRINT_FAILED,
+          error?.message || 'Printing failed.',
+          { code: error?.code },
+        )
+      }
+
+      if (result && result.success === false) {
+        throw new ThermalPrinterError(
+          PrinterReason.PRINT_FAILED,
+          'Printing failed.',
+          { results: result.results },
+        )
+      }
+    } finally {
+      progressSubscription.remove()
     }
 
-    if (result && result.success === false) {
-      throw new ThermalPrinterError(
-        PrinterReason.PRINT_FAILED,
-        'Printing failed.',
-        { results: result.results },
-      )
-    }
-  } finally {
-    progressSubscription.remove()
+    onProgress(100)
+    onStage('done')
+    logPrintEvent('print_success', { ms: elapsed() })
+    return result
+  } catch (error) {
+    logPrintEvent('print_error', {
+      reason: error?.reason || 'unknown',
+      message: error?.message || String(error),
+      code: error?.code,
+      ms: elapsed(),
+    })
+    throw error
   }
-
-  onProgress(100)
-  onStage('done')
-  return result
 }

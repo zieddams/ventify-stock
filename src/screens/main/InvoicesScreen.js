@@ -6,6 +6,7 @@ import {
   Modal,
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -28,6 +29,7 @@ import { resolveBrandName } from '../../utils/branding'
 import { shareInvoiceListDocument } from '../../utils/invoicePrint'
 import { captureReceiptImage } from '../../utils/thermalReceiptImage'
 import { fetchDocumentCompanyProfile, mergeCompanyInfo } from '../../utils/documentCompanyProfile'
+import { getPrintDiagnosticsText } from '../../utils/printDiagnostics'
 import {
   formatCurrency,
   formatDateTime,
@@ -328,6 +330,12 @@ export default function InvoicesScreen() {
 
             <Text style={s.filterHint}>{filterSummary}</Text>
             <Text style={s.printHint}>{thermal.stageLabel || t('invoices.printHint')}</Text>
+            <TouchableOpacity
+              style={s.diagnosticsLink}
+              onPress={() => Share.share({ message: getPrintDiagnosticsText() })}
+            >
+              <Text style={s.diagnosticsLinkText}>{t('invoices.thermalDiagnosticsAction')}</Text>
+            </TouchableOpacity>
           </View>
         )}
         ListEmptyComponent={(
@@ -526,6 +534,15 @@ const s = StyleSheet.create({
     marginBottom: 8,
     fontSize: 12,
     color: T.textMuted,
+  },
+  diagnosticsLink: {
+    marginBottom: 8,
+    alignSelf: 'flex-start',
+  },
+  diagnosticsLinkText: {
+    fontSize: 12,
+    color: T.primary,
+    textDecorationLine: 'underline',
   },
   row: {
     flexDirection: 'row',
