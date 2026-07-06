@@ -1,0 +1,33 @@
+diff --git a/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/printing/PrintConnection.kt b/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/printing/PrintConnection.kt
+index c8f5f58..4d859bc 100644
+--- a/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/printing/PrintConnection.kt
++++ b/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/printing/PrintConnection.kt
+@@ -165,9 +165,25 @@ class BluetoothPrintConnection(
+             val output = socket?.outputStream ?: throw IOException("Output stream not available")
+             val startMs = System.currentTimeMillis()
+ 
+-            // Send all data at once like LAN - let printer handle buffering
+-            output.write(data)
+-            output.flush()
++            // Chunked send: cheap SPP thermal printers (e.g. GOOJPRT PT-210) have a
++            // tiny RX buffer and no real flow control. Writing a large payload (a
++            // full-receipt raster image can easily be tens of KB) in one shot can
++            // overrun that buffer - the printer then stalls or drops the socket
++            // mid-transfer, which surfaces as a "send failed" / connection-lost
++            // error after an indefinite-feeling wait. Splitting into small chunks
++            // with a short pause between each lets the printer drain its buffer as
++            // we go. (CHUNK_SIZE_BYTES/CHUNK_DELAY_MS already existed above but
++            // were never actually wired into this send loop.)
++            var offset = 0
++            while (offset < data.size) {
++                val end = minOf(offset + CHUNK_SIZE_BYTES, data.size)
++                output.write(data, offset, end - offset)
++                output.flush()
++                offset = end
++                if (offset < data.size) {
++                    delay(CHUNK_DELAY_MS)
++                }
++            }
+ 
+             val elapsed = System.currentTimeMillis() - startMs
+             Log.d(TAG, "[Native:Android] BluetoothPrintConnection.send - SUCCESS: ${data.size} bytes to $macAddress in ${elapsed}ms")

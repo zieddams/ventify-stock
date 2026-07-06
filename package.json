@@ -37,7 +37,11 @@
     "sync:android-version": "node scripts/sync-android-version.cjs",
     "android": "npm run sync:android-version && expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "postinstall": "patch-package"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "patch-package": "^8.0.1"
+  }
 }
