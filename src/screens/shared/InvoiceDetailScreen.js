@@ -23,6 +23,7 @@ import { T, cardShadow } from '../../theme'
 import { resolveBrandName } from '../../utils/branding'
 import { shareInvoiceDocument } from '../../utils/invoicePrint'
 import { captureReceiptImage } from '../../utils/thermalReceiptImage'
+import { fetchDocumentCompanyProfile, mergeCompanyInfo } from '../../utils/documentCompanyProfile'
 import {
   formatCurrency,
   formatDateTime,
@@ -43,6 +44,7 @@ export default function InvoiceDetailScreen({ route }) {
   const [refreshing, setRefreshing] = useState(false)
   const [sharing, setSharing] = useState(false)
   const [customerDetail, setCustomerDetail] = useState(null)
+  const [companyProfile, setCompanyProfile] = useState(null)
 
   const load = useCallback(async (isRefresh = false) => {
     if (!id) return
@@ -90,6 +92,23 @@ export default function InvoiceDetailScreen({ route }) {
     }
   }, [invoice?.customer_id])
 
+  // Extra company identity data (siret, business-activity header note) that
+  // already exists via the web "Documents" settings page but isn't part of
+  // the Company model's own columns - see documentCompanyProfile.js for why
+  // this reuses that existing, already-deployed settings form instead of a
+  // new backend field.
+  useEffect(() => {
+    let cancelled = false
+
+    fetchDocumentCompanyProfile().then((profile) => {
+      if (!cancelled) setCompanyProfile(profile)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   if (loading && !invoice) {
     return (
       <View style={s.loadingWrap}>
@@ -101,13 +120,13 @@ export default function InvoiceDetailScreen({ route }) {
   const invoiceStatus = unwrapStatus(invoice?.status)
   const paymentStatus = unwrapStatus(invoice?.payment_status)
 
-  const companyInfo = {
+  const companyInfo = mergeCompanyInfo({
     companyName: resolveBrandName(user),
     companyAddress: user?.company?.address,
     companyPhone: user?.company?.phone,
     companyEmail: user?.company?.email,
     companyTaxId: user?.company?.tax_id,
-  }
+  }, companyProfile ?? {})
 
   const handlePrint = async () => {
     if (!invoice) return

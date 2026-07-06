@@ -4,19 +4,24 @@
 // Design goals (see docs/thermal-printer-integration-plan.md for the full
 // history/decisions):
 // - Single static printer profile (GOOJPRT PT-210, 58mm paper-width preset).
-// - The paired MAC address is chosen once and remembered (SecureStore),
-//   mirroring the token/user storage pattern already used in api.js.
 // - Every call surfaces a "stage" callback so the UI can show
 //   permission/scan/connect/print progress instead of one opaque spinner.
 // - Verbose native errors are normalized into a small set of reasons the UI
 //   can react to directly (permission missing, no paired printer, printer
 //   unreachable, print failed) instead of leaking raw ESC/POS/driver text.
+//
+// IMPORTANT (2026-07-06): this used to silently remember the chosen printer
+// address (SecureStore, then also an in-memory cache) and skip straight to
+// connecting on later prints. In practice that made the second print in a
+// row unreliable - the user reported prints failing/getting stuck after the
+// very first successful one. Per explicit user request, every print now
+// always re-scans for paired devices and always requires an explicit tap on
+// the printer (even when there is exactly one paired device) before
+// connecting, so every print gets a deliberate, fresh connection attempt
+// instead of reusing a potentially stale cached address.
 
 import { Linking, PermissionsAndroid, Platform } from 'react-native'
-import * as SecureStore from 'expo-secure-store'
 import { ThermalPrinter } from '@finan-me/react-native-thermal-printer'
-
-const PRINTER_ADDRESS_KEY = 'irtiwaa_thermal_printer_address'
 
 // The PT-210 is commonly marketed as "58mm paper" with a ~48mm/384-dot
 // printable width - that is normal for this printer class (paper roll width
@@ -33,7 +38,7 @@ export const PrinterReason = {
   PERMISSION_DENIED: 'permission_denied',
   PERMISSION_PERMANENTLY_DENIED: 'permission_permanently_denied',
   NO_PAIRED_PRINTER: 'no_paired_printer',
-  MULTIPLE_PAIRED_DEVICES: 'multiple_paired_devices',
+  SELECT_PRINTER: 'select_printer',
   CONNECTION_FAILED: 'connection_failed',
   PRINT_FAILED: 'print_failed',
   UNKNOWN: 'unknown',
@@ -96,53 +101,6 @@ export async function ensureBluetoothPermission() {
 
 export function openAppSettings() {
   return Linking.openSettings()
-}
-
-// Belt-and-suspenders cache: SecureStore should persist the chosen printer
-// across app restarts, but users reported the device-chooser/permission
-// flow re-appearing on every single print within the same app session -
-// which should be impossible if SecureStore round-trips reliably. Rather
-// than leave that unexplained, an in-memory cache is kept alongside it so
-// that, at minimum, every print after the first one in a given app session
-// reuses the resolved address instantly and never re-scans, regardless of
-// whether the underlying SecureStore read/write is behaving correctly on
-// this specific device/Android version.
-let inMemoryPrinterAddress = null
-
-export async function getStoredPrinterAddress() {
-  if (inMemoryPrinterAddress) {
-    return inMemoryPrinterAddress
-  }
-
-  try {
-    const stored = await SecureStore.getItemAsync(PRINTER_ADDRESS_KEY)
-    if (stored) {
-      inMemoryPrinterAddress = stored
-    }
-    return stored
-  } catch {
-    return null
-  }
-}
-
-export async function savePrinterAddress(macAddress) {
-  inMemoryPrinterAddress = macAddress
-
-  try {
-    await SecureStore.setItemAsync(PRINTER_ADDRESS_KEY, macAddress)
-  } catch {
-    // Ignore - the in-memory cache above still makes this session usable.
-  }
-}
-
-export async function clearStoredPrinterAddress() {
-  inMemoryPrinterAddress = null
-
-  try {
-    await SecureStore.deleteItemAsync(PRINTER_ADDRESS_KEY)
-  } catch {
-    // Ignore.
-  }
 }
 
 function toBluetoothAddress(macAddress) {
@@ -230,19 +188,11 @@ export function listPairedDevices() {
   })
 }
 
-// Resolves which printer address to use for this print job:
-// - a previously saved address is reused directly (the "static config"),
-// - otherwise, if exactly one paired device is available it is adopted and
-//   remembered automatically (no settings screen needed for the common case
-//   of a single dedicated printer),
-// - otherwise (0 or 2+ candidates) this throws so the UI can react (prompt
-//   the user to pair the printer, or show a lightweight inline chooser).
+// Always lists paired devices and requires an explicit tap on the printer
+// to use for this job - even when exactly one is paired - so every print
+// gets a deliberate, fresh connection attempt instead of silently reusing a
+// remembered address (see the file-level comment for why this changed).
 export async function resolvePrinterAddress() {
-  const stored = await getStoredPrinterAddress()
-  if (stored) {
-    return stored
-  }
-
   const paired = await listPairedDevices()
 
   if (paired.length === 0) {
@@ -252,14 +202,9 @@ export async function resolvePrinterAddress() {
     )
   }
 
-  if (paired.length === 1) {
-    await savePrinterAddress(paired[0].address)
-    return paired[0].address
-  }
-
   throw new ThermalPrinterError(
-    PrinterReason.MULTIPLE_PAIRED_DEVICES,
-    'Multiple paired Bluetooth devices found - choose which one is the printer.',
+    PrinterReason.SELECT_PRINTER,
+    'Select which paired device is the printer.',
     { devices: paired },
   )
 }

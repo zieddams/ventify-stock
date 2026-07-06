@@ -111,12 +111,25 @@ function fallbackText(value, key = 'documents.common.empty') {
   return cleanString(value) || t(key)
 }
 
-function CompanyHeader({ user, companyName, companyAddress, companyPhone, companyEmail, companyTaxId } = {}) {
+function CompanyHeader({
+  user,
+  companyName,
+  companyLegalName,
+  companyAddress,
+  companyPhone,
+  companyEmail,
+  companyTaxId,
+  companySiret,
+  headerNoteLines,
+} = {}) {
   const name = cleanString(companyName)
+  const legalName = cleanString(companyLegalName)
   const address = cleanString(companyAddress)
   const logoUrl = resolveCompanyLogoUrl(user)
   const contactBits = [cleanString(companyPhone), cleanString(companyEmail)].filter(Boolean)
   const taxId = cleanString(companyTaxId)
+  const siret = cleanString(companySiret)
+  const noteLines = Array.isArray(headerNoteLines) ? headerNoteLines.filter(Boolean) : []
 
   return (
     <>
@@ -124,10 +137,26 @@ function CompanyHeader({ user, companyName, companyAddress, companyPhone, compan
         <Image source={{ uri: logoUrl }} style={st.logo} resizeMode="contain" />
       )}
       {!!name && <Text style={[st.center, st.bold, st.brand]}>{name}</Text>}
+      {/* Freeform business-activity/tagline lines (e.g. "Vente Gros eaux et
+          boisson gazeuse..."), configured via the existing web "Documents"
+          settings page (Config > Documents > Header note) - no new backend
+          field needed, this is the same header_note the old PDF template
+          already supports. */}
+      {noteLines.map((line, idx) => (
+        <Text key={idx} style={st.center}>{line}</Text>
+      ))}
+      {!!legalName && legalName.toLowerCase() !== name.toLowerCase() && (
+        <Text style={st.center}>{legalName}</Text>
+      )}
       {!!address && <Text style={st.center}>{address}</Text>}
       {!!contactBits.length && <Text style={st.center}>{contactBits.join(' - ')}</Text>}
-      {!!taxId && (
-        <Text style={[st.center, st.badge]}>{t('documents.invoice.fields.taxId')} : {taxId}</Text>
+      {(!!taxId || !!siret) && (
+        <Text style={[st.center, st.badge]}>
+          {[
+            taxId ? `${t('documents.invoice.fields.taxId')} : ${taxId}` : '',
+            siret ? `SIRET : ${siret}` : '',
+          ].filter(Boolean).join('   -   ')}
+        </Text>
       )}
     </>
   )
@@ -270,30 +299,30 @@ const st = StyleSheet.create({
   center: {
     textAlign: 'center',
     color: '#000000',
-    fontSize: 18,
+    fontSize: 19,
     marginTop: 4,
   },
   bold: {
     fontWeight: '800',
   },
   brand: {
-    fontSize: 25,
+    fontSize: 26,
   },
   badge: {
-    fontSize: 16,
+    fontSize: 17,
     marginTop: 6,
   },
   docTitle: {
-    fontSize: 23,
+    fontSize: 24,
     marginTop: 8,
   },
   docNumber: {
-    fontSize: 19,
+    fontSize: 20,
     marginTop: 3,
   },
   line: {
     color: '#000000',
-    fontSize: 17,
+    fontSize: 18,
   },
   fieldRow: {
     flexDirection: 'row',
@@ -319,10 +348,10 @@ const st = StyleSheet.create({
   },
   cell: {
     color: '#000000',
-    fontSize: 17,
+    fontSize: 18,
   },
   totalBig: {
-    fontSize: 23,
+    fontSize: 24,
   },
   centerText: {
     textAlign: 'center',

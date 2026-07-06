@@ -2,8 +2,13 @@
 // InvoicesScreen for the real "Thermique" action. Centralizes: stage
 // tracking (permission/locating/connecting/printing), the
 // permission-denied / no-paired-printer / choose-a-printer error reactions,
-// and the inline multi-device chooser - so both screens behave identically
-// instead of re-implementing the same retry logic twice.
+// and the inline printer-selection chooser - so both screens behave
+// identically instead of re-implementing the same retry logic twice.
+//
+// The chooser now appears on every single print (not just when multiple
+// devices are paired) - the printer address is never remembered/cached
+// between prints anymore, by explicit user request, so every print always
+// re-scans and requires an explicit tap to establish a fresh connection.
 
 import { useCallback, useState } from 'react'
 import { Alert } from 'react-native'
@@ -12,7 +17,6 @@ import {
   ThermalPrinterError,
   openAppSettings,
   printThermalDocument,
-  savePrinterAddress,
 } from '../services/thermalPrinter'
 
 // `tScope` maps a short key ('thermalStagePermission', 'thermalPermissionTitle', ...)
@@ -64,7 +68,7 @@ export function useThermalPrint(tScope) {
           return false
         }
 
-        if (error.reason === PrinterReason.MULTIPLE_PAIRED_DEVICES) {
+        if (error.reason === PrinterReason.SELECT_PRINTER) {
           setPendingDocumentBuilder(() => documentBuilder)
           setChooserDevices(error.devices ?? [])
           return false
@@ -84,7 +88,6 @@ export function useThermalPrint(tScope) {
 
   const chooseDevice = useCallback(async (address) => {
     setChooserDevices(null)
-    await savePrinterAddress(address)
     const builder = pendingDocumentBuilder
     setPendingDocumentBuilder(null)
     if (builder) {

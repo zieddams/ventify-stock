@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -26,6 +26,7 @@ import { T, cardShadow } from '../../theme'
 import { resolveBrandName } from '../../utils/branding'
 import { shareInvoiceListDocument } from '../../utils/invoicePrint'
 import { captureReceiptImage } from '../../utils/thermalReceiptImage'
+import { fetchDocumentCompanyProfile, mergeCompanyInfo } from '../../utils/documentCompanyProfile'
 import {
   formatCurrency,
   formatDateTime,
@@ -58,6 +59,22 @@ export default function InvoicesScreen() {
   const thermal = useThermalPrint((key) => t(`invoices.${key}`))
   const printableRef = useRef(null)
   const [sharing, setSharing] = useState(false)
+  const [companyProfile, setCompanyProfile] = useState(null)
+
+  // Extra company identity data (siret, business-activity header note) that
+  // already exists via the web "Documents" settings page but isn't part of
+  // the Company model's own columns - see documentCompanyProfile.js.
+  useEffect(() => {
+    let cancelled = false
+
+    fetchDocumentCompanyProfile().then((profile) => {
+      if (!cancelled) setCompanyProfile(profile)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
   const hasGlobalInvoiceAccess = canManageAllCustomers()
   const periodOptions = [
     { value: 'today', label: t('invoices.periods.today') },
@@ -140,13 +157,13 @@ export default function InvoicesScreen() {
     return parts.join(' | ')
   }, [hasGlobalInvoiceAccess, period, periodOptions, search, selectedRep, selectedRepId, t, user?.name])
 
-  const companyInfo = {
+  const companyInfo = mergeCompanyInfo({
     companyName: resolveBrandName(user),
     companyAddress: user?.company?.address,
     companyPhone: user?.company?.phone,
     companyEmail: user?.company?.email,
     companyTaxId: user?.company?.tax_id,
-  }
+  }, companyProfile ?? {})
 
   const handlePrintList = async () => {
     if (filtered.length === 0) {
