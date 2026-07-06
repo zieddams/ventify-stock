@@ -9,14 +9,36 @@
 // already exists and is already deployed - no API/backend change needed.
 //
 // Precedence: the Company model's own fields (user.company.*) win when
-// non-empty (they are the "real" record), the settings-based profile is
-// only a fallback/extra source for fields the Company model doesn't have
-// at all (legal_name, siret) or hasn't been filled in yet.
+// non-empty (they are the "real" record), the settings-based profile
+// (web Config > Documents form) wins next when filled in, and this app's
+// own hardcoded IRTIWAA_FALLBACK is the last resort so the receipt still
+// shows correct data even before/without anyone filling in that web form.
+//
+// IRTIWAA_FALLBACK values below were transcribed directly from the real
+// paper "Facture" invoice pad (Sté El Irtiwaa, Menzel Abderrahmen -
+// Bizerte) and confirmed correct by the account owner on 2026-07-06.
+// This app is built specifically for this one company, so baking its own
+// real data in as the ultimate fallback is safe and intentional - it is
+// NOT a generic multi-tenant default.
 
 import api from '../services/api'
 
 const DOCUMENT_COMPANY_PROFILE_SETTING_KEY = 'documents.company_profile'
 const DOCUMENT_INVOICE_PRINTING_SETTING_KEY = 'documents.invoice_printing'
+
+const IRTIWAA_FALLBACK = {
+  legalName: 'Sté El Irtiwaa',
+  // Tunisia uses "Matricule Fiscal", not the French "SIRET" system - this
+  // is the one and only tax/business identifier that belongs on a
+  // Tunisian invoice, and it is already rendered under the correctly
+  // translated "Matricule fiscal" label (documents.invoice.fields.taxId
+  // in fr-TN.js), so no separate "SIRET" line is ever populated for this
+  // company.
+  taxId: '1513390/N',
+  phone: '99.217.512',
+  address: 'Menzel Abderrahmen - Bizerte',
+  headerNote: 'Vente Gros eaux et boisson gazeuse et produits alimentaire',
+}
 
 function cleanText(value) {
   return String(value ?? '').trim()
@@ -66,24 +88,28 @@ export async function fetchDocumentCompanyProfile() {
     const profile = normalizeCompanyProfile(byKey[DOCUMENT_COMPANY_PROFILE_SETTING_KEY])
     const invoicePrinting = normalizeInvoicePrinting(byKey[DOCUMENT_INVOICE_PRINTING_SETTING_KEY])
 
+    const headerNoteLines = splitMultilineText(invoicePrinting.header_note).slice(0, 2)
+
     return {
-      companyLegalName: profile.legal_name,
+      companyLegalName: profile.legal_name || IRTIWAA_FALLBACK.legalName,
       companySiret: profile.siret,
-      companyTaxIdFallback: profile.tax_id,
-      companyPhoneFallback: profile.phone,
+      companyTaxIdFallback: profile.tax_id || IRTIWAA_FALLBACK.taxId,
+      companyPhoneFallback: profile.phone || IRTIWAA_FALLBACK.phone,
       companyEmailFallback: profile.email,
-      companyAddressFallback: profile.address,
-      headerNoteLines: splitMultilineText(invoicePrinting.header_note).slice(0, 2),
+      companyAddressFallback: profile.address || IRTIWAA_FALLBACK.address,
+      headerNoteLines: headerNoteLines.length ? headerNoteLines : [IRTIWAA_FALLBACK.headerNote],
     }
   } catch {
+    // Settings fetch failed entirely (offline, auth hiccup, etc.) - still
+    // show the real, confirmed company data rather than a blank header.
     return {
-      companyLegalName: '',
+      companyLegalName: IRTIWAA_FALLBACK.legalName,
       companySiret: '',
-      companyTaxIdFallback: '',
-      companyPhoneFallback: '',
+      companyTaxIdFallback: IRTIWAA_FALLBACK.taxId,
+      companyPhoneFallback: IRTIWAA_FALLBACK.phone,
       companyEmailFallback: '',
-      companyAddressFallback: '',
-      headerNoteLines: [],
+      companyAddressFallback: IRTIWAA_FALLBACK.address,
+      headerNoteLines: [IRTIWAA_FALLBACK.headerNote],
     }
   }
 }
