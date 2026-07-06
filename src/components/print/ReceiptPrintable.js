@@ -287,7 +287,7 @@ const st = StyleSheet.create({
   page: {
     width: RECEIPT_IMAGE_WIDTH_PX,
     backgroundColor: '#ffffff',
-    paddingHorizontal: 16,
+    paddingHorizontal: 6,
     paddingVertical: 20,
   },
   logo: {
@@ -299,30 +299,30 @@ const st = StyleSheet.create({
   center: {
     textAlign: 'center',
     color: '#000000',
-    fontSize: 19,
+    fontSize: 21,
     marginTop: 4,
   },
   bold: {
     fontWeight: '800',
   },
   brand: {
-    fontSize: 26,
+    fontSize: 28,
   },
   badge: {
-    fontSize: 17,
+    fontSize: 19,
     marginTop: 6,
   },
   docTitle: {
-    fontSize: 24,
+    fontSize: 26,
     marginTop: 8,
   },
   docNumber: {
-    fontSize: 20,
+    fontSize: 22,
     marginTop: 3,
   },
   line: {
     color: '#000000',
-    fontSize: 18,
+    fontSize: 20,
   },
   fieldRow: {
     flexDirection: 'row',
@@ -348,10 +348,10 @@ const st = StyleSheet.create({
   },
   cell: {
     color: '#000000',
-    fontSize: 18,
+    fontSize: 20,
   },
   totalBig: {
-    fontSize: 24,
+    fontSize: 26,
   },
   centerText: {
     textAlign: 'center',
@@ -367,7 +367,7 @@ const st = StyleSheet.create({
   },
   listItemMeta: {
     marginTop: 3,
-    fontSize: 14,
+    fontSize: 15,
     color: '#333333',
   },
 })

@@ -31,7 +31,7 @@ import { ThermalPrinter } from '@finan-me/react-native-thermal-printer'
 export const PT210_PRINTER_OPTIONS = {
   paperWidthMm: 58,
   encoding: 'UTF8',
-  marginMm: 1,
+  marginMm: 0,
 }
 
 export const PrinterReason = {
