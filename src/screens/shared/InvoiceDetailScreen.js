@@ -14,6 +14,7 @@ import { useFocusEffect } from '@react-navigation/native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import StatusChip from '../../components/StatusChip'
 import { InvoiceReceiptPrintable } from '../../components/print/ReceiptPrintable'
+import ThermalPrintProgressModal from '../../components/print/ThermalPrintProgressModal'
 import { useAuth } from '../../contexts/AuthContext'
 import { useI18n } from '../../contexts/I18nContext'
 import { useTracking } from '../../contexts/TrackingContext'
@@ -276,6 +277,14 @@ export default function InvoiceDetailScreen({ route }) {
         </View>
       </View>
     </ScrollView>
+
+      <ThermalPrintProgressModal
+        visible={thermal.printing}
+        title={t('invoiceDetail.thermalProgressTitle')}
+        stage={thermal.stage}
+        stageLabel={thermal.stageLabel}
+        progressPercent={thermal.progressPercent}
+      />
 
       <Modal visible={!!thermal.chooserDevices?.length} transparent animationType="fade" onRequestClose={thermal.dismissChooser}>
         <View style={s.chooserBackdrop}>

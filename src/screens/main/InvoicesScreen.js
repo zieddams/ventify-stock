@@ -17,6 +17,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons'
 import PageHeader from '../../components/PageHeader'
 import StatusChip from '../../components/StatusChip'
 import { InvoiceListReceiptPrintable } from '../../components/print/ReceiptPrintable'
+import ThermalPrintProgressModal from '../../components/print/ThermalPrintProgressModal'
 import { useAuth } from '../../contexts/AuthContext'
 import { useI18n } from '../../contexts/I18nContext'
 import { useTracking } from '../../contexts/TrackingContext'
@@ -392,6 +393,14 @@ export default function InvoicesScreen() {
           </ScrollView>
         </View>
       </Modal>
+
+      <ThermalPrintProgressModal
+        visible={thermal.printing}
+        title={t('invoices.thermalProgressTitle')}
+        stage={thermal.stage}
+        stageLabel={thermal.stageLabel}
+        progressPercent={thermal.progressPercent}
+      />
 
       <Modal visible={!!thermal.chooserDevices?.length} transparent animationType="fade" onRequestClose={thermal.dismissChooser}>
         <View style={s.chooserBackdrop}>

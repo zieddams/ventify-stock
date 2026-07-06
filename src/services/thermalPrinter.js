@@ -20,8 +20,16 @@
 // connecting, so every print gets a deliberate, fresh connection attempt
 // instead of reusing a potentially stale cached address.
 
-import { Linking, PermissionsAndroid, Platform } from 'react-native'
-import { ThermalPrinter } from '@finan-me/react-native-thermal-printer'
+import { Linking, NativeEventEmitter, NativeModules, PermissionsAndroid, Platform } from 'react-native'
+import { BluetoothStateManager, ThermalPrinter } from '@finan-me/react-native-thermal-printer'
+
+// Custom event emitted by our own native patch (see
+// patches/@finan-me+react-native-thermal-printer+*.patch) from inside the
+// chunked Bluetooth send loop, so the UI can show a real transfer
+// percentage instead of one opaque "printing..." spinner for the whole
+// (potentially tens-of-KB) receipt image.
+const EVENT_PRINT_TRANSFER_PROGRESS = 'EVENT_PRINT_TRANSFER_PROGRESS'
+const printerEventEmitter = new NativeEventEmitter(NativeModules.RNThermalPrinter)
 
 // The PT-210 is commonly marketed as "58mm paper" with a ~48mm/384-dot
 // printable width - that is normal for this printer class (paper roll width
@@ -37,6 +45,7 @@ export const PT210_PRINTER_OPTIONS = {
 export const PrinterReason = {
   PERMISSION_DENIED: 'permission_denied',
   PERMISSION_PERMANENTLY_DENIED: 'permission_permanently_denied',
+  BLUETOOTH_DISABLED: 'bluetooth_disabled',
   NO_PAIRED_PRINTER: 'no_paired_printer',
   SELECT_PRINTER: 'select_printer',
   CONNECTION_FAILED: 'connection_failed',
@@ -96,6 +105,48 @@ export async function ensureBluetoothPermission() {
   throw new ThermalPrinterError(
     permanentlyDenied ? PrinterReason.PERMISSION_PERMANENTLY_DENIED : PrinterReason.PERMISSION_DENIED,
     'Bluetooth permission is required to print.',
+  )
+}
+
+// Verifies the Bluetooth radio itself is actually on (separate from app
+// permission - a phone can grant the permission once and then have
+// Bluetooth toggled off later). On Android, BluetoothStateManager.enable()
+// shows the system "Turn on Bluetooth?" dialog directly, so a user who
+// turned it off between prints gets prompted right here instead of a
+// confusing downstream "connection failed" error.
+export async function ensureBluetoothEnabled() {
+  if (Platform.OS !== 'android') {
+    return true
+  }
+
+  let state
+  try {
+    state = await BluetoothStateManager.getState()
+  } catch {
+    // If the state check itself fails, don't block printing on it - let the
+    // real connect attempt surface the actual problem instead.
+    return true
+  }
+
+  if (state === 'PoweredOn') {
+    return true
+  }
+
+  try {
+    await BluetoothStateManager.enable()
+    state = await BluetoothStateManager.getState()
+  } catch {
+    // enable() can throw if the user dismisses the system dialog - fall
+    // through to the state re-check below either way.
+  }
+
+  if (state === 'PoweredOn') {
+    return true
+  }
+
+  throw new ThermalPrinterError(
+    PrinterReason.BLUETOOTH_DISABLED,
+    'Bluetooth is turned off. Turn it on to print.',
   )
 }
 
@@ -214,10 +265,16 @@ export async function resolvePrinterAddress() {
 // capturing a receipt image via react-native-view-shot, see
 // src/utils/thermalReceiptImage.js) the @finan-me document content array.
 // `onStage` is called with one of:
-// 'permission' | 'locating' | 'connecting' | 'rendering' | 'printing' | 'done'
-export async function printThermalDocument(documentBuilder, { onStage = noop, macAddress } = {}) {
+// 'permission' | 'bluetooth' | 'locating' | 'connecting' | 'rendering' | 'printing' | 'done'
+// `onProgress(percent)` is called with a 0-100 whole-number transfer
+// percentage while the receipt image is actually being sent (stage
+// 'printing') - see the native EVENT_PRINT_TRANSFER_PROGRESS wiring below.
+export async function printThermalDocument(documentBuilder, { onStage = noop, onProgress = noop, macAddress } = {}) {
   onStage('permission')
   await ensureBluetoothPermission()
+
+  onStage('bluetooth')
+  await ensureBluetoothEnabled()
 
   onStage('locating')
   const address = macAddress || await resolvePrinterAddress()
@@ -271,30 +328,48 @@ export async function printThermalDocument(documentBuilder, { onStage = noop, ma
   const document = await documentBuilder()
 
   onStage('printing')
+  onProgress(0)
   const job = {
     printers: [{ address: btAddress, options: PT210_PRINTER_OPTIONS }],
     documents: [document],
   }
 
+  // Listen for our own patched-in native progress events for the duration of
+  // this transfer only - always removed in `finally` so we never leak a
+  // listener across print attempts.
+  const progressSubscription = printerEventEmitter.addListener(
+    EVENT_PRINT_TRANSFER_PROGRESS,
+    (payload) => {
+      const sent = Number(payload?.sent) || 0
+      const total = Number(payload?.total) || 0
+      onProgress(total > 0 ? Math.round((sent / total) * 100) : 0)
+    },
+  )
+
   let result
   try {
-    result = await ThermalPrinter.printReceipt(job)
-  } catch (error) {
-    throw new ThermalPrinterError(
-      PrinterReason.PRINT_FAILED,
-      error?.message || 'Printing failed.',
-      { code: error?.code },
-    )
+    try {
+      result = await ThermalPrinter.printReceipt(job)
+    } catch (error) {
+      throw new ThermalPrinterError(
+        PrinterReason.PRINT_FAILED,
+        error?.message || 'Printing failed.',
+        { code: error?.code },
+      )
+    }
+
+    if (result && result.success === false) {
+      throw new ThermalPrinterError(
+        PrinterReason.PRINT_FAILED,
+        'Printing failed.',
+        { results: result.results },
+      )
+    }
+  } finally {
+    progressSubscription.remove()
   }
 
-  if (result && result.success === false) {
-    throw new ThermalPrinterError(
-      PrinterReason.PRINT_FAILED,
-      'Printing failed.',
-      { results: result.results },
-    )
-  }
-
+  onProgress(100)
   onStage('done')
   return result
 }

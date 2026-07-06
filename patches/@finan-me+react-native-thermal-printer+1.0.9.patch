@@ -1,14 +1,130 @@
+diff --git a/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/RNThermalPrinterModule.kt b/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/RNThermalPrinterModule.kt
+index 96a8e90..15e20ac 100644
+--- a/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/RNThermalPrinterModule.kt
++++ b/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/RNThermalPrinterModule.kt
+@@ -10,6 +10,7 @@ import com.facebook.react.bridge.ReactMethod
+ import com.facebook.react.bridge.ReadableArray
+ import com.facebook.react.bridge.ReadableMap
+ import com.facebook.react.module.annotations.ReactModule
++import com.facebook.react.modules.core.DeviceEventManagerModule
+ import com.rnthermalprinter.connection.ConnectionTester
+ import com.rnthermalprinter.discovery.BluetoothDiscovery
+ import com.rnthermalprinter.printing.PrintingModule
+@@ -31,6 +32,25 @@ class RNThermalPrinterModule(reactContext: ReactApplicationContext) :
+     companion object {
+         const val NAME = "RNThermalPrinter"
+         private const val TAG = "RNThermalPrinter"
++        const val EVENT_PRINT_TRANSFER_PROGRESS = "EVENT_PRINT_TRANSFER_PROGRESS"
++    }
++
++    // Emits a lightweight progress event to JS so the app can show a real
++    // percentage while a (potentially large) receipt image transfers, instead
++    // of one opaque "printing..." spinner for the whole job.
++    private fun emitTransferProgress(address: String, sent: Int, total: Int) {
++        try {
++            val params = Arguments.createMap()
++            params.putString("address", address)
++            params.putInt("sent", sent)
++            params.putInt("total", total)
++            reactApplicationContext
++                .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
++                .emit(EVENT_PRINT_TRANSFER_PROGRESS, params)
++        } catch (e: Exception) {
++            // Never let a progress-event emission failure break the actual print job.
++            Log.w(TAG, "[Native:Android] emitTransferProgress WARN: ${e.message}")
++        }
+     }
+ 
+     // Module instances
+@@ -126,13 +146,23 @@ class RNThermalPrinterModule(reactContext: ReactApplicationContext) :
+         }
+ 
+         // ===== EXECUTE PRINT JOB =====
++        // Throttle to whole-percent steps so a ~100KB image (hundreds of
++        // 512-byte chunks) doesn't flood the JS bridge with events.
++        var lastReportedPercent = -1
+         moduleScope.launch {
+             try {
+                 val result = printingModule.printRaw(
+                     address = address,
+                     data = bytes,
+                     keepAlive = keepAlive,
+-                    timeoutMs = timeoutMs
++                    timeoutMs = timeoutMs,
++                    onProgress = { sent, total ->
++                        val percent = if (total > 0) (sent * 100 / total) else 100
++                        if (percent != lastReportedPercent) {
++                            lastReportedPercent = percent
++                            emitTransferProgress(address, sent, total)
++                        }
++                    }
+                 )
+ 
+                 Log.d(TAG, "[Native:Android] printRaw SUCCESS")
+@@ -177,6 +207,9 @@ class RNThermalPrinterModule(reactContext: ReactApplicationContext) :
+         val alignNum = options?.getInt("alignNum") ?: 0  // 0=left, 1=center, 2=right
+ 
+         // ===== EXECUTE PRINT JOB =====
++        // Throttle to whole-percent steps so a ~100KB image (hundreds of
++        // 512-byte chunks) doesn't flood the JS bridge with events.
++        var lastReportedPercent = -1
+         moduleScope.launch {
+             try {
+                 val result = printingModule.printImage(
+@@ -188,7 +221,14 @@ class RNThermalPrinterModule(reactContext: ReactApplicationContext) :
+                     timeoutMs = timeoutMs,
+                     isCutPaper = isCutPaper,
+                     marginMm = marginMm,
+-                    align = alignNum
++                    align = alignNum,
++                    onProgress = { sent, total ->
++                        val percent = if (total > 0) (sent * 100 / total) else 100
++                        if (percent != lastReportedPercent) {
++                            lastReportedPercent = percent
++                            emitTransferProgress(address, sent, total)
++                        }
++                    }
+                 )
+ 
+                 Log.d(TAG, "[Native:Android] printImage SUCCESS")
 diff --git a/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/printing/PrintConnection.kt b/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/printing/PrintConnection.kt
-index c8f5f58..4d859bc 100644
+index c8f5f58..6402153 100644
 --- a/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/printing/PrintConnection.kt
 +++ b/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/printing/PrintConnection.kt
-@@ -165,9 +165,25 @@ class BluetoothPrintConnection(
+@@ -30,10 +30,13 @@ interface PrintConnection {
+     /**
+      * Send data to printer
+      * @param data Raw bytes to send
++     * @param onProgress optional callback invoked with (bytesSent, totalBytes) as the
++     *   transfer proceeds - only meaningfully reported by the chunked Bluetooth Classic
++     *   path today, other transports just report 0/total then total/total.
+      * @throws IOException if send fails
+      */
+     @Throws(IOException::class, PrintError::class)
+-    suspend fun send(data: ByteArray)
++    suspend fun send(data: ByteArray, onProgress: ((sent: Int, total: Int) -> Unit)? = null)
+ 
+     /**
+      * Close the connection
+@@ -156,7 +159,7 @@ class BluetoothPrintConnection(
+         false
+     }
+ 
+-    override suspend fun send(data: ByteArray): Unit = withContext(Dispatchers.IO) {
++    override suspend fun send(data: ByteArray, onProgress: ((sent: Int, total: Int) -> Unit)?): Unit = withContext(Dispatchers.IO) {
+         if (!isAlive()) {
+             throw IOException("Not connected to printer")
+         }
+@@ -164,10 +167,28 @@ class BluetoothPrintConnection(
+         try {
              val output = socket?.outputStream ?: throw IOException("Output stream not available")
              val startMs = System.currentTimeMillis()
- 
+-
 -            // Send all data at once like LAN - let printer handle buffering
 -            output.write(data)
 -            output.flush()
++            onProgress?.invoke(0, data.size)
++
 +            // Chunked send: cheap SPP thermal printers (e.g. GOOJPRT PT-210) have a
 +            // tiny RX buffer and no real flow control. Writing a large payload (a
 +            // full-receipt raster image can easily be tens of KB) in one shot can
@@ -24,6 +140,7 @@ index c8f5f58..4d859bc 100644
 +                output.write(data, offset, end - offset)
 +                output.flush()
 +                offset = end
++                onProgress?.invoke(offset, data.size)
 +                if (offset < data.size) {
 +                    delay(CHUNK_DELAY_MS)
 +                }
@@ -31,3 +148,88 @@ index c8f5f58..4d859bc 100644
  
              val elapsed = System.currentTimeMillis() - startMs
              Log.d(TAG, "[Native:Android] BluetoothPrintConnection.send - SUCCESS: ${data.size} bytes to $macAddress in ${elapsed}ms")
+@@ -285,15 +306,17 @@ class LANPrintConnection(
+         false
+     }
+ 
+-    override suspend fun send(data: ByteArray): Unit = withContext(Dispatchers.IO) {
++    override suspend fun send(data: ByteArray, onProgress: ((sent: Int, total: Int) -> Unit)?): Unit = withContext(Dispatchers.IO) {
+         if (!isAlive()) {
+             throw IOException("Not connected to printer")
+         }
+ 
+         try {
++            onProgress?.invoke(0, data.size)
+             socket?.getOutputStream()?.let { output ->
+                 output.write(data)
+                 output.flush()
++                onProgress?.invoke(data.size, data.size)
+                 Log.d(TAG, "[Native:Android] LANPrintConnection.send - SUCCESS: ${data.size} bytes to $host:$port")
+             } ?: throw IOException("Output stream not available")
+         } catch (e: IOException) {
+@@ -452,10 +475,11 @@ class BLEPrintConnection(
+         false
+     }
+ 
+-    override suspend fun send(data: ByteArray): Unit = withContext(Dispatchers.IO) {
++    override suspend fun send(data: ByteArray, onProgress: ((sent: Int, total: Int) -> Unit)?): Unit = withContext(Dispatchers.IO) {
+         if (!isAlive()) {
+             throw IOException("Not connected to BLE printer")
+         }
++        onProgress?.invoke(0, data.size)
+ 
+         val gatt = bluetoothGatt ?: throw IOException("GATT not available")
+         val characteristic = writeCharacteristic ?: throw IOException("Write characteristic not available")
+@@ -478,6 +502,7 @@ class BLEPrintConnection(
+             }
+ 
+             offset += chunkSize
++            onProgress?.invoke(minOf(offset, data.size), data.size)
+             // Small delay between chunks to avoid overwhelming the device
+             if (offset < data.size) {
+                 delay(50)
+diff --git a/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/printing/PrintingModule.kt b/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/printing/PrintingModule.kt
+index 6aa48f5..6cb9538 100644
+--- a/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/printing/PrintingModule.kt
++++ b/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/printing/PrintingModule.kt
+@@ -63,7 +63,8 @@ class PrintingModule {
+         address: String,
+         data: ByteArray,
+         keepAlive: Boolean = false,
+-        timeoutMs: Long = DEFAULT_TIMEOUT_MS
++        timeoutMs: Long = DEFAULT_TIMEOUT_MS,
++        onProgress: ((sent: Int, total: Int) -> Unit)? = null
+     ): PrintResult = withContext(Dispatchers.IO) {
+         Log.d(TAG, "[Native:Android] printRaw START: addr=$address, size=${data.size}b, keepAlive=$keepAlive")
+ 
+@@ -86,7 +87,7 @@ class PrintingModule {
+             // ===== STEP 2: SEND DATA TO PRINTER =====
+             // Send the ESC/POS commands through the connection
+             try {
+-                connectionEntry.connection.send(data)
++                connectionEntry.connection.send(data, onProgress)
+                 connectionEntry.lastUsed = System.currentTimeMillis()
+                 Log.d(TAG, "[Native:Android] printRaw SUCCESS: ${data.size} bytes sent")
+ 
+@@ -147,7 +148,8 @@ class PrintingModule {
+         timeoutMs: Long = DEFAULT_TIMEOUT_MS,
+         isCutPaper: Boolean = false,
+         marginMm: Double = 0.0,
+-        align: Int = 0  // 0=left, 1=center, 2=right
++        align: Int = 0,  // 0=left, 1=center, 2=right
++        onProgress: ((sent: Int, total: Int) -> Unit)? = null
+     ): PrintResult = withContext(Dispatchers.IO) {
+         Log.d(TAG, "[Native:Android] printImage START: path=$imagePath, width=${widthPx}px, paperWidth=${paperWidthMm}mm, margin=${marginMm}mm, align=$align")
+ 
+@@ -184,8 +186,9 @@ class PrintingModule {
+             Log.d(TAG, "[Native:Android] printImage PROCESSED: ${rasterData.size} bytes ready")
+ 
+             // ===== STEP 3: SEND TO PRINTER =====
+-            // Send all data in one call - connection layer will automatically chunk into 512-byte packets
+-            printRaw(address, rasterData, keepAlive, timeoutMs)
++            // Send in chunks (see BluetoothPrintConnection.send) - onProgress lets the
++            // JS side show a real percentage while a large receipt image transfers.
++            printRaw(address, rasterData, keepAlive, timeoutMs, onProgress)
+         } catch (e: PrintError) {
+             Log.e(TAG, "[Native:Android] printImage ERROR: ${e.message}", e)
+             PrintResult(false, e)

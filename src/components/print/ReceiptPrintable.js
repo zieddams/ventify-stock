@@ -82,21 +82,14 @@ function formatDateTime(value) {
   return Number.isNaN(date.getTime()) ? '--' : DATE_TIME_FORMATTER.format(date)
 }
 
-const INVOICE_STATUS_LABELS_FR = {
-  draft: 'Brouillon',
-  sent: 'Envoyée',
-  paid: 'Payée',
-  cancelled: 'Annulée',
-}
-
+// Only payment status (Payee / Partielle / Impayee) is ever printed on the
+// receipt - the invoice workflow status (Brouillon/Envoyee/Annulee) is an
+// internal/app concept and never belongs on a document handed directly to
+// the customer, so it is intentionally not rendered here at all.
 const PAYMENT_STATUS_LABELS_FR = {
   unpaid: 'Impayée',
   partial: 'Partielle',
   paid: 'Payée',
-}
-
-function invoiceStatusLabel(status) {
-  return INVOICE_STATUS_LABELS_FR[unwrapStatus(status)] ?? INVOICE_STATUS_LABELS_FR.draft
 }
 
 function paymentStatusLabel(status) {
@@ -190,7 +183,6 @@ export const InvoiceReceiptPrintable = forwardRef(function InvoiceReceiptPrintab
   { invoice, companyInfo, customerCin, user },
   ref,
 ) {
-  const invoiceStatus = invoiceStatusLabel(unwrapStatus(invoice?.status))
   const paymentStatus = paymentStatusLabel(unwrapStatus(invoice?.payment_status))
   const lines = Array.isArray(invoice?.lines) ? invoice.lines : []
 
@@ -200,7 +192,7 @@ export const InvoiceReceiptPrintable = forwardRef(function InvoiceReceiptPrintab
       <Separator />
       <Text style={[st.center, st.bold, st.docTitle]}>{t('documents.invoice.titleFallback')}</Text>
       <Text style={[st.center, st.bold, st.docNumber]}>{t('documents.invoice.numberPrefix')} {invoice?.number || '-'}</Text>
-      <Text style={st.center}>{invoiceStatus} - {paymentStatus}</Text>
+      <Text style={st.center}>{paymentStatus}</Text>
       <Separator />
       <FieldRow label={t('documents.invoice.fields.name')} value={fallbackText(invoice?.customer_name)} />
       <FieldRow label={t('documents.invoice.fields.phone')} value={invoice?.customer_phone} />
@@ -299,30 +291,30 @@ const st = StyleSheet.create({
   center: {
     textAlign: 'center',
     color: '#000000',
-    fontSize: 21,
+    fontSize: 22,
     marginTop: 4,
   },
   bold: {
     fontWeight: '800',
   },
   brand: {
-    fontSize: 28,
+    fontSize: 30,
   },
   badge: {
-    fontSize: 19,
+    fontSize: 20,
     marginTop: 6,
   },
   docTitle: {
-    fontSize: 26,
+    fontSize: 28,
     marginTop: 8,
   },
   docNumber: {
-    fontSize: 22,
+    fontSize: 23,
     marginTop: 3,
   },
   line: {
     color: '#000000',
-    fontSize: 20,
+    fontSize: 21,
   },
   fieldRow: {
     flexDirection: 'row',
@@ -348,10 +340,10 @@ const st = StyleSheet.create({
   },
   cell: {
     color: '#000000',
-    fontSize: 20,
+    fontSize: 21,
   },
   totalBig: {
-    fontSize: 26,
+    fontSize: 28,
   },
   centerText: {
     textAlign: 'center',
@@ -367,7 +359,7 @@ const st = StyleSheet.create({
   },
   listItemMeta: {
     marginTop: 3,
-    fontSize: 15,
+    fontSize: 16,
     color: '#333333',
   },
 })

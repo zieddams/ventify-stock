@@ -24,11 +24,13 @@ import {
 export function useThermalPrint(tScope) {
   const [printing, setPrinting] = useState(false)
   const [stage, setStage] = useState(null)
+  const [progressPercent, setProgressPercent] = useState(null)
   const [chooserDevices, setChooserDevices] = useState(null)
   const [pendingDocumentBuilder, setPendingDocumentBuilder] = useState(null)
 
   const stageLabel = {
     permission: tScope('thermalStagePermission'),
+    bluetooth: tScope('thermalStageBluetooth'),
     locating: tScope('thermalStageLocating'),
     connecting: tScope('thermalStageConnecting'),
     rendering: tScope('thermalStageRendering'),
@@ -38,11 +40,13 @@ export function useThermalPrint(tScope) {
   const run = useCallback(async (documentBuilder, macAddress) => {
     setPrinting(true)
     setStage(null)
+    setProgressPercent(null)
 
     try {
       await printThermalDocument(documentBuilder, {
         macAddress,
         onStage: (nextStage) => setStage(nextStage),
+        onProgress: (percent) => setProgressPercent(percent),
       })
       return true
     } catch (error) {
@@ -57,6 +61,14 @@ export function useThermalPrint(tScope) {
 
         if (error.reason === PrinterReason.PERMISSION_DENIED) {
           Alert.alert(tScope('thermalPermissionTitle'), tScope('thermalPermissionText'), [
+            { text: tScope('thermalCancelAction'), style: 'cancel' },
+            { text: tScope('thermalPermissionRetryAction'), onPress: () => run(documentBuilder, macAddress) },
+          ])
+          return false
+        }
+
+        if (error.reason === PrinterReason.BLUETOOTH_DISABLED) {
+          Alert.alert(tScope('thermalBluetoothOffTitle'), tScope('thermalBluetoothOffText'), [
             { text: tScope('thermalCancelAction'), style: 'cancel' },
             { text: tScope('thermalPermissionRetryAction'), onPress: () => run(documentBuilder, macAddress) },
           ])
@@ -83,6 +95,7 @@ export function useThermalPrint(tScope) {
     } finally {
       setPrinting(false)
       setStage(null)
+      setProgressPercent(null)
     }
   }, [tScope])
 
@@ -100,5 +113,5 @@ export function useThermalPrint(tScope) {
     setPendingDocumentBuilder(null)
   }, [])
 
-  return { printing, stage, stageLabel, chooserDevices, run, chooseDevice, dismissChooser }
+  return { printing, stage, stageLabel, progressPercent, chooserDevices, run, chooseDevice, dismissChooser }
 }
