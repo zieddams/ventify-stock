@@ -388,10 +388,33 @@ export async function printThermalDocument(documentBuilder, { onStage = noop, on
       }
 
       if (result && result.success === false) {
+        // IMPORTANT (2026-07-08): this used to always throw the flat literal
+        // "Printing failed." here, discarding whatever specific error the
+        // native side actually returned in `result.results` (e.g. our own
+        // "Printer stopped responding mid-transfer (timed out after Xms)..."
+        // message from the send-timeout patch, or a raw IOException from a
+        // dropped Bluetooth socket). That made every native failure look
+        // identical in both the UI alert and the diagnostic log - real
+        // repro logs from the field showed nothing but
+        // `reason=print_failed message=Printing failed. code=undefined` for
+        // two different failures with very different timings (~40s and
+        // ~20s), which should NOT look the same. Surface the first failing
+        // per-printer result's actual error details instead.
+        const failedEntry = Array.isArray(result.results)
+          ? result.results.find((entry) => entry?.success === false)
+          : null
+        const nativeError = failedEntry?.error
+
         throw new ThermalPrinterError(
           PrinterReason.PRINT_FAILED,
-          'Printing failed.',
-          { results: result.results },
+          nativeError?.message || 'Printing failed.',
+          {
+            code: nativeError?.code,
+            suggestion: nativeError?.suggestion,
+            step: nativeError?.step,
+            retryable: nativeError?.retryable,
+            results: result.results,
+          },
         )
       }
     } finally {
@@ -407,6 +430,8 @@ export async function printThermalDocument(documentBuilder, { onStage = noop, on
       reason: error?.reason || 'unknown',
       message: error?.message || String(error),
       code: error?.code,
+      step: error?.step,
+      suggestion: error?.suggestion,
       ms: elapsed(),
     })
     throw error
