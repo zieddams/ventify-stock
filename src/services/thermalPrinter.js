@@ -43,6 +43,11 @@ export const PT210_PRINTER_OPTIONS = {
   marginMm: 0,
 }
 
+// Same value as the existing test-connection retry delay below - both exist
+// for the identical documented reason (SPP sockets on some printers/phones
+// need a moment to fully release after a socket closes).
+const CONNECTION_SETTLE_MS = 900
+
 export const PrinterReason = {
   PERMISSION_DENIED: 'permission_denied',
   PERMISSION_PERMANENTLY_DENIED: 'permission_permanently_denied',
@@ -342,10 +347,26 @@ export async function printThermalDocument(documentBuilder, { onStage = noop, on
     }
 
     logPrintEvent('connection_ok', { ms: elapsed() })
+    const testConnectionClosedAt = Date.now()
 
     onStage('rendering')
     const document = await documentBuilder()
     logPrintEvent('rendering_done', { ms: elapsed() })
+
+    // IMPORTANT: testConnection() above opens and immediately closes its own
+    // throwaway socket just to confirm the printer is reachable before we
+    // spend time rendering - it shares no connection with the real print
+    // below, which opens a brand-new socket to the same address moments
+    // later. Rendering usually takes long enough on its own to cover the
+    // "moment to fully release" window noted above, but a short/simple
+    // receipt on a fast device can render in well under that time, landing
+    // the real connect attempt inside that same window. Make the minimum
+    // gap explicit instead of hoping rendering happened to take long enough.
+    const settleRemainingMs = CONNECTION_SETTLE_MS - (Date.now() - testConnectionClosedAt)
+    if (settleRemainingMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, settleRemainingMs))
+    }
+    logPrintEvent('connection_settled', { waitedMs: Math.max(0, settleRemainingMs), ms: elapsed() })
 
     onStage('printing')
     onProgress(0)

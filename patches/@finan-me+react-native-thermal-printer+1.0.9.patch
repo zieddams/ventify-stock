@@ -87,6 +87,64 @@ index 96a8e90..15e20ac 100644
                  )
  
                  Log.d(TAG, "[Native:Android] printImage SUCCESS")
+diff --git a/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/discovery/BluetoothDiscovery.kt b/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/discovery/BluetoothDiscovery.kt
+index a22c5dc..756538d 100644
+--- a/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/discovery/BluetoothDiscovery.kt
++++ b/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/discovery/BluetoothDiscovery.kt
+@@ -101,44 +101,15 @@ class BluetoothDiscovery(private val reactContext: ReactApplicationContext) {
+             params.putString("devices", pairedDevices.toString())
+             emitRNEvent(EVENT_DEVICE_ALREADY_PAIRED, params)
+ 
+-            // Register broadcast receiver for discovery
+-            registerDiscoveryReceiver()
+-
+-            // Start discovery (will fail without proper permissions)
+-            val discoveryStarted =
+-                    try {
+-                        val started = adapter.startDiscovery()
+-                        if (!started) {
+-                            android.util.Log.e(
+-                                    "BluetoothDiscovery",
+-                                    "startDiscovery returned false - ensure location is enabled and permissions granted"
+-                            )
+-                        }
+-                        started
+-                    } catch (e: SecurityException) {
+-                        android.util.Log.e(
+-                                "BluetoothDiscovery",
+-                                "SecurityException: Missing BLUETOOTH_SCAN permission on Android 12+"
+-                        )
+-                        false
+-                    } catch (e: Exception) {
+-                        android.util.Log.e(
+-                                "BluetoothDiscovery",
+-                                "Failed to start discovery: ${e.message}"
+-                        )
+-                        false
+-                    }
+-
+-            if (!discoveryStarted) {
+-                result.putBoolean("success", false)
+-                result.putString("error", "Failed to start discovery")
+-                cancelDiscovery()
+-                unregisterDiscoveryReceiver()
+-            } else {
+-                isScanning = true
+-                result.putBoolean("success", true)
+-                android.util.Log.d("BluetoothDiscovery", "Discovery started successfully")
+-            }
++            // Deliberately not starting live discovery (adapter.startDiscovery()) here anymore.
++            // The app layer only ever consumes the bonded-device list emitted above - the
++            // EVENT_DEVICE_FOUND/"found" live-discovery results are never read anywhere in JS.
++            // This method runs before every single print (by app design, to always show a fresh
++            // device picker), so live discovery was being started and then cancelled again
++            // moments later on every print for zero functional benefit, while Android's own
++            // documentation notes discovery is a heavyweight scan that can degrade a concurrent
++            // or immediately-following connection - pure downside for this integration.
++            result.putBoolean("success", true)
+         } catch (e: SecurityException) {
+             result.putBoolean("success", false)
+             result.putString("error", "Security exception: ${e.message}")
 diff --git a/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/printing/PrintConnection.kt b/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/printing/PrintConnection.kt
 index c8f5f58..6402153 100644
 --- a/node_modules/@finan-me/react-native-thermal-printer/android/src/main/java/com/rnthermalprinter/printing/PrintConnection.kt
