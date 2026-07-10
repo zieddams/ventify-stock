@@ -342,7 +342,7 @@ export async function printThermalDocument(documentBuilder, { onStage = noop, on
       throw new ThermalPrinterError(
         PrinterReason.CONNECTION_FAILED,
         testResult?.error?.message || 'Could not reach the printer.',
-        { code: testResult?.error?.code, suggestion: testResult?.error?.suggestion },
+        { code: testResult?.error?.code, suggestion: testResult?.error?.suggestion, retryable: testResult?.error?.retryable },
       )
     }
 
@@ -409,21 +409,27 @@ export async function printThermalDocument(documentBuilder, { onStage = noop, on
       }
 
       if (result && result.success === false) {
-        // IMPORTANT (2026-07-08): this used to always throw the flat literal
-        // "Printing failed." here, discarding whatever specific error the
-        // native side actually returned in `result.results` (e.g. our own
-        // "Printer stopped responding mid-transfer (timed out after Xms)..."
-        // message from the send-timeout patch, or a raw IOException from a
-        // dropped Bluetooth socket). That made every native failure look
-        // identical in both the UI alert and the diagnostic log - real
-        // repro logs from the field showed nothing but
-        // `reason=print_failed message=Printing failed. code=undefined` for
-        // two different failures with very different timings (~40s and
-        // ~20s), which should NOT look the same. Surface the first failing
-        // per-printer result's actual error details instead.
-        const failedEntry = Array.isArray(result.results)
-          ? result.results.find((entry) => entry?.success === false)
-          : null
+        // IMPORTANT (2026-07-08, corrected 2026-07-10): this used to always
+        // throw the flat literal "Printing failed." here, discarding
+        // whatever specific error the native side actually returned in
+        // `result.results`. A same-day fix tried to read the first failing
+        // entry out of `result.results`, but assumed it was a plain array -
+        // the library's actual TS types (`MultiPrinterResult.results:
+        // Map<string, PrinterResult>`) and its real JS implementation
+        // (`printer.ts`'s handler functions all build a `new Map()`) return
+        // a genuine `Map`, not an array. `Array.isArray(Map)` is always
+        // `false`, so that fix silently never actually ran and every native
+        // failure kept surfacing as the same flat "Printing failed." - a
+        // real repro log confirmed this exactly (code=undefined step=
+        // undefined suggestion=undefined on a real device failure after
+        // this "fix" had already shipped). Each Map value is a
+        // `PrinterResult` whose `error` is a real `PrintError` (has
+        // message/code/step/suggestion/retryable) - read it from the Map's
+        // values instead.
+        const resultEntries = result.results instanceof Map
+          ? Array.from(result.results.values())
+          : (Array.isArray(result.results) ? result.results : [])
+        const failedEntry = resultEntries.find((entry) => entry?.success === false)
         const nativeError = failedEntry?.error
 
         throw new ThermalPrinterError(

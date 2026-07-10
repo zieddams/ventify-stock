@@ -19,6 +19,40 @@ import {
   printThermalDocument,
 } from '../services/thermalPrinter'
 
+// Builds the alert body for a real print/connection failure: the actual
+// native error detail (now correctly extracted - see thermalPrinter.js's
+// Map/Array fix), then the library's own per-error-code suggestion when it
+// has one (e.g. "Pair the printer in Bluetooth settings first" - native-side
+// text, not localized, same as the error message itself), then a translated
+// general checklist so there's always something actionable in the user's
+// own language even when the specific error has no suggestion attached.
+function buildFailureBody(tScope, error) {
+  const lines = [error.message || tScope('retry')]
+  if (error.suggestion && error.suggestion !== error.message) {
+    lines.push(error.suggestion)
+  }
+  lines.push(tScope('thermalTroubleshootingHint'))
+  return lines.join('\n\n')
+}
+
+// Offers a direct "Retry" action for errors the library itself flags as
+// retryable (timeouts, dropped connections, printer temporarily offline -
+// see PrintError.isRetryable() in the library) instead of forcing the user
+// to find the print button again. Reuses the same already-confirmed printer
+// address rather than re-showing the device picker: the address isn't what
+// failed here (the earlier test_connection already succeeded on it), so
+// re-asking "which printer" would be a confusing, pointless extra step.
+function buildFailureButtons(tScope, error, onRetry) {
+  if (!error.retryable) {
+    return undefined
+  }
+
+  return [
+    { text: tScope('thermalCancelAction'), style: 'cancel' },
+    { text: tScope('thermalRetryAction'), onPress: onRetry },
+  ]
+}
+
 // `tScope` maps a short key ('thermalStagePermission', 'thermalPermissionTitle', ...)
 // to the caller's already-namespaced i18n lookup, e.g. (key) => t(`invoiceDetail.${key}`)
 export function useThermalPrint(tScope) {
@@ -86,11 +120,11 @@ export function useThermalPrint(tScope) {
           return false
         }
 
-        Alert.alert(tScope('thermalErrorTitle'), error.message || tScope('retry'))
+        Alert.alert(tScope('thermalErrorTitle'), buildFailureBody(tScope, error), buildFailureButtons(tScope, error, () => run(documentBuilder, macAddress)))
         return false
       }
 
-      Alert.alert(tScope('thermalErrorTitle'), error?.message || tScope('retry'))
+      Alert.alert(tScope('thermalErrorTitle'), buildFailureBody(tScope, error), buildFailureButtons(tScope, error, () => run(documentBuilder, macAddress)))
       return false
     } finally {
       setPrinting(false)
