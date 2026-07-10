@@ -141,18 +141,25 @@ export function MobileUpdateProvider({ children }) {
       return
     }
 
-    const existingApk = await findExistingDownloadedApk({
-      version: releasePayload.version,
-      expectedBytes: releasePayload.expectedBytes,
-      expectedSha256: releasePayload.expectedSha256,
-    })
-
-    if (existingApk?.fileUri) {
-      await installReadyApk({
-        ...releasePayload,
-        fileUri: existingApk.fileUri,
+    if (!resumeData) {
+      // Only check for an already-complete file when starting fresh. Resuming targets the same
+      // deterministic fileUri as a partially-downloaded (intentionally incomplete) file, and
+      // verifying it "as complete" would fail size/hash checks and delete it right before the
+      // resume tries to append to it, corrupting the transfer (see MobileUpdateContext hydration
+      // effect for the matching reorder on app relaunch).
+      const existingApk = await findExistingDownloadedApk({
+        version: releasePayload.version,
+        expectedBytes: releasePayload.expectedBytes,
+        expectedSha256: releasePayload.expectedSha256,
       })
-      return
+
+      if (existingApk?.fileUri) {
+        await installReadyApk({
+          ...releasePayload,
+          fileUri: existingApk.fileUri,
+        })
+        return
+      }
     }
 
     await cleanupDownloadedApks({ keepVersions: [releasePayload.version] })
@@ -316,15 +323,27 @@ export function MobileUpdateProvider({ children }) {
   const clearUpdateError = useCallback(async () => {
     if (!stateRef.current.errorMessage) return
 
-    const nextStatus = stateRef.current.fileUri ? 'downloaded' : 'idle'
-    const nextState = nextStatus === 'idle'
-      ? createIdleState()
-      : {
+    // Don't trust a leftover fileUri as proof of a complete download - it may point at a partial
+    // or corrupted file from whatever just failed. Re-verify so a retry falls back to a clean
+    // fresh download instead of handing Android's installer a broken APK.
+    const verified = stateRef.current.fileUri
+      ? await findExistingDownloadedApk({
+          version: stateRef.current.version,
+          fileUri: stateRef.current.fileUri,
+          expectedBytes: stateRef.current.expectedBytes,
+          expectedSha256: stateRef.current.expectedSha256,
+        })
+      : null
+
+    const nextState = verified?.fileUri
+      ? {
           ...stateRef.current,
-          status: nextStatus,
+          status: 'downloaded',
+          fileUri: verified.fileUri,
           errorMessage: '',
           updatedAt: new Date().toISOString(),
         }
+      : createIdleState()
 
     await commitState(nextState)
   }, [commitState])
@@ -339,6 +358,23 @@ export function MobileUpdateProvider({ children }) {
       hydrationFinishedRef.current = true
 
       if (!persisted) {
+        return
+      }
+
+      if (persisted.status === 'paused' && persisted.resumeData) {
+        // Handle this before any "is it a complete file?" verification: that check targets the
+        // same deterministic fileUri as this intentionally-partial file, and a partial file always
+        // fails size verification, so checking it here would delete the very bytes resumeData is
+        // about to resume from - guaranteeing a corrupted resume every time (see startTransfer's
+        // matching `if (!resumeData)` guard).
+        await commitState(persisted)
+        if (AppState.currentState === 'active' && persisted.autoResumeOnActive) {
+          try {
+            await resumeDownload()
+          } catch {
+            // The profile page can retry explicitly if auto-resume fails.
+          }
+        }
         return
       }
 
@@ -364,18 +400,6 @@ export function MobileUpdateProvider({ children }) {
           errorMessage: '',
           updatedAt: new Date().toISOString(),
         })
-        return
-      }
-
-      if (persisted.status === 'paused' && persisted.resumeData) {
-        await commitState(persisted)
-        if (AppState.currentState === 'active' && persisted.autoResumeOnActive) {
-          try {
-            await resumeDownload()
-          } catch {
-            // The profile page can retry explicitly if auto-resume fails.
-          }
-        }
         return
       }
 

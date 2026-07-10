@@ -1,3 +1,4 @@
+import * as Application from 'expo-application'
 import Constants from 'expo-constants'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigation } from '@react-navigation/native'
@@ -80,8 +81,11 @@ export default function ProfileScreen() {
     { value: 'high', label: t('profile.severityHigh') },
   ]), [t])
 
-  const currentVersion = Constants.expoConfig?.version || Constants.nativeAppVersion || '0.0.0'
-  const buildVersion = Constants.nativeBuildVersion || String(Constants.expoConfig?.android?.versionCode ?? '')
+  // Constants.nativeAppVersion/nativeBuildVersion were removed from expo-constants (v16, 2024) and
+  // no longer exist on this SDK - expo-application's PackageManager-backed reads are the real source
+  // of the OS-installed version, not the app.config JSON snapshot baked into the APK at build time.
+  const currentVersion = Application.nativeApplicationVersion || Constants.expoConfig?.version || '0.0.0'
+  const buildVersion = Application.nativeBuildVersion || String(Constants.expoConfig?.android?.versionCode ?? '')
 
   const loadLatestRelease = useCallback(async ({ silent = false } = {}) => {
     if (!silent) {
