@@ -1,3 +1,4 @@
+import * as Application from 'expo-application'
 import Constants from 'expo-constants'
 import { useState } from 'react'
 import {
@@ -59,9 +60,10 @@ export default function LoginScreen() {
   const { locale, setLocale, supportedLocales, t } = useI18n()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const version = Constants.expoConfig?.version || Constants.nativeAppVersion || '0.0.0'
+  const version = Application.nativeApplicationVersion || Constants.expoConfig?.version || '0.0.0'
 
   const handleLogin = async () => {
     if (!email.trim() || !password) return
@@ -149,19 +151,32 @@ export default function LoginScreen() {
           />
 
           <Text style={s.label}>{t('login.password')}</Text>
-          <TextInput
-            style={s.input}
-            value={password}
-            onChangeText={(value) => {
-              setPassword(value)
-              if (error) setError('')
-              clearAuthError?.()
-            }}
-            placeholder={t('login.passwordPlaceholder')}
-            placeholderTextColor={T.textMuted}
-            secureTextEntry
-            autoComplete="password"
-          />
+          <View style={s.passwordRow}>
+            <TextInput
+              style={s.passwordInput}
+              value={password}
+              onChangeText={(value) => {
+                setPassword(value)
+                if (error) setError('')
+                clearAuthError?.()
+              }}
+              placeholder={t('login.passwordPlaceholder')}
+              placeholderTextColor={T.textMuted}
+              secureTextEntry={!showPassword}
+              autoComplete="password"
+            />
+            <TouchableOpacity
+              style={s.passwordToggle}
+              onPress={() => setShowPassword((value) => !value)}
+              accessibilityLabel={showPassword ? t('login.hidePassword') : t('login.showPassword')}
+            >
+              <MaterialCommunityIcons
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={20}
+                color={T.textMuted}
+              />
+            </TouchableOpacity>
+          </View>
 
           <TouchableOpacity style={[s.primaryButton, busy && s.buttonDisabled]} onPress={handleLogin} disabled={busy}>
             {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>{t('login.submit')}</Text>}
@@ -329,6 +344,29 @@ const s = StyleSheet.create({
     fontSize: 15,
     color: T.text,
     marginBottom: 16,
+  },
+  passwordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 52,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: '#f8fafc',
+    marginBottom: 16,
+  },
+  passwordInput: {
+    flex: 1,
+    height: '100%',
+    paddingHorizontal: 14,
+    fontSize: 15,
+    color: T.text,
+  },
+  passwordToggle: {
+    paddingHorizontal: 14,
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   errorBox: {
     flexDirection: 'row',
