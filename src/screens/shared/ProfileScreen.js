@@ -22,7 +22,7 @@ import { useI18n } from '../../contexts/I18nContext'
 import { useMobileUpdate } from '../../contexts/MobileUpdateContext'
 import { useNotifications } from '../../contexts/NotificationsContext'
 import api from '../../services/api'
-import { compareReleaseVersions, getLatestMobileReleases } from '../../services/releaseService'
+import { compareReleaseVersions, getCurrentAppVersion, getLatestMobileReleases } from '../../services/releaseService'
 import { T, cardShadow } from '../../theme'
 import { formatDateTime } from '../../utils/format'
 
@@ -81,10 +81,8 @@ export default function ProfileScreen() {
     { value: 'high', label: t('profile.severityHigh') },
   ]), [t])
 
-  // Constants.nativeAppVersion/nativeBuildVersion were removed from expo-constants (v16, 2024) and
-  // no longer exist on this SDK - expo-application's PackageManager-backed reads are the real source
-  // of the OS-installed version, not the app.config JSON snapshot baked into the APK at build time.
-  const currentVersion = Application.nativeApplicationVersion || Constants.expoConfig?.version || '0.0.0'
+  const currentVersion = getCurrentAppVersion()
+  const displayVersion = currentVersion || '0.0.0'
   const buildVersion = Application.nativeBuildVersion || String(Constants.expoConfig?.android?.versionCode ?? '')
 
   const loadLatestRelease = useCallback(async ({ silent = false } = {}) => {
@@ -112,14 +110,19 @@ export default function ProfileScreen() {
   }, [loadLatestRelease])
 
   const hasUpdate = useMemo(() => {
-    if (!latestRelease?.version) return false
+    if (!latestRelease?.version || !currentVersion) return false
     return compareReleaseVersions(latestRelease.version, currentVersion) > 0
   }, [currentVersion, latestRelease?.version])
 
+  // Gate on hasUpdate too, not just "is this transfer for the current latest release": a stale
+  // persisted download/install state that was never cleared after a successful install (see
+  // MobileUpdateContext's staleness check) would otherwise keep showing "install downloaded update"
+  // forever even though the app is already running that exact version.
   const isCurrentReleaseDownload = useMemo(() => (
+    hasUpdate &&
     Boolean(latestRelease?.version) &&
     updateState.version === latestRelease.version
-  ), [latestRelease?.version, updateState.version])
+  ), [hasUpdate, latestRelease?.version, updateState.version])
 
   const visibleProgress = isCurrentReleaseDownload ? updateState.progress : null
   const isDownloadingCurrentRelease = isCurrentReleaseDownload && updateState.status === 'downloading'
@@ -148,7 +151,7 @@ export default function ProfileScreen() {
       return
     }
 
-    const comparison = compareReleaseVersions(release.version, currentVersion)
+    const comparison = currentVersion ? compareReleaseVersions(release.version, currentVersion) : 1
     if (comparison <= 0) {
       Alert.alert(t('common.update'), t('profile.alreadyUpdated'))
       return
@@ -234,7 +237,7 @@ export default function ProfileScreen() {
             {t('profile.connectedWith', { name: user?.name || t('common.account') })}
           </Text>
           <Text style={s.heroMeta}>
-            {t('common.version')} {currentVersion}{buildVersion ? ` (${buildVersion})` : ''}
+            {t('common.version')} {displayVersion}{buildVersion ? ` (${buildVersion})` : ''}
           </Text>
         </View>
 
@@ -286,7 +289,7 @@ export default function ProfileScreen() {
 
           <View style={s.infoRow}>
             <Text style={s.infoLabel}>{t('profile.installedVersion')}</Text>
-            <Text style={s.infoValue}>{currentVersion}{buildVersion ? ` (${buildVersion})` : ''}</Text>
+            <Text style={s.infoValue}>{displayVersion}{buildVersion ? ` (${buildVersion})` : ''}</Text>
           </View>
           <View style={s.infoRow}>
             <Text style={s.infoLabel}>{t('profile.latestRelease')}</Text>
@@ -458,7 +461,7 @@ export default function ProfileScreen() {
 
             <View style={s.infoRow}>
               <Text style={s.infoLabel}>{t('common.version')}</Text>
-              <Text style={s.infoValue}>{currentVersion}{buildVersion ? ` (${buildVersion})` : ''}</Text>
+              <Text style={s.infoValue}>{displayVersion}{buildVersion ? ` (${buildVersion})` : ''}</Text>
             </View>
             <View style={s.infoRow}>
               <Text style={s.infoLabel}>{t('profile.accountLabel')}</Text>

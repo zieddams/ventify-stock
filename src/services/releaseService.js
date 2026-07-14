@@ -1,3 +1,4 @@
+import * as Application from 'expo-application'
 import Constants from 'expo-constants'
 
 const extra = Constants.expoConfig?.extra ?? {}
@@ -52,6 +53,13 @@ function normalizeRelease(item) {
     apkSize: apkAsset?.size || 0,
     apkSha256: normalizeSha256Digest(apkAsset?.digest),
   }
+}
+
+// Constants.nativeAppVersion/nativeBuildVersion were removed from expo-constants (v16, 2024) - expo-application's
+// PackageManager-backed read is the real installed-on-device version; Constants.expoConfig?.version is only the
+// app.config JSON snapshot baked in at build time, used as a fallback if the native module read is unavailable.
+export function getCurrentAppVersion() {
+  return Application.nativeApplicationVersion || Constants.expoConfig?.version || null
 }
 
 export function compareReleaseVersions(left, right) {

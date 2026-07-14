@@ -4,12 +4,14 @@ import {
   cleanupDownloadedApks,
   clearPersistedUpdateState,
   createApkDownloadResumable,
+  deleteDownloadedApk,
   findExistingDownloadedApk,
   getPersistedUpdateState,
   installDownloadedApk,
   isInAppUpdateSupported,
   persistUpdateState,
 } from '../services/mobileUpdateService'
+import { compareReleaseVersions, getCurrentAppVersion } from '../services/releaseService'
 
 const MobileUpdateContext = createContext(null)
 
@@ -361,6 +363,21 @@ export function MobileUpdateProvider({ children }) {
         return
       }
 
+      // The app is already running the version this persisted state was chasing (or newer) - most
+      // likely the user completed the Android install and the app relaunched as the new build.
+      // Without this check, the "downloaded, ready to install" state below gets blindly resurrected
+      // forever (the APK file on disk still verifies fine), so the profile page keeps prompting to
+      // install an update that's already installed.
+      const runningVersion = getCurrentAppVersion()
+      const isAlreadyApplied = Boolean(runningVersion) && Boolean(persisted.version) &&
+        compareReleaseVersions(persisted.version, runningVersion) <= 0
+
+      if (isAlreadyApplied) {
+        await deleteDownloadedApk(persisted.fileUri)
+        await resetState()
+        return
+      }
+
       if (persisted.status === 'paused' && persisted.resumeData) {
         // Handle this before any "is it a complete file?" verification: that check targets the
         // same deterministic fileUri as this intentionally-partial file, and a partial file always
@@ -421,6 +438,20 @@ export function MobileUpdateProvider({ children }) {
       }
 
       if (nextState === 'active' && previousState !== 'active') {
+        // Coming back from the background is exactly when the user may have just finished the
+        // Android install flow (backgrounded to confirm, app resumed as the new build) - re-check
+        // staleness here too rather than only at cold-start hydration.
+        if (stateRef.current.status === 'downloaded') {
+          const runningVersion = getCurrentAppVersion()
+          const isAlreadyApplied = Boolean(runningVersion) && Boolean(stateRef.current.version) &&
+            compareReleaseVersions(stateRef.current.version, runningVersion) <= 0
+
+          if (isAlreadyApplied) {
+            void deleteDownloadedApk(stateRef.current.fileUri).then(resetState)
+            return
+          }
+        }
+
         if (stateRef.current.status === 'paused' && stateRef.current.autoResumeOnActive) {
           void resumeDownload()
         }
