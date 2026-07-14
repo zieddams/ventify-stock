@@ -1,17 +1,23 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons'
-import { StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { T, cardShadow } from '../theme'
 
-export default function MetricCard({ label, value, hint, icon = 'chart-box', color = T.primary }) {
+export default function MetricCard({ label, value, hint, icon = 'chart-box', color = T.primary, onPress }) {
+  const Wrapper = onPress ? TouchableOpacity : View
+  const wrapperProps = onPress ? { onPress, activeOpacity: 0.75 } : {}
+
   return (
-    <View style={[s.card, cardShadow]}>
-      <View style={[s.iconWrap, { backgroundColor: `${color}18` }]}>
-        <MaterialCommunityIcons name={icon} size={18} color={color} />
+    <Wrapper style={[s.card, cardShadow]} {...wrapperProps}>
+      <View style={s.topRow}>
+        <View style={[s.iconWrap, { backgroundColor: `${color}18` }]}>
+          <MaterialCommunityIcons name={icon} size={20} color={color} />
+        </View>
+        {!!onPress && <MaterialCommunityIcons name="chevron-right" size={20} color={T.textMuted} />}
       </View>
       <Text style={s.label}>{label}</Text>
       <Text style={[s.value, { color }]}>{value}</Text>
       {!!hint && <Text style={s.hint}>{hint}</Text>}
-    </View>
+    </Wrapper>
   )
 }
 
@@ -25,27 +31,31 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: T.border,
   },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
   iconWrap: {
-    alignSelf: 'flex-start',
-    width: 34,
-    height: 34,
+    width: 36,
+    height: 36,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
   },
   label: {
-    fontSize: 12,
+    fontSize: 13,
     color: T.textMuted,
     marginBottom: 6,
   },
   value: {
-    fontSize: 19,
+    fontSize: 22,
     fontWeight: '800',
   },
   hint: {
     marginTop: 6,
-    fontSize: 11,
+    fontSize: 12,
     color: T.textSecondary,
   },
 })

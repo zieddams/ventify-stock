@@ -236,6 +236,7 @@ export default function DashboardScreen() {
           hint={formatCurrency(todayRevenue)}
           icon="file-document-outline"
           color={T.primary}
+          onPress={() => navigation.navigate('Factures')}
         />
         <MetricCard
           label={t('dashboard.cards.monthInvoices')}
@@ -243,6 +244,7 @@ export default function DashboardScreen() {
           hint={formatCurrency(monthRevenue)}
           icon="calendar-month-outline"
           color={T.info}
+          onPress={() => navigation.navigate('Factures')}
         />
       </View>
 
@@ -253,6 +255,7 @@ export default function DashboardScreen() {
           hint={t('dashboard.cards.lowStockHint', { count: formatCount(lowStockCount) })}
           icon="truck-outline"
           color={lowStockCount > 0 ? T.warning : T.primaryDark}
+          onPress={() => navigation.navigate('Stock')}
         />
         <MetricCard
           label={t('dashboard.cards.sessionToday')}
@@ -260,6 +263,7 @@ export default function DashboardScreen() {
           hint={session ? formatDateTime(session.updated_at || session.opened_at) : t('dashboard.sessionHintNoSession')}
           icon="clock-outline"
           color={session ? T.success : T.textMuted}
+          onPress={() => navigation.navigate('Session')}
         />
       </View>
 
@@ -277,21 +281,21 @@ export default function DashboardScreen() {
               navigation.navigate('InvoiceCreate')
             }}
           >
-            <MaterialCommunityIcons name="file-document-plus-outline" size={20} color={T.primary} />
+            <MaterialCommunityIcons name="file-document-plus-outline" size={23} color={T.primary} />
             <Text style={s.quickLabel}>{t('dashboard.newInvoice')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate('Factures')}>
-            <MaterialCommunityIcons name="clipboard-text-outline" size={20} color={T.info} />
+            <MaterialCommunityIcons name="clipboard-text-outline" size={23} color={T.info} />
             <Text style={s.quickLabel}>{t('dashboard.myInvoices')}</Text>
           </TouchableOpacity>
         </View>
         <View style={s.quickGrid}>
           <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate('Clients')}>
-            <MaterialCommunityIcons name="account-group-outline" size={20} color={T.warning} />
+            <MaterialCommunityIcons name="account-group-outline" size={23} color={T.warning} />
             <Text style={s.quickLabel}>{t('dashboard.myCustomers')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate('Stock')}>
-            <MaterialCommunityIcons name="truck-cargo-container" size={20} color={T.success} />
+            <MaterialCommunityIcons name="truck-cargo-container" size={23} color={T.success} />
             <Text style={s.quickLabel}>{t('dashboard.camionStock')}</Text>
           </TouchableOpacity>
         </View>
@@ -363,14 +367,14 @@ const s = StyleSheet.create({
     gap: 12,
   },
   heroTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
     color: T.text,
   },
   heroSubtitle: {
     marginTop: 4,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 14,
+    lineHeight: 19,
     color: T.textSecondary,
   },
   heroText: {
@@ -423,12 +427,12 @@ const s = StyleSheet.create({
     backgroundColor: T.surfaceAlt,
   },
   factLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: T.textMuted,
   },
   factValue: {
     marginTop: 5,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
     color: T.text,
   },
@@ -446,12 +450,12 @@ const s = StyleSheet.create({
     backgroundColor: '#f4fbfa',
   },
   sessionMetricLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: T.textMuted,
   },
   sessionMetricValue: {
     marginTop: 6,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
     color: T.text,
   },
@@ -488,7 +492,7 @@ const s = StyleSheet.create({
     marginBottom: 14,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '800',
     color: T.text,
   },
@@ -503,13 +507,13 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: T.border,
     backgroundColor: T.surfaceAlt,
-    paddingVertical: 16,
+    paddingVertical: 18,
     paddingHorizontal: 14,
     alignItems: 'center',
-    gap: 8,
+    gap: 9,
   },
   quickLabel: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
     color: T.textSecondary,
     textAlign: 'center',
@@ -521,7 +525,7 @@ const s = StyleSheet.create({
     gap: 12,
   },
   linkText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
     color: T.primary,
   },
@@ -534,7 +538,7 @@ const s = StyleSheet.create({
     borderBottomColor: T.border,
   },
   invoiceNumber: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
     color: T.text,
   },
@@ -549,7 +553,7 @@ const s = StyleSheet.create({
     color: T.textMuted,
   },
   invoiceTotal: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
     color: T.primaryDark,
   },
