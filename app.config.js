@@ -48,6 +48,7 @@ module.exports = {
     'expo-secure-store',
     'expo-font',
     'expo-sharing',
+    '@react-native-community/datetimepicker',
     './plugins/withApkInstallerSupport',
   ],
   extra: {

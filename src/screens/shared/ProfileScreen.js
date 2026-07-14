@@ -387,6 +387,11 @@ export default function ProfileScreen() {
           <Text style={s.sectionTitle}>{t('profile.supportTitle')}</Text>
           <Text style={s.sectionText}>{t('profile.supportText')}</Text>
 
+          <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Help')}>
+            <MaterialCommunityIcons name="help-circle-outline" size={18} color={T.primary} />
+            <Text style={s.secondaryButtonText}>{t('profile.helpAction')}</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={s.secondaryButton} onPress={() => setBugModalVisible(true)}>
             <MaterialCommunityIcons name="bug-outline" size={18} color={T.primary} />
             <Text style={s.secondaryButtonText}>{t('profile.reportBug')}</Text>

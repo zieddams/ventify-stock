@@ -6,11 +6,11 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
+import DateTimePicker from '@react-native-community/datetimepicker'
 import PageHeader from '../../components/PageHeader'
 import { useAuth } from '../../contexts/AuthContext'
 import { useI18n } from '../../contexts/I18nContext'
@@ -20,6 +20,13 @@ import { formatDate } from '../../utils/format'
 
 function describeApiError(err, fallback) {
   return err?.response?.data?.message || err?.message || fallback
+}
+
+function toYmd(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
 const LEAVE_TYPES = ['annuel', 'maladie', 'sans_solde', 'autre']
@@ -36,8 +43,9 @@ export default function MyHrScreen() {
   const [performance, setPerformance] = useState(null)
 
   const [leaveType, setLeaveType] = useState('annuel')
-  const [dateStart, setDateStart] = useState('')
-  const [dateEnd, setDateEnd] = useState('')
+  const [dateStart, setDateStart] = useState(null)
+  const [dateEnd, setDateEnd] = useState(null)
+  const [activePicker, setActivePicker] = useState(null)
   const [submittingLeave, setSubmittingLeave] = useState(false)
 
   const load = useCallback(async () => {
@@ -69,7 +77,7 @@ export default function MyHrScreen() {
   }
 
   const submitLeaveRequest = async () => {
-    if (!dateStart.trim() || !dateEnd.trim()) {
+    if (!dateStart || !dateEnd) {
       Alert.alert(t('myHr.leave.title'), t('myHr.leave.datesRequired'))
       return
     }
@@ -79,11 +87,11 @@ export default function MyHrScreen() {
     try {
       await api.post('/employees/me/leaves', {
         type: leaveType,
-        date_start: dateStart.trim(),
-        date_end: dateEnd.trim(),
+        date_start: toYmd(dateStart),
+        date_end: toYmd(dateEnd),
       })
-      setDateStart('')
-      setDateEnd('')
+      setDateStart(null)
+      setDateEnd(null)
       await load()
       Alert.alert(t('myHr.leave.title'), t('myHr.leave.requestSent'))
     } catch (error) {
@@ -91,6 +99,14 @@ export default function MyHrScreen() {
     } finally {
       setSubmittingLeave(false)
     }
+  }
+
+  const onPickerChange = (event, selected) => {
+    const target = activePicker
+    setActivePicker(null)
+    if (event.type !== 'set' || !selected) return
+    if (target === 'start') setDateStart(selected)
+    else if (target === 'end') setDateEnd(selected)
   }
 
   if (loading) {
@@ -146,21 +162,27 @@ export default function MyHrScreen() {
         </View>
 
         <View style={s.dateRow}>
-          <TextInput
-            style={s.dateInput}
-            placeholder={t('myHr.leave.dateStartPlaceholder')}
-            placeholderTextColor={T.textMuted}
-            value={dateStart}
-            onChangeText={setDateStart}
-          />
-          <TextInput
-            style={s.dateInput}
-            placeholder={t('myHr.leave.dateEndPlaceholder')}
-            placeholderTextColor={T.textMuted}
-            value={dateEnd}
-            onChangeText={setDateEnd}
-          />
+          <TouchableOpacity style={s.dateInput} onPress={() => setActivePicker('start')}>
+            <Text style={dateStart ? s.dateValueText : s.datePlaceholderText}>
+              {dateStart ? formatDate(dateStart) : t('myHr.leave.dateStartPlaceholder')}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.dateInput} onPress={() => setActivePicker('end')}>
+            <Text style={dateEnd ? s.dateValueText : s.datePlaceholderText}>
+              {dateEnd ? formatDate(dateEnd) : t('myHr.leave.dateEndPlaceholder')}
+            </Text>
+          </TouchableOpacity>
         </View>
+
+        {activePicker && (
+          <DateTimePicker
+            value={(activePicker === 'start' ? dateStart : dateEnd) || new Date()}
+            mode="date"
+            display="default"
+            minimumDate={activePicker === 'end' ? (dateStart || undefined) : undefined}
+            onChange={onPickerChange}
+          />
+        )}
 
         <TouchableOpacity
           style={[s.primaryButton, submittingLeave && s.buttonDisabled]}
@@ -285,14 +307,15 @@ const s = StyleSheet.create({
   dateInput: {
     flex: 1,
     minHeight: 46,
+    justifyContent: 'center',
     borderRadius: 14,
     borderWidth: 1,
     borderColor: T.border,
     backgroundColor: T.surfaceAlt,
     paddingHorizontal: 14,
-    fontSize: 13,
-    color: T.text,
   },
+  dateValueText: { fontSize: 13, fontWeight: '700', color: T.text },
+  datePlaceholderText: { fontSize: 13, color: T.textMuted },
   primaryButton: {
     marginTop: 14,
     alignItems: 'center',

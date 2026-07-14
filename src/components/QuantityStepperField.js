@@ -132,8 +132,7 @@ const s = StyleSheet.create({
     alignItems: 'flex-start',
   },
   secondaryRow: {
-    paddingLeft: 52,
-    alignItems: 'flex-end',
+    marginTop: 2,
   },
   iconWrap: {
     width: 40,
@@ -210,7 +209,7 @@ const s = StyleSheet.create({
   },
   stepperStacked: {
     width: '100%',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
   },
   stepButton: {
     width: 34,
@@ -223,8 +222,8 @@ const s = StyleSheet.create({
     borderColor: T.border,
   },
   stepButtonStacked: {
-    width: 32,
-    height: 32,
+    width: 44,
+    height: 44,
   },
   stepButtonDisabled: {
     backgroundColor: '#f8fafc',
@@ -242,7 +241,8 @@ const s = StyleSheet.create({
     fontWeight: '700',
   },
   inputStacked: {
-    width: 72,
-    height: 38,
+    flex: 1,
+    marginHorizontal: 10,
+    height: 44,
   },
 })

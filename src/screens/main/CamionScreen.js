@@ -184,17 +184,24 @@ export default function CamionScreen() {
                 icon="cash-register"
                 color={T.info}
               />
-              <View style={[s.banner, cardShadow]}>
+            </View>
+
+            <View style={[s.banner, cardShadow]}>
+              <View style={s.bannerTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.bannerTitle}>{t('camion.banner.title')}</Text>
+                  <Text style={s.bannerText}>{t('camion.banner.text')}</Text>
+                </View>
                 <StatusChip
                   label={session?.status === 'open' ? t('camion.banner.activeSession') : t('camion.banner.closedSession')}
                   tone={session?.status === 'open' ? 'success' : 'warning'}
                 />
-                <Text style={s.bannerTitle}>{t('camion.banner.title')}</Text>
-                <Text style={s.bannerText}>{t('camion.banner.text')}</Text>
-                <TouchableOpacity style={s.bannerButton} onPress={() => navigation.navigate('Reappro')}>
+              </View>
+              <View style={s.bannerActions}>
+                <TouchableOpacity style={[s.bannerButton, { flex: 1 }]} onPress={() => navigation.navigate('Reappro')}>
                   <Text style={s.bannerButtonText}>{t('camion.banner.action')}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={s.bannerButtonSecondary} onPress={() => navigation.navigate('DropToPos')}>
+                <TouchableOpacity style={[s.bannerButtonSecondary, { flex: 1 }]} onPress={() => navigation.navigate('DropToPos')}>
                   <Text style={s.bannerButtonSecondaryText}>{t('camion.banner.dropToPosAction')}</Text>
                 </TouchableOpacity>
               </View>
@@ -295,27 +302,35 @@ const s = StyleSheet.create({
     color: T.text,
   },
   banner: {
-    flex: 1,
+    marginBottom: 12,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: T.border,
     backgroundColor: T.surface,
     padding: 16,
   },
+  bannerTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
   bannerTitle: {
-    marginTop: 10,
     fontSize: 16,
     fontWeight: '800',
     color: T.text,
   },
   bannerText: {
-    marginTop: 6,
+    marginTop: 4,
     fontSize: 13,
     lineHeight: 18,
     color: T.textSecondary,
   },
+  bannerActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
   bannerButton: {
-    marginTop: 12,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 14,
@@ -328,7 +343,6 @@ const s = StyleSheet.create({
     fontWeight: '800',
   },
   bannerButtonSecondary: {
-    marginTop: 10,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 14,

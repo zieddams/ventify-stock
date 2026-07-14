@@ -20,7 +20,6 @@ import QuantityStepperField from '../../components/QuantityStepperField'
 import StatusChip from '../../components/StatusChip'
 import { useAuth } from '../../contexts/AuthContext'
 import { useI18n } from '../../contexts/I18nContext'
-import { useNotifications } from '../../contexts/NotificationsContext'
 import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
@@ -73,7 +72,6 @@ export default function RouteSessionScreen() {
   const insets = useSafeAreaInsets()
   const { user } = useAuth()
   const { t } = useI18n()
-  const { unreadCount } = useNotifications()
   const {
     session,
     loading,
@@ -301,13 +299,6 @@ export default function RouteSessionScreen() {
                 <TouchableOpacity style={s.secondaryButton} onPress={() => setCamionPickerVisible(true)}>
                   <Text style={s.secondaryButtonText}>{t('routeSession.chooseCamionAction')}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Notifications')}>
-                  <Text style={s.secondaryButtonText}>
-                    {unreadCount > 0
-                      ? t('routeSession.notificationsUnread', { count: unreadCount })
-                      : t('routeSession.notificationsAction')}
-                  </Text>
-                </TouchableOpacity>
               </View>
             </View>
 
@@ -364,27 +355,21 @@ export default function RouteSessionScreen() {
             <View style={s.summaryTop}>
               <View style={{ flex: 1 }}>
                 <Text style={s.summaryTitle}>{t('routeSession.todaySessionTitle')}</Text>
-                <Text style={s.summarySub}>{t('routeSession.todaySessionText')}</Text>
+                <Text style={s.summarySub}>
+                  {t('routeSession.sessionMetaLine', {
+                    camion: session.camion?.name || t('routeSession.noCamionSelected'),
+                    time: formatTime(session.opened_at),
+                  })}
+                </Text>
               </View>
               <StatusChip label={routeStatusLabel(session.status)} tone="success" />
             </View>
 
-            <View style={s.factGrid}>
-              <View style={s.factItem}>
-                <Text style={s.factLabel}>{t('routeSession.metrics.openedAt')}</Text>
-                <Text style={s.factValue}>{formatTime(session.opened_at)}</Text>
-              </View>
-              <View style={s.factItem}>
-                <Text style={s.factLabel}>{t('routeSession.metrics.duration')}</Text>
-                <Text style={s.factValue}>{formatElapsedSince(session.opened_at)}</Text>
-              </View>
-              <View style={s.factItem}>
-                <Text style={s.factLabel}>{t('routeSession.metrics.camion')}</Text>
-                <Text style={s.factValue}>{session.camion?.name || t('routeSession.noCamionSelected')}</Text>
-              </View>
-            </View>
-
             <View style={s.metricsGrid}>
+              <View style={s.metricCard}>
+                <Text style={s.metricLabel}>{t('routeSession.metrics.duration')}</Text>
+                <Text style={s.metricValue}>{formatElapsedSince(session.opened_at)}</Text>
+              </View>
               <View style={s.metricCard}>
                 <Text style={s.metricLabel}>{t('routeSession.metrics.sales')}</Text>
                 <Text style={s.metricValue}>{formatCurrency(session.total_sold || 0)}</Text>
@@ -408,13 +393,6 @@ export default function RouteSessionScreen() {
               </TouchableOpacity>
               <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Stock')}>
                 <Text style={s.secondaryButtonText}>{t('routeSession.viewStock')}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Notifications')}>
-                <Text style={s.secondaryButtonText}>
-                  {unreadCount > 0
-                    ? t('routeSession.notificationsUnread', { count: unreadCount })
-                    : t('routeSession.notificationsAction')}
-                </Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.secondaryButton} onPress={() => setCloseVisible(true)}>
                 <Text style={s.secondaryButtonText}>{t('routeSession.closeAction')}</Text>
@@ -674,34 +652,15 @@ const s = StyleSheet.create({
     textAlign: 'center',
     color: T.textSecondary,
   },
-  factGrid: {
+  metricsGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
     marginTop: 16,
   },
-  factItem: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 16,
-    backgroundColor: T.surfaceAlt,
-  },
-  factLabel: {
-    fontSize: 11,
-    color: T.textMuted,
-  },
-  factValue: {
-    marginTop: 6,
-    fontSize: 14,
-    fontWeight: '800',
-    color: T.text,
-  },
-  metricsGrid: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 12,
-  },
   metricCard: {
-    flex: 1,
+    flexBasis: '47%',
+    flexGrow: 1,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: T.border,
