@@ -10,7 +10,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useAuth } from './AuthContext'
 import { useI18n } from './I18nContext'
 import {
   listNotifications,
@@ -38,7 +37,6 @@ function createEmptyState() {
 }
 
 export function NotificationsProvider({ children }) {
-  const { user, isRep } = useAuth()
   const { t } = useI18n()
   const insets = useSafeAreaInsets()
   const [state, setState] = useState(createEmptyState)
@@ -48,7 +46,15 @@ export function NotificationsProvider({ children }) {
   const knownNotificationIdsRef = useRef(new Set())
   const bannerTimerRef = useRef(null)
   const appStateRef = useRef(AppState.currentState)
-  const canUseNotifications = Boolean(user?.id && isRep())
+  // Notification receiving is fully disabled in the mobile app for now (deliberate,
+  // temporary rollback - not role-scoping related). This single flag is sufficient:
+  // every effect/fetch below already short-circuits to an empty, non-polling state
+  // whenever canUseNotifications is false, so consumers (TrackingContext, ProfileScreen,
+  // RouteSessionScreen, NotificationsScreen) keep working against an empty inbox rather
+  // than needing individual changes. To re-enable: re-add `import { useAuth } from
+  // './AuthContext'`, `const { user, isRep } = useAuth()`, and restore this to
+  // `Boolean(user?.id && isRep())`.
+  const canUseNotifications = false
 
   const dismissBanner = useCallback(() => {
     if (bannerTimerRef.current) {
@@ -64,7 +70,11 @@ export function NotificationsProvider({ children }) {
     knownNotificationIdsRef.current = new Set()
     loadInFlightRef.current = null
     dismissBanner()
-    setState(createEmptyState())
+    // Not `loading: true` from createEmptyState()'s default - resetState means no
+    // fetch is happening (or ever will, while canUseNotifications is false), so a
+    // consumer checking `loading` should see the idle/empty state immediately
+    // rather than a spinner that would otherwise never resolve.
+    setState({ ...createEmptyState(), loading: false })
   }, [dismissBanner])
 
   const showBanner = useCallback((notification) => {
