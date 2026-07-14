@@ -357,6 +357,18 @@ export default function ProfileScreen() {
           )}
         </View>
 
+        {user?.role === 'rep' ? (
+          <View style={[s.sectionCard, cardShadow]}>
+            <Text style={s.sectionTitle}>{t('profile.myHrTitle')}</Text>
+            <Text style={s.sectionText}>{t('profile.myHrText')}</Text>
+
+            <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('MyHr')}>
+              <MaterialCommunityIcons name="account-heart-outline" size={18} color={T.primary} />
+              <Text style={s.secondaryButtonText}>{t('profile.myHrAction')}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
         <View style={[s.sectionCard, cardShadow]}>
           <Text style={s.sectionTitle}>{t('profile.notificationsTitle')}</Text>
           <Text style={s.sectionText}>
