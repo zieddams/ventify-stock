@@ -403,6 +403,9 @@ export default function RouteSessionScreen() {
               <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Reappro')}>
                 <Text style={s.primaryButtonText}>{t('routeSession.restockCamion')}</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('DropToPos')}>
+                <Text style={s.secondaryButtonText}>{t('routeSession.dropToPosAction')}</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Stock')}>
                 <Text style={s.secondaryButtonText}>{t('routeSession.viewStock')}</Text>
               </TouchableOpacity>

@@ -26,6 +26,7 @@ const getInvoiceCreateScreen = () => require('../screens/shared/InvoiceCreateScr
 const getInvoiceDetailScreen = () => require('../screens/shared/InvoiceDetailScreen').default
 const getProfileScreen = () => require('../screens/shared/ProfileScreen').default
 const getReapproScreen = () => require('../screens/main/ReapproScreen').default
+const getDropToPosScreen = () => require('../screens/main/DropToPosScreen').default
 // Phase 0 thermal-printer spike (dev-only, throwaway) - see
 // docs/thermal-printer-integration-plan.md
 const getThermalPrinterSpikeScreen = () => require('../screens/dev/ThermalPrinterSpikeScreen').default
@@ -126,6 +127,7 @@ function AppStack() {
       <Stack.Screen name="InvoiceDetail" getComponent={getInvoiceDetailScreen} options={{ title: t('navigation.invoiceDetail') }} />
       <Stack.Screen name="Notifications" getComponent={getNotificationsScreen} options={{ title: t('navigation.notifications') }} />
       <Stack.Screen name="Reappro" getComponent={getReapproScreen} options={{ title: t('navigation.reappro') }} />
+      <Stack.Screen name="DropToPos" getComponent={getDropToPosScreen} options={{ title: t('navigation.dropToPos') }} />
       <Stack.Screen name="Profile" getComponent={getProfileScreen} options={{ title: t('navigation.profile') }} />
       <Stack.Screen
         name="ThermalPrinterSpike"
@@ -162,6 +164,7 @@ function normalizeScreen(routeName, t) {
     ['InvoiceDetail', { name: 'InvoiceDetail', label: 'Invoice Detail' }],
     ['Notifications', { name: 'Notifications', label: 'Notifications' }],
     ['Reappro', { name: 'Reappro', label: 'Reappro' }],
+    ['DropToPos', { name: 'DropToPos', label: 'Drop to POS' }],
     ['Profile', { name: 'Profile', label: 'Profile' }],
     ['Tabs', { name: 'Tabs', label: 'Tabs' }],
     ['Login', { name: 'Login', label: 'Login' }],

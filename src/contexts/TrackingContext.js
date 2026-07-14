@@ -18,6 +18,7 @@ import {
   recordRouteSessionReturns,
   storeRouteLocation,
 } from '../services/routeSessionService'
+import { dropStockAtPos } from '../services/stockTransferService'
 import {
   distanceBetweenMeters,
   getCurrentLocation,
@@ -300,6 +301,25 @@ export function TrackingProvider({ children }) {
     }
   }, [markSynced, syncNotificationInbox])
 
+  const dropAtPos = useCallback(async (toDepotId, lines, note) => {
+    if (!sessionRef.current?.id) {
+      throw new Error('Aucune session ouverte.')
+    }
+
+    setBusy(true)
+    try {
+      // A drop never changes RouteSession/RouteSessionLine fields, only
+      // CamionStock (which the drop screen re-reads itself via GET /camion) -
+      // no session state to mutate here, unlike addLoad/recordReturns.
+      const data = await dropStockAtPos(toDepotId, lines, note)
+      markSynced('drop-to-pos', null, Boolean(sessionRef.current))
+      await syncNotificationInbox()
+      return data
+    } finally {
+      setBusy(false)
+    }
+  }, [markSynced, syncNotificationInbox])
+
   const endSession = useCallback(async (payload = {}) => {
     if (!sessionRef.current?.id) {
       throw new Error('Aucune session ouverte.')
@@ -554,6 +574,7 @@ export function TrackingProvider({ children }) {
     startSession,
     addLoad,
     recordReturns,
+    dropAtPos,
     endSession,
     syncInteraction,
   }), [
@@ -561,6 +582,7 @@ export function TrackingProvider({ children }) {
     busy,
     captureCurrentLocation,
     currentLocation,
+    dropAtPos,
     endSession,
     loading,
     locationPermission,

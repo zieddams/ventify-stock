@@ -194,6 +194,9 @@ export default function CamionScreen() {
                 <TouchableOpacity style={s.bannerButton} onPress={() => navigation.navigate('Reappro')}>
                   <Text style={s.bannerButtonText}>{t('camion.banner.action')}</Text>
                 </TouchableOpacity>
+                <TouchableOpacity style={s.bannerButtonSecondary} onPress={() => navigation.navigate('DropToPos')}>
+                  <Text style={s.bannerButtonSecondaryText}>{t('camion.banner.dropToPosAction')}</Text>
+                </TouchableOpacity>
               </View>
             </View>
           </View>
@@ -323,6 +326,21 @@ const s = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '800',
+  },
+  bannerButtonSecondary: {
+    marginTop: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: T.surfaceAlt,
+  },
+  bannerButtonSecondaryText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: T.textSecondary,
   },
   row: {
     flexDirection: 'row',
