@@ -180,9 +180,6 @@ export default function DropToPosScreen() {
       <PageHeader
         title={t('dropToPos.title')}
         subtitle={t('dropToPos.pageSubtitle')}
-        actionIcon="truck-cargo-container"
-        actionLabel={t('navigation.stock')}
-        onActionPress={() => navigation.navigate('Tabs', { screen: t('navigation.stock') })}
       />
 
       {!!error && (

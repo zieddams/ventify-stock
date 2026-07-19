@@ -261,9 +261,6 @@ export default function RouteSessionScreen() {
         <PageHeader
           title={t('routeSession.title')}
           subtitle={session ? t('routeSession.openSubtitle') : t('routeSession.closedSubtitle')}
-          actionIcon="truck-cargo-container"
-          actionLabel={t('navigation.stock')}
-          onActionPress={() => navigation.navigate(t('navigation.stock'))}
         />
 
         <CompanyBrandCard user={user} style={s.brandCard} />

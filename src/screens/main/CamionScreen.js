@@ -118,9 +118,6 @@ export default function CamionScreen() {
             <PageHeader
               title={t('camion.title')}
               subtitle={session?.status === 'open' ? t('camion.subtitleOpen') : t('camion.subtitleClosed')}
-              actionIcon="clipboard-list-outline"
-              actionLabel={t('navigation.session')}
-              onActionPress={() => navigation.navigate(t('navigation.session'))}
             />
 
             <View style={[s.assignmentCard, cardShadow]}>

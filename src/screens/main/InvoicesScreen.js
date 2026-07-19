@@ -15,6 +15,7 @@ import {
 } from 'react-native'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
+import FloatingActionButton from '../../components/FloatingActionButton'
 import PageHeader from '../../components/PageHeader'
 import StatusChip from '../../components/StatusChip'
 import { InvoiceListReceiptPrintable } from '../../components/print/ReceiptPrintable'
@@ -181,6 +182,15 @@ export default function InvoicesScreen() {
     }
   }
 
+  const handleNewInvoice = () => {
+    if (session?.status !== 'open') {
+      Alert.alert(t('invoices.sessionRequiredTitle'), t('invoices.sessionRequiredText'))
+      return
+    }
+
+    navigation.navigate('InvoiceCreate')
+  }
+
   const handleShareList = async () => {
     if (filtered.length === 0) {
       Alert.alert(t('invoices.noneTitle'), t('invoices.noneText'))
@@ -258,16 +268,6 @@ export default function InvoicesScreen() {
             <PageHeader
               title={t('invoices.title')}
               subtitle={session?.status === 'open' ? t('invoices.sessionOpenSubtitle') : t('invoices.sessionClosedSubtitle')}
-              actionIcon="file-document-plus-outline"
-              actionLabel={t('invoices.newAction')}
-              onActionPress={() => {
-                if (session?.status !== 'open') {
-                  Alert.alert(t('invoices.sessionRequiredTitle'), t('invoices.sessionRequiredText'))
-                  return
-                }
-
-                navigation.navigate('InvoiceCreate')
-              }}
             />
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.periodRow}>
@@ -409,6 +409,8 @@ export default function InvoicesScreen() {
         stageLabel={thermal.stageLabel}
         progressPercent={thermal.progressPercent}
       />
+
+      <FloatingActionButton icon="file-document-plus-outline" onPress={handleNewInvoice} />
 
       <Modal visible={!!thermal.chooserDevices?.length} transparent animationType="fade" onRequestClose={thermal.dismissChooser}>
         <View style={s.chooserBackdrop}>

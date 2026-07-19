@@ -15,6 +15,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import PageHeader from '../../components/PageHeader'
+import QuantityStepperField from '../../components/QuantityStepperField'
 import StatusChip from '../../components/StatusChip'
 import { useAuth } from '../../contexts/AuthContext'
 import { useI18n } from '../../contexts/I18nContext'
@@ -660,13 +661,11 @@ export default function InvoiceCreateScreen({ navigation, route }) {
             <Text style={s.dialogTitle}>{pendingProduct?.name || t('invoiceCreate.productFallback')}</Text>
             <Text style={s.dialogText}>{pendingProduct?.reference || pendingProduct?.unit || t('invoiceCreate.lineEditorSubtitle')}</Text>
 
-            <Text style={s.fieldLabel}>{t('invoiceCreate.qtyLabel')}</Text>
-            <TextInput
-              style={s.input}
-              keyboardType="decimal-pad"
-              placeholder="1"
-              placeholderTextColor={T.textMuted}
+            <QuantityStepperField
+              title={t('invoiceCreate.qtyLabel')}
+              icon="counter"
               value={qtyInput}
+              layout="stacked"
               onChangeText={(value) => setQtyInput(sanitizeNumber(value))}
             />
 

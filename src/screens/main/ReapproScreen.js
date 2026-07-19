@@ -164,9 +164,6 @@ export default function ReapproScreen() {
         <PageHeader
           title={t('reappro.title')}
           subtitle={t('reappro.pageSubtitleActive')}
-          actionIcon="truck-cargo-container"
-          actionLabel={t('navigation.stock')}
-          onActionPress={() => navigation.navigate('Tabs', { screen: t('navigation.stock') })}
         />
 
         {!!error && (

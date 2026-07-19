@@ -13,6 +13,7 @@ import {
 } from 'react-native'
 import { useFocusEffect, useNavigation } from '@react-navigation/native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
+import FloatingActionButton from '../../components/FloatingActionButton'
 import PageHeader from '../../components/PageHeader'
 import { useAuth } from '../../contexts/AuthContext'
 import { useI18n } from '../../contexts/I18nContext'
@@ -175,9 +176,6 @@ export default function CustomersScreen() {
             <PageHeader
               title={t('customers.title')}
               subtitle={hasGlobalCustomerAccess ? t('customers.globalSubtitle') : t('customers.personalSubtitle')}
-              actionIcon="account-plus-outline"
-              actionLabel={t('customers.newAction')}
-              onActionPress={() => setCreateVisible(true)}
             />
 
             <View style={s.searchCard}>
@@ -262,6 +260,8 @@ export default function CustomersScreen() {
           </View>
         </View>
       </Modal>
+
+      <FloatingActionButton icon="account-plus-outline" onPress={() => setCreateVisible(true)} />
     </View>
   )
 }
