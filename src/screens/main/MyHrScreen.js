@@ -38,8 +38,9 @@ export default function MyHrScreen() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [profile, setProfile] = useState(null)
-  const [leaveData, setLeaveData] = useState({ accrued_balance: 0, leaves: [] })
+  const [leaveData, setLeaveData] = useState({ leaves: [] })
   const [transactions, setTransactions] = useState([])
+  const [absences, setAbsences] = useState([])
   const [performance, setPerformance] = useState(null)
 
   const [leaveType, setLeaveType] = useState('annuel')
@@ -49,16 +50,18 @@ export default function MyHrScreen() {
   const [submittingLeave, setSubmittingLeave] = useState(false)
 
   const load = useCallback(async () => {
-    const [profileRes, leaveRes, transactionsRes, performanceRes] = await Promise.all([
+    const [profileRes, leaveRes, transactionsRes, absencesRes, performanceRes] = await Promise.all([
       api.get('/employees/me'),
       api.get('/employees/me/leaves'),
       api.get('/employees/me/transactions'),
+      api.get('/employees/me/absences'),
       api.get('/employees/me/performance'),
     ])
 
     setProfile(profileRes.data?.profile ?? null)
-    setLeaveData(leaveRes.data ?? { accrued_balance: 0, leaves: [] })
+    setLeaveData(leaveRes.data ?? { leaves: [] })
     setTransactions(Array.isArray(transactionsRes.data) ? transactionsRes.data : [])
+    setAbsences(Array.isArray(absencesRes.data) ? absencesRes.data : [])
     setPerformance(performanceRes.data ?? null)
   }, [])
 
@@ -117,6 +120,8 @@ export default function MyHrScreen() {
     )
   }
 
+  const manques = transactions.filter((entry) => entry.type === 'manque')
+
   return (
     <ScrollView
       style={s.root}
@@ -141,10 +146,6 @@ export default function MyHrScreen() {
 
       <View style={[s.card, cardShadow]}>
         <Text style={s.cardTitle}>{t('myHr.leave.title')}</Text>
-        <View style={s.balanceBox}>
-          <Text style={s.balanceValue}>{leaveData.accrued_balance} {t('myHr.leave.days')}</Text>
-          <Text style={s.balanceHint}>{t('myHr.leave.accrualHint')}</Text>
-        </View>
 
         <View style={s.chipRow}>
           {LEAVE_TYPES.map((type) => {
@@ -194,11 +195,12 @@ export default function MyHrScreen() {
 
         {leaveData.leaves.length > 0 && (
           <View style={s.listWrap}>
-            {leaveData.leaves.slice(0, 6).map((leave) => (
+            {leaveData.leaves.map((leave) => (
               <View key={leave.id} style={s.listRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={s.listRowTitle}>
                     {t(`myHr.leave.types.${leave.type}`)} · {formatDate(leave.date_start)} - {formatDate(leave.date_end)}
+                    {leave.is_paid ? ` · ${t('myHr.leave.isPaid')}` : ''}
                   </Text>
                   <Text style={s.listRowMeta}>{t(`myHr.leave.statuses.${leave.status}`)}</Text>
                 </View>
@@ -224,6 +226,44 @@ export default function MyHrScreen() {
                 <View style={{ flex: 1, marginLeft: 10 }}>
                   <Text style={s.listRowTitle}>{t(`myHr.ledger.types.${transaction.type}`)} · {transaction.amount} TND</Text>
                   <Text style={s.listRowMeta}>{formatDate(transaction.created_at)}{transaction.note ? ` · ${transaction.note}` : ''}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
+      <View style={[s.card, cardShadow]}>
+        <Text style={s.cardTitle}>{t('myHr.manques.title')}</Text>
+        {manques.length === 0 ? (
+          <Text style={s.emptyText}>{t('myHr.manques.empty')}</Text>
+        ) : (
+          <View style={s.listWrap}>
+            {manques.map((entry) => (
+              <View key={entry.id} style={s.listRow}>
+                <MaterialCommunityIcons name="cash-minus" size={18} color={T.primary} />
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={s.listRowTitle}>{entry.amount} TND · {entry.related_period ?? '-'}</Text>
+                  <Text style={s.listRowMeta}>{formatDate(entry.created_at)}{entry.note ? ` · ${entry.note}` : ''}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
+      <View style={[s.card, cardShadow]}>
+        <Text style={s.cardTitle}>{t('myHr.absences.title')}</Text>
+        {absences.length === 0 ? (
+          <Text style={s.emptyText}>{t('myHr.absences.empty')}</Text>
+        ) : (
+          <View style={s.listWrap}>
+            {absences.map((entry) => (
+              <View key={entry.id} style={s.listRow}>
+                <MaterialCommunityIcons name="calendar-remove" size={18} color={T.primary} />
+                <View style={{ flex: 1, marginLeft: 10 }}>
+                  <Text style={s.listRowTitle}>{formatDate(entry.date)}</Text>
+                  {entry.note ? <Text style={s.listRowMeta}>{entry.note}</Text> : null}
                 </View>
               </View>
             ))}
@@ -288,9 +328,6 @@ const s = StyleSheet.create({
   },
   infoLabel: { fontSize: 12, color: T.textMuted },
   infoValue: { fontSize: 13, fontWeight: '700', color: T.text, textAlign: 'right' },
-  balanceBox: { marginTop: 10, marginBottom: 4 },
-  balanceValue: { fontSize: 24, fontWeight: '800', color: T.primary },
-  balanceHint: { marginTop: 4, fontSize: 12, color: T.textMuted },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
   choiceChip: {
     paddingVertical: 10,
