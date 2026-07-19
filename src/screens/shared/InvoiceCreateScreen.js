@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native'
 import { MaterialCommunityIcons } from '@expo/vector-icons'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import PageHeader from '../../components/PageHeader'
 import StatusChip from '../../components/StatusChip'
 import { useAuth } from '../../contexts/AuthContext'
@@ -21,7 +22,7 @@ import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
 import { filterPaymentMethodsByScope } from '../../utils/paymentMethodScopes'
-import { formatCurrency, formatNumber, toNumber } from '../../utils/format'
+import { formatCurrency, formatQty, toNumber } from '../../utils/format'
 
 function parseArray(data) {
   return Array.isArray(data) ? data : data?.data ?? []
@@ -45,7 +46,9 @@ export default function InvoiceCreateScreen({ navigation, route }) {
   const { t } = useI18n()
   const { session, syncInteraction } = useTracking()
   const initialCustomerAppliedRef = useRef(false)
+  const paidAmountTouchedRef = useRef(false)
   const hasGlobalCustomerAccess = canManageAllCustomers()
+  const insets = useSafeAreaInsets()
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -153,6 +156,19 @@ export default function InvoiceCreateScreen({ navigation, route }) {
   }, [camionStock, lines, productQuery, products])
 
   const subtotal = useMemo(() => lines.reduce((sum, item) => sum + lineTotal(item), 0), [lines])
+
+  // Most sales are paid in full, so default the paid-amount field to the
+  // invoice total as lines are added - the commercial can still overwrite it
+  // freely, and once they've typed into the field by hand we stop re-syncing
+  // it so we never clobber a deliberate partial-payment entry.
+  useEffect(() => {
+    if (paidAmountTouchedRef.current || subtotal <= 0) {
+      return
+    }
+
+    setPaidAmount(String(subtotal))
+  }, [subtotal])
+
   const paidValue = toNumber(paidAmount)
   const customerCreditBalance = toNumber(selectedCustomer?.credit_balance)
   const customerCreditLimit = toNumber(selectedCustomer?.credit_limit)
@@ -192,7 +208,7 @@ export default function InvoiceCreateScreen({ navigation, route }) {
         t('invoiceCreate.insufficientStockTitle'),
         t('invoiceCreate.availableStockText', {
           product: pendingProduct.name || t('invoiceCreate.productFallback'),
-          qty: formatNumber(availableQty),
+          qty: formatQty(availableQty),
         }),
       )
       return
@@ -274,7 +290,7 @@ export default function InvoiceCreateScreen({ navigation, route }) {
           t('invoiceCreate.insufficientStockTitle'),
           t('invoiceCreate.availableStockText', {
             product: blocked.product_name || t('invoiceCreate.productFallback'),
-            qty: formatNumber(camionStock[blocked.product_id]),
+            qty: formatQty(camionStock[blocked.product_id]),
           }),
         )
         return
@@ -337,12 +353,14 @@ export default function InvoiceCreateScreen({ navigation, route }) {
     )
   }
 
+  const footerBottom = insets.bottom + 12
+
   return (
     <>
       <KeyboardAvoidingView
         style={s.root}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={s.content}>
+        <ScrollView contentContainerStyle={[s.content, { paddingBottom: 100 + footerBottom }]}>
           <PageHeader
             title={t('invoiceCreate.title')}
             subtitle={session?.status === 'open'
@@ -407,11 +425,11 @@ export default function InvoiceCreateScreen({ navigation, route }) {
                     <View style={{ flex: 1 }}>
                       <Text style={s.lineName}>{line.product_name}</Text>
                       <Text style={s.lineMeta}>
-                        {formatNumber(line.qty)} {line.unit || t('invoiceCreate.unitFallback')} x {formatCurrency(line.price)}
+                        {formatQty(line.qty)} {line.unit || t('invoiceCreate.unitFallback')} x {formatCurrency(line.price)}
                       </Text>
                       {hasStockMap ? (
                         <Text style={[s.lineMeta, blocked && { color: T.warning }]}>
-                          {t('invoiceCreate.camionStockLabel', { value: formatNumber(available) })}
+                          {t('invoiceCreate.camionStockLabel', { value: formatQty(available) })}
                         </Text>
                       ) : null}
                     </View>
@@ -466,7 +484,10 @@ export default function InvoiceCreateScreen({ navigation, route }) {
               placeholder="0.000"
               placeholderTextColor={T.textMuted}
               value={paidAmount}
-              onChangeText={(value) => setPaidAmount(sanitizeNumber(value))}
+              onChangeText={(value) => {
+                paidAmountTouchedRef.current = true
+                setPaidAmount(sanitizeNumber(value))
+              }}
             />
             {selectedCustomer ? (
               <Text style={s.helperText}>
@@ -532,11 +553,14 @@ export default function InvoiceCreateScreen({ navigation, route }) {
             </View>
           )}
 
-          <TouchableOpacity style={[s.primaryButton, saving && s.buttonDisabled]} onPress={saveInvoice} disabled={saving}>
-            {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.primaryButtonText}>{t('invoiceCreate.saveAction')}</Text>}
-          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <View style={[s.footerCard, { bottom: footerBottom }]}>
+        <TouchableOpacity style={[s.footerButton, saving && s.buttonDisabled]} onPress={saveInvoice} disabled={saving}>
+          {saving ? <ActivityIndicator color="#fff" /> : <Text style={s.footerButtonText}>{t('invoiceCreate.saveAction')}</Text>}
+        </TouchableOpacity>
+      </View>
 
       <Modal visible={customerPickerVisible} animationType="slide" onRequestClose={() => setCustomerPickerVisible(false)}>
         <View style={s.modalRoot}>
@@ -617,11 +641,11 @@ export default function InvoiceCreateScreen({ navigation, route }) {
                   <View style={s.wrapRow}>
                     {hasStockMap ? (
                       <StatusChip
-                        label={isOut ? t('invoiceCreate.emptyCamionStock') : t('invoiceCreate.camionStockLabel', { value: formatNumber(available) })}
+                        label={isOut ? t('invoiceCreate.emptyCamionStock') : t('invoiceCreate.camionStockLabel', { value: formatQty(available) })}
                         tone={isOut ? 'danger' : 'success'}
                       />
                     ) : null}
-                    <StatusChip label={t('invoiceCreate.minStockLabel', { value: formatNumber(Math.max(toNumber(item.min_stock, 1), 1)) })} tone="neutral" />
+                    <StatusChip label={t('invoiceCreate.minStockLabel', { value: formatQty(Math.max(toNumber(item.min_stock, 1), 1)) })} tone="neutral" />
                   </View>
                 </TouchableOpacity>
               )
@@ -992,14 +1016,25 @@ const s = StyleSheet.create({
     fontSize: 13,
     color: T.info,
   },
-  primaryButton: {
+  footerCard: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: T.border,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    padding: 16,
+    ...cardShadow,
+  },
+  footerButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 18,
-    paddingVertical: 16,
+    borderRadius: 16,
+    paddingVertical: 15,
     backgroundColor: T.primary,
   },
-  primaryButtonText: {
+  footerButtonText: {
     color: '#fff',
     fontSize: 15,
     fontWeight: '800',

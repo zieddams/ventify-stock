@@ -61,6 +61,11 @@ export function useThermalPrint(tScope) {
   const [progressPercent, setProgressPercent] = useState(null)
   const [chooserDevices, setChooserDevices] = useState(null)
   const [pendingDocumentBuilder, setPendingDocumentBuilder] = useState(null)
+  // Only set for the generic/unclear failure branches below (not for the
+  // self-explanatory permission/bluetooth/no-printer/select-printer cases,
+  // which already carry their own guidance) - drives whether the "share
+  // diagnostics log" action is worth showing at all.
+  const [hadFailure, setHadFailure] = useState(false)
 
   const stageLabel = {
     permission: tScope('thermalStagePermission'),
@@ -75,6 +80,7 @@ export function useThermalPrint(tScope) {
     setPrinting(true)
     setStage(null)
     setProgressPercent(null)
+    setHadFailure(false)
 
     try {
       await printThermalDocument(documentBuilder, {
@@ -120,10 +126,12 @@ export function useThermalPrint(tScope) {
           return false
         }
 
+        setHadFailure(true)
         Alert.alert(tScope('thermalErrorTitle'), buildFailureBody(tScope, error), buildFailureButtons(tScope, error, () => run(documentBuilder, macAddress)))
         return false
       }
 
+      setHadFailure(true)
       Alert.alert(tScope('thermalErrorTitle'), buildFailureBody(tScope, error), buildFailureButtons(tScope, error, () => run(documentBuilder, macAddress)))
       return false
     } finally {
@@ -147,5 +155,5 @@ export function useThermalPrint(tScope) {
     setPendingDocumentBuilder(null)
   }, [])
 
-  return { printing, stage, stageLabel, progressPercent, chooserDevices, run, chooseDevice, dismissChooser }
+  return { printing, stage, stageLabel, progressPercent, chooserDevices, hadFailure, run, chooseDevice, dismissChooser }
 }

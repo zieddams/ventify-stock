@@ -21,13 +21,12 @@
 // header, N°, Client/Date strip, Quantite/Designation/P.U./Montant table)
 // adapted to the printer's fixed 384px width, with a taller receipt and
 // larger fonts than the first pass since paper length isn't constrained the
-// way width is. Company logo is optional and only shown when the company
-// has configured a real logo (never the shared app-default icon) - printing
-// in black & white is expected and fine on this hardware.
+// way width is. No logo image is printed here (dropped by request - keeps
+// the receipt shorter and avoids a blurry rasterized image on this
+// hardware); the company name text is the only header identity shown.
 
 import { forwardRef } from 'react'
-import { Image, StyleSheet, Text, View } from 'react-native'
-import { resolveCompanyLogoUrl } from '../../utils/branding'
+import { StyleSheet, Text, View } from 'react-native'
 import { translate } from '../../i18n/locales'
 import { unwrapStatus } from '../../utils/format'
 
@@ -71,9 +70,21 @@ const DATE_TIME_FORMATTER = new Intl.DateTimeFormat(PRINT_LOCALE, {
   hourCycle: 'h23',
 })
 
-function formatCurrency(value) {
+function formatAmountNumber(value) {
   const n = Number(value)
-  return `${MONEY_FORMATTER.format(Number.isFinite(n) ? n : 0)} TND`
+  return MONEY_FORMATTER.format(Number.isFinite(n) ? n : 0)
+}
+
+// Renders the "TND" suffix in a smaller nested Text than the amount itself -
+// on 58mm thermal paper, a full-size "123.000 TND" wraps to a second line or
+// crowds the row; keeping the suffix small lets every amount stay on one line.
+function MoneyText({ value, style }) {
+  return (
+    <Text style={style}>
+      {formatAmountNumber(value)}
+      <Text style={st.currencySuffix}> TND</Text>
+    </Text>
+  )
 }
 
 function formatDateTime(value) {
@@ -105,7 +116,6 @@ function fallbackText(value, key = 'documents.common.empty') {
 }
 
 function CompanyHeader({
-  user,
   companyName,
   companyLegalName,
   companyAddress,
@@ -118,7 +128,6 @@ function CompanyHeader({
   const name = cleanString(companyName)
   const legalName = cleanString(companyLegalName)
   const address = cleanString(companyAddress)
-  const logoUrl = resolveCompanyLogoUrl(user)
   const contactBits = [cleanString(companyPhone), cleanString(companyEmail)].filter(Boolean)
   const taxId = cleanString(companyTaxId)
   const siret = cleanString(companySiret)
@@ -126,9 +135,6 @@ function CompanyHeader({
 
   return (
     <>
-      {!!logoUrl && (
-        <Image source={{ uri: logoUrl }} style={st.logo} resizeMode="contain" />
-      )}
       {!!name && <Text style={[st.center, st.bold, st.brand]}>{name}</Text>}
       {/* Freeform business-activity/tagline lines (e.g. "Vente Gros eaux et
           boisson gazeuse..."), configured via the existing web "Documents"
@@ -174,7 +180,7 @@ function TotalsRow({ label, value, emphasize = false }) {
   return (
     <View style={st.row}>
       <Text style={[st.cell, emphasize && st.bold, emphasize && st.totalBig, { flex: 3 }]}>{label}</Text>
-      <Text style={[st.cell, st.rightText, emphasize && st.bold, emphasize && st.totalBig, { flex: 2 }]}>{value}</Text>
+      <MoneyText value={value} style={[st.cell, st.rightText, emphasize && st.bold, emphasize && st.totalBig, { flex: 2 }]} />
     </View>
   )
 }
@@ -188,7 +194,7 @@ export const InvoiceReceiptPrintable = forwardRef(function InvoiceReceiptPrintab
 
   return (
     <View ref={ref} collapsable={false} style={st.page}>
-      <CompanyHeader user={user} {...companyInfo} />
+      <CompanyHeader {...companyInfo} />
       <Separator />
       <Text style={[st.center, st.bold, st.docTitle]}>{t('documents.invoice.titleFallback')}</Text>
       <Text style={[st.center, st.bold, st.docNumber]}>{t('documents.invoice.numberPrefix')} {invoice?.number || '-'}</Text>
@@ -214,14 +220,12 @@ export const InvoiceReceiptPrintable = forwardRef(function InvoiceReceiptPrintab
         <View key={line.id ?? `${line.product_id ?? idx}-${idx}`} style={st.row}>
           <Text style={[st.cell, { flex: 3 }]}>{cleanString(line.product_name) || t('documents.invoice.productFallback')}</Text>
           <Text style={[st.cell, st.centerText, { flex: 1 }]}>{String(line.qty ?? '')}</Text>
-          <Text style={[st.cell, st.rightText, { flex: 2 }]}>{formatCurrency(line.total)}</Text>
+          <MoneyText value={line.total} style={[st.cell, st.rightText, { flex: 2 }]} />
         </View>
       ))}
       <Separator />
-      <TotalsRow label={t('documents.invoice.totals.subtotal')} value={formatCurrency(invoice?.subtotal)} />
-      <TotalsRow label={t('documents.invoice.totals.tax')} value={formatCurrency(invoice?.tax_amount)} />
-      <TotalsRow label={t('documents.invoice.totals.paid')} value={formatCurrency(invoice?.paid_amount)} />
-      <TotalsRow label={t('documents.invoice.totals.total')} value={formatCurrency(invoice?.total)} emphasize />
+      <TotalsRow label={t('documents.invoice.totals.paid')} value={invoice?.paid_amount} />
+      <TotalsRow label={t('documents.invoice.totals.total')} value={invoice?.total} emphasize />
       <Separator />
       <Text style={[st.center, st.bold]}>{t('documents.invoice.footer')}</Text>
     </View>
@@ -237,7 +241,7 @@ export const InvoiceListReceiptPrintable = forwardRef(function InvoiceListReceip
 
   return (
     <View ref={ref} collapsable={false} style={st.page}>
-      <CompanyHeader user={user} {...companyInfo} />
+      <CompanyHeader {...companyInfo} />
       <Separator />
       <Text style={[st.center, st.bold, st.docTitle]}>{title || t('documents.invoiceList.titleFallback')}</Text>
       {!!subtitle && <Text style={st.center}>{subtitle}</Text>}
@@ -249,7 +253,7 @@ export const InvoiceListReceiptPrintable = forwardRef(function InvoiceListReceip
       </View>
       <View style={st.row}>
         <Text style={[st.cell, st.bold, { flex: 3 }]}>{t('documents.invoiceList.headers.total')}</Text>
-        <Text style={[st.cell, st.rightText, st.bold, { flex: 2 }]}>{formatCurrency(total)}</Text>
+        <MoneyText value={total} style={[st.cell, st.rightText, st.bold, { flex: 2 }]} />
       </View>
       <Separator />
       <View style={st.row}>
@@ -262,7 +266,7 @@ export const InvoiceListReceiptPrintable = forwardRef(function InvoiceListReceip
           <View style={st.row}>
             <Text style={[st.cell, { flex: 2 }]}>{fallbackText(item.number)}</Text>
             <Text style={[st.cell, { flex: 3 }]}>{fallbackText(item.customer_name)}</Text>
-            <Text style={[st.cell, st.rightText, { flex: 2 }]}>{formatCurrency(item.total)}</Text>
+            <MoneyText value={item.total} style={[st.cell, st.rightText, { flex: 2 }]} />
           </View>
           {!!cleanString(item.rep_name) && (
             <Text style={st.listItemMeta}>{t('documents.invoice.fields.rep')} : {item.rep_name}</Text>
@@ -282,12 +286,6 @@ const st = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 20,
   },
-  logo: {
-    alignSelf: 'center',
-    width: 190,
-    height: 85,
-    marginBottom: 8,
-  },
   center: {
     textAlign: 'center',
     color: '#000000',
@@ -298,7 +296,10 @@ const st = StyleSheet.create({
     fontWeight: '800',
   },
   brand: {
-    fontSize: 30,
+    fontSize: 25,
+  },
+  currencySuffix: {
+    fontSize: 14,
   },
   badge: {
     fontSize: 20,

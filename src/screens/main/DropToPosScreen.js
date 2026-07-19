@@ -21,7 +21,7 @@ import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
 import { fetchPosDepots } from '../../services/stockTransferService'
 import { T, cardShadow } from '../../theme'
-import { formatCount, formatNumber, formatTime, toNumber } from '../../utils/format'
+import { formatCount, formatQty, formatTime, toNumber } from '../../utils/format'
 
 function numericInput(value) {
   return value.replace(/[^0-9.]/g, '')
@@ -182,7 +182,7 @@ export default function DropToPosScreen() {
         subtitle={t('dropToPos.pageSubtitle')}
         actionIcon="truck-cargo-container"
         actionLabel={t('navigation.stock')}
-        onActionPress={() => navigation.navigate('Tabs', { screen: 'Stock' })}
+        onActionPress={() => navigation.navigate('Tabs', { screen: t('navigation.stock') })}
       />
 
       {!!error && (
@@ -197,7 +197,7 @@ export default function DropToPosScreen() {
           <MaterialCommunityIcons name="storefront-outline" size={34} color={T.primary} />
           <Text style={s.emptyTitle}>{t('dropToPos.sessionRequiredTitle')}</Text>
           <Text style={s.emptyText}>{t('dropToPos.sessionRequiredText')}</Text>
-          <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Tabs', { screen: 'Session' })}>
+          <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Tabs', { screen: t('navigation.session') })}>
             <Text style={s.primaryButtonText}>{t('dropToPos.openSessionAction')}</Text>
           </TouchableOpacity>
         </View>
@@ -285,7 +285,7 @@ export default function DropToPosScreen() {
                     <QuantityStepperField
                       key={item.product_id}
                       title={item.product?.name || t('dropToPos.productFallback')}
-                      titleAccessory={t('dropToPos.camionStockLabel', { value: formatNumber(toNumber(item.qty)), unit: unitLabel })}
+                      titleAccessory={t('dropToPos.camionStockLabel', { value: formatQty(toNumber(item.qty)), unit: unitLabel })}
                       detailRows={[[
                         item.product?.reference
                           ? t('dropToPos.referenceLabel', { value: item.product.reference })
@@ -307,7 +307,7 @@ export default function DropToPosScreen() {
       {!!session && isOpen && (
         <View style={[s.footerCard, { bottom: footerBottom }]}>
           <Text style={s.footerText}>
-            {t('dropToPos.footerSummary', { lines: selectedLines.length, units: formatNumber(selectedTotalQty) })}
+            {t('dropToPos.footerSummary', { lines: selectedLines.length, units: formatQty(selectedTotalQty) })}
           </Text>
           <TouchableOpacity style={[s.footerButton, busy && s.buttonDisabled]} onPress={submit} disabled={busy}>
             {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.footerButtonText}>{t('dropToPos.submitAction')}</Text>}

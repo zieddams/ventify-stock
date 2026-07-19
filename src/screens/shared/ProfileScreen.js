@@ -20,7 +20,6 @@ import StatusChip from '../../components/StatusChip'
 import { useAuth } from '../../contexts/AuthContext'
 import { useI18n } from '../../contexts/I18nContext'
 import { useMobileUpdate } from '../../contexts/MobileUpdateContext'
-import { useNotifications } from '../../contexts/NotificationsContext'
 import api from '../../services/api'
 import { compareReleaseVersions, getCurrentAppVersion, getLatestMobileReleases } from '../../services/releaseService'
 import { T, cardShadow } from '../../theme'
@@ -58,7 +57,6 @@ export default function ProfileScreen() {
   const navigation = useNavigation()
   const { user, logout } = useAuth()
   const { locale, savingLocale, setLocale, supportedLocales, t } = useI18n()
-  const { unreadCount } = useNotifications()
   const {
     clearUpdateError,
     isSupported: isUpdateSupported,
@@ -368,20 +366,6 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
         ) : null}
-
-        <View style={[s.sectionCard, cardShadow]}>
-          <Text style={s.sectionTitle}>{t('profile.notificationsTitle')}</Text>
-          <Text style={s.sectionText}>
-            {unreadCount > 0
-              ? t('profile.notificationsUnread', { count: unreadCount })
-              : t('profile.notificationsEmpty')}
-          </Text>
-
-          <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Notifications')}>
-            <MaterialCommunityIcons name="bell-outline" size={18} color={T.primary} />
-            <Text style={s.secondaryButtonText}>{t('profile.notificationsAction')}</Text>
-          </TouchableOpacity>
-        </View>
 
         <View style={[s.sectionCard, cardShadow]}>
           <Text style={s.sectionTitle}>{t('profile.supportTitle')}</Text>

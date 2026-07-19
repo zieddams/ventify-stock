@@ -64,6 +64,13 @@ export function formatCount(value) {
   }).format(toNumber(value))
 }
 
+// Product/stock quantities are always whole units and must never show
+// padded decimals - same 0-decimal formatting as formatCount(), kept as its
+// own export so call sites read correctly.
+export function formatQty(value) {
+  return formatCount(value)
+}
+
 export function formatDate(value) {
   const date = toValidDate(value)
   if (!date) return '--'

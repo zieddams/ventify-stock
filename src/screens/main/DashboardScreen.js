@@ -175,11 +175,11 @@ export default function DashboardScreen() {
               {t('dashboard.noSessionText')}
             </Text>
             <View style={s.heroActions}>
-              <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Session')} activeOpacity={0.85}>
+              <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate(t('navigation.session'))} activeOpacity={0.85}>
                 <MaterialCommunityIcons name="truck-fast-outline" size={18} color="#fff" />
                 <Text style={s.primaryButtonText}>{t('dashboard.newSession')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Stock')}>
+              <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate(t('navigation.stock'))}>
                 <Text style={s.secondaryButtonText}>{t('dashboard.viewStock')}</Text>
               </TouchableOpacity>
             </View>
@@ -217,7 +217,7 @@ export default function DashboardScreen() {
             </View>
 
             <View style={s.heroActions}>
-              <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Session')}>
+              <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate(t('navigation.session'))}>
                 <MaterialCommunityIcons name="clipboard-list-outline" size={18} color="#fff" />
                 <Text style={s.primaryButtonText}>{t('dashboard.manageSession')}</Text>
               </TouchableOpacity>
@@ -236,7 +236,7 @@ export default function DashboardScreen() {
           hint={formatCurrency(todayRevenue)}
           icon="file-document-outline"
           color={T.primary}
-          onPress={() => navigation.navigate('Factures')}
+          onPress={() => navigation.navigate(t('navigation.invoices'))}
         />
         <MetricCard
           label={t('dashboard.cards.monthInvoices')}
@@ -244,7 +244,7 @@ export default function DashboardScreen() {
           hint={formatCurrency(monthRevenue)}
           icon="calendar-month-outline"
           color={T.info}
-          onPress={() => navigation.navigate('Factures')}
+          onPress={() => navigation.navigate(t('navigation.invoices'))}
         />
       </View>
 
@@ -255,7 +255,7 @@ export default function DashboardScreen() {
           hint={t('dashboard.cards.lowStockHint', { count: formatCount(lowStockCount) })}
           icon="truck-outline"
           color={lowStockCount > 0 ? T.warning : T.primaryDark}
-          onPress={() => navigation.navigate('Stock')}
+          onPress={() => navigation.navigate(t('navigation.stock'))}
         />
         <MetricCard
           label={t('dashboard.cards.sessionToday')}
@@ -263,7 +263,7 @@ export default function DashboardScreen() {
           hint={session ? formatDateTime(session.updated_at || session.opened_at) : t('dashboard.sessionHintNoSession')}
           icon="clock-outline"
           color={session ? T.success : T.textMuted}
-          onPress={() => navigation.navigate('Session')}
+          onPress={() => navigation.navigate(t('navigation.session'))}
         />
       </View>
 
@@ -284,17 +284,17 @@ export default function DashboardScreen() {
             <MaterialCommunityIcons name="file-document-plus-outline" size={23} color={T.primary} />
             <Text style={s.quickLabel}>{t('dashboard.newInvoice')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate('Factures')}>
+          <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate(t('navigation.invoices'))}>
             <MaterialCommunityIcons name="clipboard-text-outline" size={23} color={T.info} />
             <Text style={s.quickLabel}>{t('dashboard.myInvoices')}</Text>
           </TouchableOpacity>
         </View>
         <View style={s.quickGrid}>
-          <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate('Clients')}>
+          <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate(t('navigation.customers'))}>
             <MaterialCommunityIcons name="account-group-outline" size={23} color={T.warning} />
             <Text style={s.quickLabel}>{t('dashboard.myCustomers')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate('Stock')}>
+          <TouchableOpacity style={s.quickAction} onPress={() => navigation.navigate(t('navigation.stock'))}>
             <MaterialCommunityIcons name="truck-cargo-container" size={23} color={T.success} />
             <Text style={s.quickLabel}>{t('dashboard.camionStock')}</Text>
           </TouchableOpacity>
@@ -304,7 +304,7 @@ export default function DashboardScreen() {
       <View style={[s.sectionCard, cardShadow]}>
         <View style={s.sectionHeaderRow}>
           <Text style={s.sectionTitle}>{t('dashboard.latestInvoicesTitle')}</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Factures')}>
+          <TouchableOpacity onPress={() => navigation.navigate(t('navigation.invoices'))}>
             <Text style={s.linkText}>{t('dashboard.viewAll')}</Text>
           </TouchableOpacity>
         </View>

@@ -20,7 +20,7 @@ import { useI18n } from '../../contexts/I18nContext'
 import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
-import { formatCount, formatNumber, formatTime, toNumber } from '../../utils/format'
+import { formatCount, formatQty, formatTime, toNumber } from '../../utils/format'
 
 function parseItems(data) {
   return Array.isArray(data) ? data : data?.data ?? []
@@ -166,7 +166,7 @@ export default function ReapproScreen() {
           subtitle={t('reappro.pageSubtitleActive')}
           actionIcon="truck-cargo-container"
           actionLabel={t('navigation.stock')}
-          onActionPress={() => navigation.navigate('Tabs', { screen: 'Stock' })}
+          onActionPress={() => navigation.navigate('Tabs', { screen: t('navigation.stock') })}
         />
 
         {!!error && (
@@ -183,7 +183,7 @@ export default function ReapproScreen() {
             <Text style={s.emptyText}>
               {t('reappro.sessionRequiredText')}
             </Text>
-            <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Tabs', { screen: 'Session' })}>
+            <TouchableOpacity style={s.primaryButton} onPress={() => navigation.navigate('Tabs', { screen: t('navigation.session') })}>
               <Text style={s.primaryButtonText}>{t('reappro.openSessionAction')}</Text>
             </TouchableOpacity>
           </View>
@@ -250,12 +250,12 @@ export default function ReapproScreen() {
                       <QuantityStepperField
                         key={product.id}
                         title={product.name}
-                        titleAccessory={t('reappro.camionStockLabel', { value: formatNumber(currentLoaded), unit: unitLabel })}
+                        titleAccessory={t('reappro.camionStockLabel', { value: formatQty(currentLoaded), unit: unitLabel })}
                         detailRows={[[
                           product.reference
                             ? t('reappro.referenceLabel', { value: product.reference })
                             : t('reappro.referenceMissing'),
-                          t('reappro.depotStockLabel', { value: formatNumber(toNumber(product.depot_qty)), unit: unitLabel }),
+                          t('reappro.depotStockLabel', { value: formatQty(toNumber(product.depot_qty)), unit: unitLabel }),
                         ]]}
                         icon="truck-delivery-outline"
                         value={draftQty}
@@ -274,7 +274,7 @@ export default function ReapproScreen() {
       {!!session && isOpen && (
         <View style={[s.footerCard, { bottom: footerBottom }]}>
           <Text style={s.footerText}>
-            {t('reappro.footerSummary', { lines: selectedLines.length, units: formatNumber(selectedTotalQty) })}
+            {t('reappro.footerSummary', { lines: selectedLines.length, units: formatQty(selectedTotalQty) })}
           </Text>
           <TouchableOpacity style={[s.footerButton, busy && s.buttonDisabled]} onPress={submit} disabled={busy}>
             {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.footerButtonText}>{t('reappro.submitAction')}</Text>}

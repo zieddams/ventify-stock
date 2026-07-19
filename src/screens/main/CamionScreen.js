@@ -17,7 +17,7 @@ import { useI18n } from '../../contexts/I18nContext'
 import { useTracking } from '../../contexts/TrackingContext'
 import api from '../../services/api'
 import { T, cardShadow } from '../../theme'
-import { formatCount, formatCurrency, formatDateTime, formatNumber, toNumber } from '../../utils/format'
+import { formatCount, formatCurrency, formatDateTime, formatQty, toNumber } from '../../utils/format'
 
 function sessionLabel(routeSession, t) {
   if (!routeSession) return t('camion.assignment.noSession')
@@ -101,12 +101,12 @@ export default function CamionScreen() {
                 <Text style={s.rowName}>{item.product?.name || t('camion.productFallback')}</Text>
                 <Text style={s.rowMeta}>
                   {item.product?.reference || item.product?.unit || t('camion.rowStockFallback')}
-                  {` · ${t('camion.minLabel', { value: formatNumber(minStock) })}`}
+                  {` · ${t('camion.minLabel', { value: formatQty(minStock) })}`}
                 </Text>
               </View>
               <View style={{ alignItems: 'flex-end', gap: 6 }}>
                 <Text style={[s.rowQty, { color: isLow ? T.warning : T.primaryDark }]}>
-                  {formatNumber(item.qty)}
+                  {formatQty(item.qty)}
                 </Text>
                 <StatusChip label={isLow ? t('camion.lowStatus') : t('camion.okStatus')} tone={isLow ? 'warning' : 'success'} />
               </View>
@@ -120,7 +120,7 @@ export default function CamionScreen() {
               subtitle={session?.status === 'open' ? t('camion.subtitleOpen') : t('camion.subtitleClosed')}
               actionIcon="clipboard-list-outline"
               actionLabel={t('navigation.session')}
-              onActionPress={() => navigation.navigate('Session')}
+              onActionPress={() => navigation.navigate(t('navigation.session'))}
             />
 
             <View style={[s.assignmentCard, cardShadow]}>

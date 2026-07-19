@@ -27,7 +27,7 @@ import {
   formatCount,
   formatCurrency,
   formatElapsedSince,
-  formatNumber,
+  formatQty,
   formatTime,
   routeStatusLabel,
   toNumber,
@@ -263,7 +263,7 @@ export default function RouteSessionScreen() {
           subtitle={session ? t('routeSession.openSubtitle') : t('routeSession.closedSubtitle')}
           actionIcon="truck-cargo-container"
           actionLabel={t('navigation.stock')}
-          onActionPress={() => navigation.navigate('Stock')}
+          onActionPress={() => navigation.navigate(t('navigation.stock'))}
         />
 
         <CompanyBrandCard user={user} style={s.brandCard} />
@@ -332,12 +332,12 @@ export default function RouteSessionScreen() {
                       <QuantityStepperField
                         key={product.id}
                         title={product.name}
-                        titleAccessory={t('routeSession.camionLoadLabel', { value: formatNumber(toNumber(draftQty)), unit: unitLabel })}
+                        titleAccessory={t('routeSession.camionLoadLabel', { value: formatQty(toNumber(draftQty)), unit: unitLabel })}
                         detailRows={[[
                           product.reference
                             ? t('routeSession.referenceLabel', { value: product.reference })
                             : t('routeSession.referenceMissing'),
-                          t('routeSession.depotStockLabel', { value: formatNumber(toNumber(product.depot_qty)), unit: unitLabel }),
+                          t('routeSession.depotStockLabel', { value: formatQty(toNumber(product.depot_qty)), unit: unitLabel }),
                         ]]}
                         icon="truck-delivery-outline"
                         value={draftQty}
@@ -391,7 +391,7 @@ export default function RouteSessionScreen() {
               <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('DropToPos')}>
                 <Text style={s.secondaryButtonText}>{t('routeSession.dropToPosAction')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate('Stock')}>
+              <TouchableOpacity style={s.secondaryButton} onPress={() => navigation.navigate(t('navigation.stock'))}>
                 <Text style={s.secondaryButtonText}>{t('routeSession.viewStock')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={s.secondaryButton} onPress={() => setCloseVisible(true)}>
@@ -405,7 +405,7 @@ export default function RouteSessionScreen() {
       {!session && (
         <View style={[s.footerCard, { bottom: footerBottom }]}>
           <Text style={s.footerText}>
-            {t('routeSession.footerSummary', { lines: selectedLines.length, units: formatNumber(selectedTotalQty) })}
+            {t('routeSession.footerSummary', { lines: selectedLines.length, units: formatQty(selectedTotalQty) })}
           </Text>
           <TouchableOpacity style={[s.footerButton, busy && s.buttonDisabled]} onPress={submitStartSession} disabled={busy}>
             {busy ? <ActivityIndicator color="#fff" /> : <Text style={s.footerButtonText}>{t('routeSession.startAction')}</Text>}

@@ -211,13 +211,14 @@ export default function InvoiceDetailScreen({ route }) {
             )}
           </TouchableOpacity>
         </View>
-        <Text style={s.heroHint}>{t('invoiceDetail.heroHint')}</Text>
-        <TouchableOpacity
-          style={s.diagnosticsLink}
-          onPress={() => Share.share({ message: getPrintDiagnosticsText() })}
-        >
-          <Text style={s.diagnosticsLinkText}>{t('invoiceDetail.thermalDiagnosticsAction')}</Text>
-        </TouchableOpacity>
+        {thermal.hadFailure ? (
+          <TouchableOpacity
+            style={s.diagnosticsLink}
+            onPress={() => Share.share({ message: getPrintDiagnosticsText() })}
+          >
+            <Text style={s.diagnosticsLinkText}>{t('invoiceDetail.thermalDiagnosticsAction')}</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       <View style={[s.sectionCard, cardShadow]}>
@@ -226,10 +227,12 @@ export default function InvoiceDetailScreen({ route }) {
           <Text style={s.amountLabel}>{t('invoiceDetail.amounts.subtotal')}</Text>
           <Text style={s.amountValue}>{formatCurrency(invoice?.subtotal)}</Text>
         </View>
-        <View style={s.amountRow}>
-          <Text style={s.amountLabel}>{t('invoiceDetail.amounts.tax')}</Text>
-          <Text style={s.amountValue}>{formatCurrency(invoice?.tax_amount)}</Text>
-        </View>
+        {Number(invoice?.tax_amount) > 0 ? (
+          <View style={s.amountRow}>
+            <Text style={s.amountLabel}>{t('invoiceDetail.amounts.tax')}</Text>
+            <Text style={s.amountValue}>{formatCurrency(invoice?.tax_amount)}</Text>
+          </View>
+        ) : null}
         <View style={s.amountRow}>
           <Text style={s.amountLabel}>{t('invoiceDetail.amounts.total')}</Text>
           <Text style={s.amountTotal}>{formatCurrency(invoice?.total)}</Text>
@@ -385,12 +388,6 @@ const s = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: T.primary,
-  },
-  heroHint: {
-    marginTop: 12,
-    fontSize: 12,
-    lineHeight: 18,
-    color: T.textMuted,
   },
   diagnosticsLink: {
     marginTop: 6,
